@@ -2,7 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { Resend } from 'resend';
-import { generateAdminBookingAlertHtml } from './emailTemplates.ts';
+import {
+  generateAdminBookingAlertHtml,
+  generateCustomerBookingConfirmationHtml,
+} from './emailTemplates.ts';
 
 dotenv.config();
 
@@ -277,34 +280,29 @@ app.post('/api/bookings', async (req, res) => {
         console.error('Resend dispatch email error:', dispatchResult.error);
       }
 
-      // 2. Send confirmation to customer
+      // 2. Send pixel-perfect confirmation to customer
       if (sEmail && sEmail.includes('@')) {
+        const customerConfirmationHtml = generateCustomerBookingConfirmationHtml({
+          bookingRef,
+          sType,
+          pLoc,
+          dLoc,
+          pDetails,
+          sName,
+          sPhone,
+          sEmail,
+          rName,
+          rPhone,
+          instructions,
+          businessEmails,
+        });
+
         const customerResult = await resend.emails.send({
           from: fromEmail,
           to: [sEmail],
           replyTo: 'Info@bbdautosng.com',
           subject: `BBD Mobility Booking Confirmation - ${bookingRef}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #092957;">
-              <div style="background-color: #092957; padding: 24px; text-align: center;">
-                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">BBD MOBILITY</h1>
-                <p style="color: #E30620; margin: 4px 0 0 0; font-weight: bold;">Move What Matters</p>
-              </div>
-              <div style="padding: 28px; background: #ffffff; border: 1px solid #e2e8f0;">
-                <h2 style="color: #092957; margin-top: 0;">We've Received Your Booking Request!</h2>
-                <p>Hello <strong>${sName}</strong>,</p>
-                <p>Thank you for choosing BBD Mobility. Our dispatch team is reviewing your delivery request and our assigned rider will contact you promptly at <strong>${sPhone}</strong> to coordinate pickup.</p>
-                ${bookingDetailsHtml}
-                <div style="background: #F4F6F8; padding: 16px; border-left: 4px solid #E30620; margin: 24px 0;">
-                  <strong style="color: #092957;">Need immediate assistance?</strong><br>
-                  Call our dispatch hotline at <strong>+234 812 345 6789</strong> or reply to this email (<strong>Info@bbdautosng.com</strong>) with your reference: <strong style="color: #E30620;">${bookingRef}</strong>.
-                </div>
-              </div>
-              <div style="text-align: center; font-size: 12px; color: #64748B; padding: 16px;">
-                &copy; ${new Date().getFullYear()} BBD Mobility. All rights reserved.
-              </div>
-            </div>
-          `,
+          html: customerConfirmationHtml,
         });
 
         if (customerResult.error) {
