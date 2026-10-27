@@ -438,150 +438,179 @@ export interface ContactEmailData {
 /**
  * Generates an HTML notification email sent to the Admin / Business Inboxes
  * whenever a user submits the Contact Us form.
+ * Matches exact pixel mockup in media_1793111266377_9ee708f3.png.
  */
 export function generateAdminContactAlertHtml(
   data: ContactEmailData,
   assetsBaseUrl: string = 'https://raw.githubusercontent.com/Subair-09/bbdmobility/main/public/assets'
 ): string {
-  const { name, email, phone, subject, message, businessEmails = [], submittedAt } = data;
+  const { name, email, phone, subject, message, submittedAt } = data;
   const timeStr = submittedAt || new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos', dateStyle: 'medium', timeStyle: 'short' });
+  const firstName = (name || 'Customer').trim().split(' ')[0];
 
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>New Contact Form Inquiry - ${subject}</title>
+  <title>Incoming Customer Inquiry - ${subject}</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #F1F5F9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #F1F5F9; padding: 30px 10px;">
+<body style="margin: 0; padding: 0; background-color: #F4F6F8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #F4F6F8; margin: 0; padding: 20px 0;">
     <tr>
-      <td align="center">
-        <table border="0" cellpadding="0" cellspacing="0" width="640" style="width: 100%; max-width: 640px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(9, 41, 87, 0.08); border: 1px solid #E2E8F0;">
+      <td align="center" style="margin: 0; padding: 0;">
+        <!-- 682px Main Container matching exact design mockup -->
+        <table border="0" cellpadding="0" cellspacing="0" width="682" style="width: 682px; max-width: 682px; background-color: #F4F6F8; margin: 0 auto;">
           
-          <!-- Header Bar -->
+          <!-- Top Header Bar -->
           <tr>
-            <td style="background-color: #092957; padding: 28px 32px; text-align: left; border-bottom: 4px solid #E30620;">
-              <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                <tr>
-                  <td align="left" style="vertical-align: middle;">
-                    <span style="font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: 0.5px; display: block;">
-                      BBD MOBILITY
-                    </span>
-                    <span style="font-size: 11px; font-weight: 700; color: #E30620; letter-spacing: 1.5px; text-transform: uppercase;">
-                      MOVE WHAT MATTERS &bull; DISPATCH DESK
-                    </span>
-                  </td>
-                  <td align="right" style="vertical-align: middle;">
-                    <span style="background-color: #E30620; color: #ffffff; font-size: 11px; font-weight: 800; padding: 6px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.8px; display: inline-block;">
-                      New Inquiry
-                    </span>
-                  </td>
-                </tr>
-              </table>
+            <td style="padding: 0; line-height: 0;">
+              <img src="${assetsBaseUrl}/contact-email-header.png" width="682" height="105" style="display: block; width: 682px; height: 105px;" alt="BBD Mobility - Move What Matters • Dispatch Desk" />
             </td>
           </tr>
 
-          <!-- Title Banner -->
+          <!-- Main White Card Container -->
           <tr>
-            <td style="padding: 28px 32px 10px 32px;">
-              <h1 style="margin: 0 0 6px 0; font-size: 20px; font-weight: 800; color: #092957;">
-                Incoming Customer Inquiry
-              </h1>
-              <p style="margin: 0; font-size: 13px; color: #64748B;">
-                A visitor submitted a new message through the BBD Mobility website contact form.
-              </p>
-            </td>
-          </tr>
+            <td style="padding: 24px 28px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FFFFFF; border-radius: 16px; border: 1px solid #E2E8F0; box-shadow: 0 4px 18px rgba(9, 41, 87, 0.04);">
+                <tr>
+                  <td style="padding: 28px 28px 26px 28px;">
+                    
+                    <!-- Card Header Row: Icon + Title + New Inquiry Badge -->
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                      <tr>
+                        <td style="width: 54px; vertical-align: top;">
+                          <img src="${assetsBaseUrl}/icon-contact-mail-circle.png" width="52" height="52" style="display: block;" alt="Mail Icon" />
+                        </td>
+                        <td style="padding-left: 14px; vertical-align: top;">
+                          <h2 style="margin: 0 0 4px 0; font-size: 21px; font-weight: 800; color: #092957; letter-spacing: -0.2px; line-height: 1.2;">
+                            Incoming Customer Inquiry
+                          </h2>
+                          <p style="margin: 0; font-size: 13px; color: #64748B; line-height: 1.4;">
+                            A visitor submitted a new message through the BBD Mobility website contact form.
+                          </p>
+                        </td>
+                        <td align="right" style="vertical-align: top; width: 125px;">
+                          <img src="${assetsBaseUrl}/pill-new-inquiry.png" width="118" height="32" style="display: block;" alt="New Inquiry" />
+                        </td>
+                      </tr>
+                    </table>
 
-          <!-- Contact Details Table -->
-          <tr>
-            <td style="padding: 16px 32px;">
-              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; border-collapse: separate; overflow: hidden;">
-                <tr>
-                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; width: 130px; font-size: 13px; font-weight: 700; color: #092957;">
-                    Full Name:
-                  </td>
-                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 14px; font-weight: 600; color: #0F172A;">
-                    ${name}
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 13px; font-weight: 700; color: #092957;">
-                    Email Address:
-                  </td>
-                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 14px; color: #E30620; font-weight: 600;">
-                    <a href="mailto:${email}" style="color: #E30620; text-decoration: none;">${email}</a>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 13px; font-weight: 700; color: #092957;">
-                    Phone Number:
-                  </td>
-                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 14px; color: #092957; font-weight: 600;">
-                    <a href="tel:${phone}" style="color: #092957; text-decoration: none;">${phone}</a>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 13px; font-weight: 700; color: #092957;">
-                    Subject:
-                  </td>
-                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 14px; font-weight: 700; color: #092957;">
-                    ${subject}
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 12px 18px; font-size: 13px; font-weight: 700; color: #092957;">
-                    Date &amp; Time:
-                  </td>
-                  <td style="padding: 12px 18px; font-size: 13px; color: #64748B;">
-                    ${timeStr} (West Africa Time)
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+                    <!-- Contact Details Table -->
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 24px; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; border-collapse: separate; overflow: hidden;">
+                      
+                      <!-- 1. Full Name -->
+                      <tr>
+                        <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; width: 24px; vertical-align: middle;">
+                          <img src="${assetsBaseUrl}/icon-contact-user.png" width="20" height="20" style="display: block;" alt="Name" />
+                        </td>
+                        <td style="padding: 12px 6px; border-bottom: 1px solid #E2E8F0; width: 135px; font-size: 13px; font-weight: 700; color: #64748B; vertical-align: middle;">
+                          Full Name:
+                        </td>
+                        <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; font-size: 14px; font-weight: 700; color: #0F172A; vertical-align: middle;">
+                          ${name}
+                        </td>
+                      </tr>
 
-          <!-- Message Callout Box -->
-          <tr>
-            <td style="padding: 10px 32px 24px 32px;">
-              <div style="font-size: 13px; font-weight: 700; color: #092957; margin-bottom: 8px;">
-                Customer's Message:
-              </div>
-              <div style="background-color: #FFFFFF; border: 2px solid #E2E8F0; border-left: 5px solid #E30620; border-radius: 8px; padding: 18px 20px; font-size: 14px; line-height: 1.6; color: #1E293B; white-space: pre-wrap;">
+                      <!-- 2. Email Address -->
+                      <tr>
+                        <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; width: 24px; vertical-align: middle;">
+                          <img src="${assetsBaseUrl}/icon-contact-email.png" width="20" height="20" style="display: block;" alt="Email" />
+                        </td>
+                        <td style="padding: 12px 6px; border-bottom: 1px solid #E2E8F0; width: 135px; font-size: 13px; font-weight: 700; color: #64748B; vertical-align: middle;">
+                          Email Address:
+                        </td>
+                        <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; font-size: 14px; vertical-align: middle;">
+                          <a href="mailto:${email}" style="color: #0284C7; text-decoration: underline; font-weight: 600;">${email}</a>
+                        </td>
+                      </tr>
+
+                      <!-- 3. Phone Number -->
+                      <tr>
+                        <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; width: 24px; vertical-align: middle;">
+                          <img src="${assetsBaseUrl}/icon-contact-phone.png" width="20" height="20" style="display: block;" alt="Phone" />
+                        </td>
+                        <td style="padding: 12px 6px; border-bottom: 1px solid #E2E8F0; width: 135px; font-size: 13px; font-weight: 700; color: #64748B; vertical-align: middle;">
+                          Phone Number:
+                        </td>
+                        <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; font-size: 14px; font-weight: 700; color: #0F172A; vertical-align: middle;">
+                          <a href="tel:${phone}" style="color: #0F172A; text-decoration: none;">${phone}</a>
+                        </td>
+                      </tr>
+
+                      <!-- 4. Subject -->
+                      <tr>
+                        <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; width: 24px; vertical-align: middle;">
+                          <img src="${assetsBaseUrl}/icon-contact-subject.png" width="20" height="20" style="display: block;" alt="Subject" />
+                        </td>
+                        <td style="padding: 12px 6px; border-bottom: 1px solid #E2E8F0; width: 135px; font-size: 13px; font-weight: 700; color: #64748B; vertical-align: middle;">
+                          Subject:
+                        </td>
+                        <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; font-size: 14px; font-weight: 600; color: #0F172A; vertical-align: middle;">
+                          ${subject}
+                        </td>
+                      </tr>
+
+                      <!-- 5. Date & Time -->
+                      <tr>
+                        <td style="padding: 12px 16px; width: 24px; vertical-align: middle;">
+                          <img src="${assetsBaseUrl}/icon-contact-calendar.png" width="20" height="20" style="display: block;" alt="Date" />
+                        </td>
+                        <td style="padding: 12px 6px; width: 135px; font-size: 13px; font-weight: 700; color: #64748B; vertical-align: middle;">
+                          Date &amp; Time:
+                        </td>
+                        <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #334155; vertical-align: middle;">
+                          ${timeStr} (West Africa Time)
+                        </td>
+                      </tr>
+
+                    </table>
+
+                    <!-- Customer's Message Box -->
+                    <div style="margin-top: 20px; background-color: #F1F5F9; border-radius: 12px; padding: 18px 20px;">
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                        <tr>
+                          <td style="width: 32px; vertical-align: middle;">
+                            <img src="${assetsBaseUrl}/icon-contact-chat.png" width="26" height="26" style="display: block;" alt="Chat" />
+                          </td>
+                          <td style="font-size: 14px; font-weight: 700; color: #092957; vertical-align: middle; padding-left: 8px;">
+                            Customer's Message:
+                          </td>
+                        </tr>
+                      </table>
+                      <div style="margin-top: 10px; font-size: 14px; font-weight: 600; color: #0F172A; line-height: 1.6; white-space: pre-wrap; word-break: break-word;">
 ${message}
-              </div>
-            </td>
-          </tr>
+                      </div>
+                    </div>
 
-          <!-- Action Buttons -->
-          <tr>
-            <td style="padding: 0 32px 28px 32px;">
-              <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                <tr>
-                  <td align="left" style="vertical-align: middle;">
-                    <a href="mailto:${email}?subject=Re:%20${encodeURIComponent(subject)}" style="background-color: #E30620; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 700; padding: 12px 22px; border-radius: 8px; display: inline-block;">
-                      Reply to ${name} &rarr;
-                    </a>
-                    &nbsp;&nbsp;
-                    <a href="tel:${phone}" style="background-color: #092957; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 700; padding: 12px 20px; border-radius: 8px; display: inline-block;">
-                      Call ${phone}
-                    </a>
+                    <!-- Action CTA Buttons: Reply & Call -->
+                    <div style="margin-top: 24px;">
+                      <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                        <tr>
+                          <td width="50%" style="padding-right: 8px; vertical-align: middle;">
+                            <a href="mailto:${email}?subject=Re:%20${encodeURIComponent(subject)}" style="background-color: #E30620; color: #FFFFFF; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 20px; border-radius: 10px; display: block; text-align: center; box-sizing: border-box;">
+                              &#x21A9;&nbsp; Reply to ${firstName} &rarr;
+                            </a>
+                          </td>
+                          <td width="50%" style="padding-left: 8px; vertical-align: middle;">
+                            <a href="tel:${phone}" style="background-color: #FFFFFF; color: #092957; border: 1.5px solid #092957; font-size: 14px; font-weight: 700; text-decoration: none; padding: 13px 20px; border-radius: 10px; display: block; text-align: center; box-sizing: border-box;">
+                              &#x1F4DE;&nbsp; Call ${phone}
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+                    </div>
+
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
 
-          <!-- Footer Metadata -->
+          <!-- Deep Navy Footer -->
           <tr>
-            <td style="background-color: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 18px 32px; text-align: center; font-size: 11px; color: #94A3B8;">
-              <p style="margin: 0 0 4px 0;">
-                Delivered automatically to BBD Mobility Admin Inboxes: <strong style="color: #64748B;">${businessEmails.join(', ')}</strong>
-              </p>
-              <p style="margin: 0;">
-                &copy; ${new Date().getFullYear()} BBD Mobility &bull; Powered by Resend API
-              </p>
+            <td style="padding: 0; line-height: 0;">
+              <img src="${assetsBaseUrl}/admin-email-footer.png" width="682" height="278" style="display: block; width: 682px; height: 278px;" alt="BBD Mobility - Move What Matters" />
             </td>
           </tr>
 
@@ -596,83 +625,108 @@ ${message}
 /**
  * Generates an HTML auto-acknowledgement email sent to the Customer
  * confirming that their contact message has reached BBD Mobility.
+ * Matches exact pixel mockup in media_1793111668138_fb92c585.png.
  */
 export function generateCustomerContactAckHtml(
   data: ContactEmailData,
   assetsBaseUrl: string = 'https://raw.githubusercontent.com/Subair-09/bbdmobility/main/public/assets'
 ): string {
   const { name, subject, message } = data;
+  const upperName = (name || 'Valued Customer').trim().toUpperCase();
 
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>We received your message - BBD Mobility</title>
+  <title>Thank You for Contacting Us - BBD Mobility</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #F1F5F9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #F1F5F9; padding: 30px 10px;">
+<body style="margin: 0; padding: 0; background-color: #F4F6F8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #F4F6F8; margin: 0; padding: 20px 0;">
     <tr>
-      <td align="center">
-        <table border="0" cellpadding="0" cellspacing="0" width="640" style="width: 100%; max-width: 640px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(9, 41, 87, 0.08); border: 1px solid #E2E8F0;">
+      <td align="center" style="margin: 0; padding: 0;">
+        <!-- 682px Container matching exact customer mockup -->
+        <table border="0" cellpadding="0" cellspacing="0" width="682" style="width: 682px; max-width: 682px; background-color: #FFFFFF; margin: 0 auto; box-shadow: 0 4px 20px rgba(9, 41, 87, 0.05);">
           
-          <!-- Header Bar -->
+          <!-- Top Header Bar -->
           <tr>
-            <td style="background-color: #092957; padding: 28px 32px; text-align: center; border-bottom: 4px solid #E30620;">
-              <span style="font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 0.5px; display: block;">
-                BBD MOBILITY
-              </span>
-              <span style="font-size: 11px; font-weight: 700; color: #E30620; letter-spacing: 1.5px; text-transform: uppercase;">
-                MOVE WHAT MATTERS
-              </span>
+            <td style="padding: 0; line-height: 0;">
+              <img src="${assetsBaseUrl}/contact-email-header.png" width="682" height="105" style="display: block; width: 682px; height: 105px;" alt="BBD Mobility - Move What Matters • Dispatch Desk" />
             </td>
           </tr>
 
-          <!-- Body Content -->
+          <!-- Main Content Section -->
           <tr>
-            <td style="padding: 32px 32px 16px 32px;">
-              <h2 style="margin: 0 0 12px 0; font-size: 20px; font-weight: 800; color: #092957;">
-                Thank You for Contacting Us, ${name}!
-              </h2>
-              <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #334155;">
-                We have successfully received your inquiry regarding <strong style="color: #092957;">"${subject}"</strong>. Our logistics and customer support team in Lagos is reviewing your note and will be in touch shortly.
-              </p>
+            <td style="padding: 36px 36px 28px 36px; text-align: center;">
               
-              <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #092957; border-radius: 8px; padding: 16px; margin: 20px 0;">
-                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748B; margin-bottom: 6px;">
-                  Summary of your message:
-                </div>
-                <div style="font-size: 13px; color: #334155; line-height: 1.5; white-space: pre-wrap;">
-${message}
-                </div>
+              <!-- Celebration Checkmark Icon -->
+              <div style="margin: 0 auto 16px auto; text-align: center; line-height: 0;">
+                <img src="${assetsBaseUrl}/customer-contact-check.png" width="122" height="60" style="display: inline-block; margin: 0 auto;" alt="Success" />
               </div>
 
-              <!-- Urgent Contact Box -->
-              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FEF2F2; border: 1px solid #FEE2E2; border-radius: 10px; margin-top: 24px;">
-                <tr>
-                  <td style="padding: 14px 18px;">
-                    <div style="font-size: 13px; font-weight: 800; color: #E30620; margin-bottom: 4px;">
-                      Need Urgent Same-Day Delivery?
-                    </div>
-                    <div style="font-size: 12px; color: #475569; line-height: 1.5;">
-                      For urgent dispatch requests, call our hotline directly at <a href="tel:+2348123456789" style="color: #092957; font-weight: 800; text-decoration: none;">+234 812 345 6789</a> or email us at <a href="mailto:Info@bbdautosng.com" style="color: #E30620; font-weight: 700; text-decoration: none;">Info@bbdautosng.com</a>.
-                    </div>
-                  </td>
-                </tr>
-              </table>
+              <!-- Main Heading & Name -->
+              <h1 style="margin: 0 0 6px 0; font-size: 24px; font-weight: 800; color: #092957; line-height: 1.25;">
+                Thank You for Contacting Us,
+              </h1>
+              <div style="font-size: 26px; font-weight: 900; color: #E30620; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 18px;">
+                ${upperName}!
+              </div>
+
+              <!-- Descriptive Paragraph -->
+              <p style="margin: 0 auto; max-width: 530px; font-size: 14px; line-height: 1.6; color: #334155;">
+                We have successfully received your inquiry regarding <strong style="color: #092957;">"${subject}"</strong>. Our logistics and customer support team in <strong style="color: #092957;">Lagos</strong> is reviewing your note and will be in touch shortly.
+              </p>
+
+              <!-- Summary of your message Box -->
+              <div style="margin: 28px 0 20px 0; background-color: #F1F5F9; border-radius: 14px; padding: 20px 24px; text-align: left;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="width: 70px; vertical-align: top;">
+                      <img src="${assetsBaseUrl}/icon-summary-chat.png" width="60" height="46" style="display: block;" alt="Chat" />
+                    </td>
+                    <td style="padding-left: 14px; vertical-align: top;">
+                      <div style="font-size: 15px; font-weight: 800; color: #092957; margin-bottom: 8px;">
+                        Summary of your message:
+                      </div>
+                      <div style="background-color: #E2E8F0; border-radius: 8px; padding: 12px 18px; font-size: 13px; font-weight: 600; color: #1E293B; line-height: 1.5; white-space: pre-wrap; word-break: break-word;">
+${message}
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- Urgent Same-Day Delivery Box -->
+              <div style="margin: 16px 0 28px 0; background-color: #FEF2F2; border-radius: 14px; padding: 18px 24px; text-align: left;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="width: 80px; vertical-align: middle;">
+                      <img src="${assetsBaseUrl}/icon-urgent-phone.png" width="76" height="58" style="display: block;" alt="Urgent Phone" />
+                    </td>
+                    <td style="padding-left: 16px; border-left: 2px solid #E30620; vertical-align: middle;">
+                      <div style="font-size: 15px; font-weight: 800; color: #E30620; margin-bottom: 4px;">
+                        Need Urgent Same-Day Delivery?
+                      </div>
+                      <div style="font-size: 13px; color: #334155; line-height: 1.5;">
+                        For urgent dispatch requests, call our hotline directly at <a href="tel:+2348123456789" style="color: #E30620; font-weight: 800; text-decoration: none;">+234 812 345 6789</a> or email us at <a href="mailto:Info@bbdautosng.com" style="color: #0284C7; font-weight: 700; text-decoration: underline;">Info@bbdautosng.com</a>.
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- 4 Feature Guarantees Strip -->
+              <div style="margin: 0 auto; text-align: center; line-height: 0;">
+                <img src="${assetsBaseUrl}/customer-contact-guarantees.png" width="622" height="104" style="display: block; width: 622px; height: 104px; margin: 0 auto;" alt="Fast Delivery • Safe &amp; Secure • Wide Coverage • 24/7 Support" />
+              </div>
 
             </td>
           </tr>
 
-          <!-- Footer -->
+          <!-- Deep Navy Footer -->
           <tr>
-            <td style="background-color: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 20px 32px; text-align: center; font-size: 11px; color: #94A3B8;">
-              <p style="margin: 0 0 6px 0; color: #64748B; font-weight: 600;">
-                BBD Mobility &bull; Fast &bull; Safe &bull; Reliable Logistics Across Lagos
-              </p>
-              <p style="margin: 0;">
-                &copy; ${new Date().getFullYear()} BBD Mobility. All rights reserved.
-              </p>
+            <td style="padding: 0; line-height: 0;">
+              <img src="${assetsBaseUrl}/customer-contact-footer.png" width="682" height="170" style="display: block; width: 682px; height: 170px;" alt="BBD Mobility - Fast • Safe • Reliable Logistics Across Lagos" />
             </td>
           </tr>
 
