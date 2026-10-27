@@ -7,6 +7,9 @@ interface NavbarProps {
   onBookNowClick: () => void;
   activeNav: string;
   setActiveNav: (nav: string) => void;
+  onNavigateHome: (targetId?: string) => void;
+  onNavigateAbout: () => void;
+  currentView: 'home' | 'about';
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -14,6 +17,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onBookNowClick,
   activeNav,
   setActiveNav,
+  onNavigateHome,
+  onNavigateAbout,
+  currentView,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -27,24 +33,35 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   const navItems = [
-    { name: 'Home', href: '#home', type: 'scroll' },
-    { name: 'Services', href: '#services', type: 'scroll' },
-    { name: 'How It Works', modal: 'how-it-works' as const, type: 'modal' },
-    { name: 'About Us', modal: 'about-us' as const, type: 'modal' },
-    { name: 'FAQs', modal: 'faqs' as const, type: 'modal' },
-    { name: 'Contact', modal: 'contact' as const, type: 'modal' },
+    { name: 'Home', type: 'home' as const },
+    { name: 'Services', type: 'services' as const },
+    { name: 'How It Works', modal: 'how-it-works' as const, type: 'modal' as const },
+    { name: 'About Us', type: 'about' as const },
+    { name: 'FAQs', modal: 'faqs' as const, type: 'modal' as const },
+    { name: 'Contact', modal: 'contact' as const, type: 'modal' as const },
   ];
 
   const handleNavClick = (item: typeof navItems[0]) => {
     setActiveNav(item.name);
     setMobileMenuOpen(false);
-    if (item.type === 'modal' && item.modal) {
-      onOpenModal(item.modal);
-    } else if (item.type === 'scroll') {
-      const el = document.querySelector(item.href!);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
+
+    if (item.type === 'about') {
+      onNavigateAbout();
+    } else if (item.type === 'home') {
+      if (currentView === 'about') {
+        onNavigateHome();
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
+    } else if (item.type === 'services') {
+      if (currentView === 'about') {
+        onNavigateHome('services');
+      } else {
+        const el = document.getElementById('services');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }
+    } else if (item.type === 'modal' && item.modal) {
+      onOpenModal(item.modal);
     }
   };
 
@@ -61,13 +78,17 @@ export const Navbar: React.FC<NavbarProps> = ({
           
           {/* Left: Official Logo */}
           <div className="flex-shrink-0 flex items-center">
-            <a href="#home" className="flex items-center group">
+            <button
+              onClick={() => onNavigateHome()}
+              className="flex items-center group text-left cursor-pointer focus:outline-none"
+              aria-label="BBD Mobility Home"
+            >
               <img
                 src="/assets/logo.png"
                 alt="BBD Mobility"
                 className="h-9 sm:h-11 md:h-12 w-auto object-contain transition-transform group-hover:scale-[1.02]"
               />
-            </a>
+            </button>
           </div>
 
           {/* Center: Desktop Navigation links with animated active underline */}
@@ -98,59 +119,53 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Right: Phone & Book Now CTA */}
-          <div className="hidden md:flex items-center space-x-4 lg:space-x-6">
+          <div className="hidden sm:flex items-center space-x-3 md:space-x-4">
             <a
               href="tel:+2348123456789"
-              className="flex items-center text-xs lg:text-sm font-semibold text-bbd-navy hover:text-bbd-red transition-colors group"
+              className="flex items-center space-x-2 text-xs md:text-sm font-semibold text-bbd-navy hover:text-bbd-red transition-colors px-2.5 py-1.5 rounded-lg hover:bg-slate-50"
             >
-              <div className="w-8 h-8 rounded-full bg-bbd-navy/5 flex items-center justify-center mr-2 text-bbd-navy group-hover:bg-bbd-red/10 group-hover:text-bbd-red transition-colors">
-                <Phone className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 group-hover:bg-red-50">
+                <Phone className="w-4 h-4 text-bbd-red" />
               </div>
-              <span className="tracking-tight">+234 812 345 6789</span>
+              <span className="hidden xl:inline">+234 812 345 6789</span>
             </a>
 
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={onBookNowClick}
-              className="inline-flex items-center justify-center px-5 lg:px-6 py-2.5 bg-bbd-navy text-white text-xs lg:text-sm font-semibold rounded-full hover:bg-bbd-navy-light shadow-sm hover:shadow transition-all group"
+              className="inline-flex items-center justify-center px-4 md:px-5 py-2.5 bg-bbd-red hover:bg-bbd-red-hover active:bg-bbd-red-hover text-white text-xs md:text-sm font-bold rounded-xl shadow-md hover:shadow-lg transition-all"
             >
               <span>Book Now</span>
-              <ArrowRight className="w-4 h-4 ml-1.5 transition-transform group-hover:translate-x-1" />
+              <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
             </motion.button>
           </div>
 
-          {/* Mobile Actions: Call Button + Hamburger Toggle */}
-          <div className="flex md:hidden items-center space-x-2">
-            <a
-              href="tel:+2348123456789"
-              className="p-2 rounded-full bg-slate-100 text-bbd-navy hover:bg-red-50 hover:text-bbd-red transition-colors"
-              aria-label="Call Dispatch"
-            >
-              <Phone className="w-4 h-4" />
-            </a>
-
-            <motion.button
-              whileTap={{ scale: 0.95 }}
+          {/* Mobile Menu Hamburger Toggle */}
+          <div className="flex sm:hidden items-center space-x-2">
+            <button
               onClick={onBookNowClick}
-              className="px-3 py-1.5 bg-bbd-red text-white text-xs font-bold rounded-full shadow-sm"
+              className="px-3 py-1.5 bg-bbd-red text-white text-xs font-bold rounded-lg shadow-sm"
             >
-              Book Now
-            </motion.button>
-
+              Book
+            </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-xl text-slate-700 hover:text-bbd-navy hover:bg-slate-100 transition-colors focus:outline-none"
-              aria-label="Toggle Navigation Menu"
+              className="p-2 rounded-lg text-slate-700 hover:bg-slate-100 focus:outline-none"
+              aria-label="Toggle navigation menu"
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {mobileMenuOpen ? (
+                <X className="w-6 h-6 text-bbd-navy" />
+              ) : (
+                <Menu className="w-6 h-6 text-bbd-navy" />
+              )}
             </button>
           </div>
 
         </div>
       </div>
 
-      {/* Sleek Animated Mobile Drawer */}
+      {/* Sleek Mobile Drawer Navigation */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div

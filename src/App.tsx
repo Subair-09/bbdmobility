@@ -11,8 +11,10 @@ import { Footer } from './components/Footer';
 import { AllServicesModal } from './components/AllServicesModal';
 import { ReviewsModal } from './components/ReviewsModal';
 import { InfoModal, ModalType } from './components/InfoModal';
+import { AboutPage } from './pages/AboutPage';
 
 export function App() {
+  const [currentView, setCurrentView] = useState<'home' | 'about'>('home');
   const [activeNav, setActiveNav] = useState('Home');
   const [selectedService, setSelectedService] = useState('Documents & Files');
   const [allServicesOpen, setAllServicesOpen] = useState(false);
@@ -20,9 +22,64 @@ export function App() {
   const [infoModalType, setInfoModalType] = useState<ModalType | null>(null);
   const [showMobileStickyBar, setShowMobileStickyBar] = useState(false);
 
+  // Sync route from URL / hash
+  useEffect(() => {
+    const syncRoute = () => {
+      const path = window.location.pathname.toLowerCase();
+      const hash = window.location.hash.toLowerCase();
+
+      if (path === '/about' || hash === '#/about' || hash === '#about-page') {
+        setCurrentView('about');
+        setActiveNav('About Us');
+      } else {
+        setCurrentView('home');
+        if (hash === '#services') {
+          setActiveNav('Services');
+        } else if (hash === '#about') {
+          setActiveNav('About Us');
+        } else {
+          setActiveNav('Home');
+        }
+      }
+    };
+
+    syncRoute();
+    window.addEventListener('popstate', syncRoute);
+    window.addEventListener('hashchange', syncRoute);
+    return () => {
+      window.removeEventListener('popstate', syncRoute);
+      window.removeEventListener('hashchange', syncRoute);
+    };
+  }, []);
+
+  // Navigation helpers
+  const navigateToAbout = () => {
+    setCurrentView('about');
+    setActiveNav('About Us');
+    if (window.location.pathname !== '/about') {
+      window.history.pushState(null, '', '/about');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToHome = (targetId?: string) => {
+    setCurrentView('home');
+    setActiveNav(targetId === 'services' ? 'Services' : 'Home');
+    if (window.location.pathname !== '/') {
+      window.history.pushState(null, '', '/');
+    }
+    if (targetId) {
+      setTimeout(() => {
+        const el = document.getElementById(targetId);
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   useEffect(() => {
     const handleScroll = () => {
-      // Show mobile sticky bar when scrolled past 350px
       setShowMobileStickyBar(window.scrollY > 350);
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -30,6 +87,19 @@ export function App() {
   }, []);
 
   const handleBookNowClick = () => {
+    if (currentView !== 'home') {
+      navigateToHome();
+      setTimeout(() => {
+        const el = document.getElementById('booking-form');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+          el.classList.add('ring-2', 'ring-bbd-red');
+          setTimeout(() => el.classList.remove('ring-2', 'ring-bbd-red'), 1200);
+        }
+      }, 200);
+      return;
+    }
+
     const el = document.getElementById('booking-form');
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
@@ -51,37 +121,54 @@ export function App() {
         setActiveNav={setActiveNav}
         onOpenModal={(type) => setInfoModalType(type)}
         onBookNowClick={handleBookNowClick}
+        onNavigateHome={navigateToHome}
+        onNavigateAbout={navigateToAbout}
+        currentView={currentView}
       />
 
       <main className="flex-grow">
-        {/* 2. Hero Section with Rider Image & Booking Card */}
-        <Hero
-          onBookClick={handleBookNowClick}
-          selectedServiceType={selectedService}
-        />
+        {currentView === 'about' ? (
+          /* Dedicated About Page */
+          <AboutPage
+            onBackToHome={() => navigateToHome()}
+            onBookNow={handleBookNowClick}
+            onOpenModal={(type) => setInfoModalType(type)}
+          />
+        ) : (
+          /* Homepage with full content, including Home About section */
+          <>
+            {/* Hero Section with Rider Image & Booking Card */}
+            <Hero
+              onBookClick={handleBookNowClick}
+              selectedServiceType={selectedService}
+            />
 
-        {/* 3. Horizontal Benefits Strip */}
-        <BenefitsStrip />
+            {/* Horizontal Benefits Strip */}
+            <BenefitsStrip />
 
-        {/* 4. Our Services Section */}
-        <ServicesSection
-          onSelectService={handleSelectService}
-          onOpenAllServices={() => setAllServicesOpen(true)}
-        />
+            {/* Our Services Section */}
+            <ServicesSection
+              onSelectService={handleSelectService}
+              onOpenAllServices={() => setAllServicesOpen(true)}
+            />
 
-        {/* 5. Split Section: Highway Rider Image & Why Choose Us */}
-        <WhyChooseUsSection />
+            {/* Split Section: Highway Rider Image & Why Choose Us */}
+            <WhyChooseUsSection />
 
-        {/* 6. Customer Testimonials */}
-        <TestimonialsSection
-          onOpenReviewsModal={() => setReviewsOpen(true)}
-        />
+            {/* Customer Testimonials */}
+            <TestimonialsSection
+              onOpenReviewsModal={() => setReviewsOpen(true)}
+            />
+          </>
+        )}
       </main>
 
-      {/* 7. Professional Corporate Footer */}
+      {/* Corporate Footer */}
       <Footer
         onOpenModal={(type) => setInfoModalType(type)}
         onSelectService={handleSelectService}
+        onNavigateHome={navigateToHome}
+        onNavigateAbout={navigateToAbout}
       />
 
       {/* Floating Mobile Sticky Action Bar */}

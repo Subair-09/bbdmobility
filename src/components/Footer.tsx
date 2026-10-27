@@ -14,9 +14,16 @@ import { motion } from 'framer-motion';
 interface FooterProps {
   onOpenModal: (modalType: 'how-it-works' | 'about-us' | 'faqs' | 'contact' | 'privacy' | 'terms' | 'cookies') => void;
   onSelectService: (serviceName: string) => void;
+  onNavigateHome?: (targetId?: string) => void;
+  onNavigateAbout?: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onOpenModal, onSelectService }) => {
+export const Footer: React.FC<FooterProps> = ({
+  onOpenModal,
+  onSelectService,
+  onNavigateHome,
+  onNavigateAbout,
+}) => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -70,13 +77,16 @@ export const Footer: React.FC<FooterProps> = ({ onOpenModal, onSelectService }) 
           
           {/* COLUMN 1: Brand (Span 3 on desktop) */}
           <div className="sm:col-span-2 lg:col-span-3 space-y-3.5">
-            <div className="flex items-center">
+            <button
+              onClick={() => (onNavigateHome ? onNavigateHome() : window.scrollTo({ top: 0, behavior: 'smooth' }))}
+              className="flex items-center text-left hover:opacity-90 transition-opacity cursor-pointer focus:outline-none"
+            >
               <img
                 src="/assets/logo-white.png"
                 alt="BBD Mobility"
                 className="h-10 sm:h-11 w-auto object-contain"
               />
-            </div>
+            </button>
             <p className="text-xs italic text-bbd-red font-bold tracking-wide">
               Move What Matters
             </p>
@@ -151,13 +161,26 @@ export const Footer: React.FC<FooterProps> = ({ onOpenModal, onSelectService }) 
               Quick Links
             </h3>
             <ul className="space-y-2 text-xs">
-              {['Home', 'Services'].map((name) => (
-                <li key={name}>
-                  <a href={`#${name.toLowerCase()}`} className="hover:text-white transition-colors block py-0.5">
-                    {name}
-                  </a>
-                </li>
-              ))}
+              <li>
+                <button
+                  onClick={() => (onNavigateHome ? onNavigateHome() : window.scrollTo({ top: 0, behavior: 'smooth' }))}
+                  className="hover:text-white transition-colors block py-0.5 text-left"
+                >
+                  Home
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() =>
+                    onNavigateHome
+                      ? onNavigateHome('services')
+                      : document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })
+                  }
+                  className="hover:text-white transition-colors block py-0.5 text-left"
+                >
+                  Services
+                </button>
+              </li>
               {[
                 { label: 'How It Works', modal: 'how-it-works' as const },
                 { label: 'About Us', modal: 'about-us' as const },
@@ -166,7 +189,13 @@ export const Footer: React.FC<FooterProps> = ({ onOpenModal, onSelectService }) 
               ].map((item) => (
                 <li key={item.label}>
                   <button
-                    onClick={() => onOpenModal(item.modal)}
+                    onClick={() => {
+                      if (item.label === 'About Us' && onNavigateAbout) {
+                        onNavigateAbout();
+                      } else {
+                        onOpenModal(item.modal);
+                      }
+                    }}
                     className="hover:text-white transition-colors text-left block py-0.5"
                   >
                     {item.label}
