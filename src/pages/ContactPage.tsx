@@ -144,7 +144,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({
               </p>
             </motion.div>
 
-            {/* Right Visual: Courier Rider with Script & Diagonal Corner Stripes */}
+            {/* Right Visual: Ultra-Sharp HD Courier Rider on Highway */}
             <div className="lg:col-span-6 relative flex items-center justify-end overflow-hidden -mx-4 sm:-mx-6 lg:mx-0">
               {/* Corner Brand Diagonal Stripes */}
               <div className="absolute top-0 right-0 flex space-x-1.5 transform -skew-x-12 pr-4 pt-2 z-20 pointer-events-none">
@@ -158,7 +158,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({
               <div className="hidden lg:block absolute left-8 inset-y-0 w-3 bg-[#E30620] transform -skew-x-12 z-10" />
 
               <img
-                src="/assets/customer-rider.jpg"
+                src="/assets/highway-rider-sharp.jpg"
                 alt="BBD Mobility Fast, Safe, Reliable"
                 className="w-full h-full min-h-[220px] sm:min-h-[280px] lg:min-h-[340px] object-cover object-center"
               />
@@ -406,13 +406,48 @@ export const ContactPage: React.FC<ContactPageProps> = ({
             {/* Right Column (Span 5): Map Card & Quick Links */}
             <div className="lg:col-span-5 space-y-6">
               
-              {/* Map Card */}
-              <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-white relative">
-                <img
-                  src="/assets/contact-map.jpg"
-                  alt="BBD Mobility Office Map Location Ikeja Lagos"
-                  className="w-full h-[180px] sm:h-[200px] object-cover object-center"
-                />
+              {/* Clean Vector Map Card */}
+              <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-slate-900 relative group">
+                {/* Modern Cartographic SVG Map of Lagos */}
+                <div className="w-full h-[200px] sm:h-[220px] bg-[#0c1f38] relative overflow-hidden flex items-center justify-center">
+                  <svg className="w-full h-full opacity-40" viewBox="0 0 500 250" preserveAspectRatio="none">
+                    {/* Waterways / Lagos Lagoon & Coast */}
+                    <path d="M 0,160 Q 150,140 280,180 T 500,165 L 500,250 L 0,250 Z" fill="#061324" />
+                    <path d="M 120,40 Q 220,10 320,60 T 450,30 L 450,100 Q 300,120 180,90 Z" fill="#061324" />
+                    {/* Highway Grid Lines */}
+                    <line x1="50" y1="0" x2="350" y2="250" stroke="#1d4273" strokeWidth="2" strokeDasharray="4 2" />
+                    <line x1="120" y1="0" x2="120" y2="250" stroke="#1d4273" strokeWidth="1.5" />
+                    <line x1="0" y1="120" x2="500" y2="120" stroke="#1d4273" strokeWidth="2" />
+                    <line x1="280" y1="0" x2="280" y2="250" stroke="#1d4273" strokeWidth="1.5" />
+                    <line x1="0" y1="70" x2="500" y2="190" stroke="#1d4273" strokeWidth="1" strokeDasharray="3 3" />
+                  </svg>
+
+                  {/* Pulsing Central Hub Marker on Ikeja */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+                    <span className="relative flex h-6 w-6">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#E30620] opacity-75" />
+                      <span className="relative inline-flex rounded-full h-6 w-6 bg-[#E30620] items-center justify-center text-white shadow-lg">
+                        <MapPin className="w-3.5 h-3.5 text-white" />
+                      </span>
+                    </span>
+
+                    <div className="mt-2 bg-[#092957]/95 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 shadow-xl text-center">
+                      <p className="text-xs font-bold text-white tracking-wide">BBD Mobility Central Hub</p>
+                      <p className="text-[10px] text-slate-300">Ikeja, Lagos, Nigeria</p>
+                    </div>
+                  </div>
+
+                  {/* Floating Action Pill */}
+                  <a
+                    href="https://maps.google.com/?q=Ikeja+Lagos+Nigeria"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute bottom-3 right-3 px-3 py-1.5 rounded-lg bg-white/90 hover:bg-white text-[#092957] text-[10px] font-bold shadow-md transition-all hover:scale-105 flex items-center space-x-1"
+                  >
+                    <span>Open in Maps</span>
+                    <ChevronRight className="w-3 h-3 text-[#E30620]" />
+                  </a>
+                </div>
               </div>
 
               {/* Quick Links Card */}
