@@ -56,20 +56,20 @@ export const ContactPage: React.FC<ContactPageProps> = ({
             '@type': 'ListItem',
             'position': 1,
             'name': 'Home',
-            'item': 'https://bbdmobility.com.ng/'
+            'item': 'https://www.bbdmobility.com.ng/'
           },
           {
             '@type': 'ListItem',
             'position': 2,
             'name': 'Contact Us',
-            'item': 'https://bbdmobility.com.ng/contact'
+            'item': 'https://www.bbdmobility.com.ng/contact'
           }
         ]
       },
       {
         '@type': 'ContactPage',
-        '@id': 'https://bbdmobility.com.ng/contact#webpage',
-        'url': 'https://bbdmobility.com.ng/contact',
+        '@id': 'https://www.bbdmobility.com.ng/contact#webpage',
+        'url': 'https://www.bbdmobility.com.ng/contact',
         'name': 'Contact BBD Mobility',
         'description': 'Customer service, dispatch inquiries, and office location for BBD Mobility in Lagos, Nigeria.',
         'mainEntity': {

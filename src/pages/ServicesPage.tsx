@@ -39,19 +39,19 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
             '@type': 'ListItem',
             'position': 1,
             'name': 'Home',
-            'item': 'https://bbdmobility.com.ng/'
+            'item': 'https://www.bbdmobility.com.ng/'
           },
           {
             '@type': 'ListItem',
             'position': 2,
             'name': 'Services',
-            'item': 'https://bbdmobility.com.ng/services'
+            'item': 'https://www.bbdmobility.com.ng/services'
           }
         ]
       },
       {
         '@type': 'ItemList',
-        '@id': 'https://bbdmobility.com.ng/services#catalog',
+        '@id': 'https://www.bbdmobility.com.ng/services#catalog',
         'name': 'BBD Mobility Delivery Services in Lagos',
         'itemListElement': [
           {
@@ -62,7 +62,7 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
             'provider': {
               '@type': 'Organization',
               'name': 'BBD Mobility',
-              'url': 'https://bbdmobility.com.ng'
+              'url': 'https://www.bbdmobility.com.ng'
             },
             'areaServed': 'Lagos, Nigeria'
           },
@@ -74,7 +74,7 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
             'provider': {
               '@type': 'Organization',
               'name': 'BBD Mobility',
-              'url': 'https://bbdmobility.com.ng'
+              'url': 'https://www.bbdmobility.com.ng'
             },
             'areaServed': 'Lagos, Nigeria'
           },
@@ -86,7 +86,7 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
             'provider': {
               '@type': 'Organization',
               'name': 'BBD Mobility',
-              'url': 'https://bbdmobility.com.ng'
+              'url': 'https://www.bbdmobility.com.ng'
             },
             'areaServed': 'Lagos, Nigeria'
           },
@@ -98,7 +98,7 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
             'provider': {
               '@type': 'Organization',
               'name': 'BBD Mobility',
-              'url': 'https://bbdmobility.com.ng'
+              'url': 'https://www.bbdmobility.com.ng'
             },
             'areaServed': 'Lagos, Nigeria'
           },
@@ -110,7 +110,7 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
             'provider': {
               '@type': 'Organization',
               'name': 'BBD Mobility',
-              'url': 'https://bbdmobility.com.ng'
+              'url': 'https://www.bbdmobility.com.ng'
             },
             'areaServed': 'Lagos, Nigeria'
           }

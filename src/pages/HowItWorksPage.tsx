@@ -36,19 +36,19 @@ export const HowItWorksPage: React.FC<HowItWorksPageProps> = ({
             '@type': 'ListItem',
             'position': 1,
             'name': 'Home',
-            'item': 'https://bbdmobility.com.ng/'
+            'item': 'https://www.bbdmobility.com.ng/'
           },
           {
             '@type': 'ListItem',
             'position': 2,
             'name': 'How It Works',
-            'item': 'https://bbdmobility.com.ng/how-it-works'
+            'item': 'https://www.bbdmobility.com.ng/how-it-works'
           }
         ]
       },
       {
         '@type': 'HowTo',
-        '@id': 'https://bbdmobility.com.ng/how-it-works#guide',
+        '@id': 'https://www.bbdmobility.com.ng/how-it-works#guide',
         'name': 'How to Book a Delivery with BBD Mobility in Lagos',
         'description': 'Four simple steps to arrange fast and secure courier delivery across Lagos, Nigeria.',
         'step': [

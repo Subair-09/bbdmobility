@@ -201,19 +201,19 @@ export const FaqsPage: React.FC<FaqsPageProps> = ({
             '@type': 'ListItem',
             'position': 1,
             'name': 'Home',
-            'item': 'https://bbdmobility.com.ng/'
+            'item': 'https://www.bbdmobility.com.ng/'
           },
           {
             '@type': 'ListItem',
             'position': 2,
             'name': 'FAQs',
-            'item': 'https://bbdmobility.com.ng/faqs'
+            'item': 'https://www.bbdmobility.com.ng/faqs'
           }
         ]
       },
       {
         '@type': 'FAQPage',
-        '@id': 'https://bbdmobility.com.ng/faqs#faq',
+        '@id': 'https://www.bbdmobility.com.ng/faqs#faq',
         'mainEntity': faqItems.map((item) => ({
           '@type': 'Question',
           'name': item.question,

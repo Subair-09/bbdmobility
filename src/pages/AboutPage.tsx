@@ -40,26 +40,26 @@ export const AboutPage: React.FC<AboutPageProps> = ({
             '@type': 'ListItem',
             'position': 1,
             'name': 'Home',
-            'item': 'https://bbdmobility.com.ng/'
+            'item': 'https://www.bbdmobility.com.ng/'
           },
           {
             '@type': 'ListItem',
             'position': 2,
             'name': 'About Us',
-            'item': 'https://bbdmobility.com.ng/about'
+            'item': 'https://www.bbdmobility.com.ng/about'
           }
         ]
       },
       {
         '@type': 'AboutPage',
-        '@id': 'https://bbdmobility.com.ng/about#webpage',
-        'url': 'https://bbdmobility.com.ng/about',
+        '@id': 'https://www.bbdmobility.com.ng/about#webpage',
+        'url': 'https://www.bbdmobility.com.ng/about',
         'name': 'About BBD Mobility',
         'description': 'Mission, logistics background, and delivery values of BBD Mobility in Lagos, Nigeria.',
         'mainEntity': {
           '@type': 'Organization',
           'name': 'BBD Mobility',
-          'url': 'https://bbdmobility.com.ng',
+          'url': 'https://www.bbdmobility.com.ng',
           'slogan': 'Move What Matters.',
           'telephone': '+2348123456789',
           'email': 'Info@bbdautosng.com',

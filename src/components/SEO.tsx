@@ -10,7 +10,7 @@ export interface SEOProps {
   schema?: Record<string, unknown> | Array<Record<string, unknown>>;
 }
 
-const DOMAIN = 'https://bbdmobility.com.ng';
+const DOMAIN = 'https://www.bbdmobility.com.ng';
 const DEFAULT_IMAGE = `${DOMAIN}/assets/highway-rider-sharp.jpg`;
 
 export const SEO: React.FC<SEOProps> = ({

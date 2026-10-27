@@ -1,4 +1,4 @@
-# robots.txt for BBD Mobility (https://bbdmobility.com.ng)
+# robots.txt for BBD Mobility (https://www.bbdmobility.com.ng)
 # Allows crawling of all public routes and restricts private API endpoints.
 
 User-agent: *
@@ -6,5 +6,5 @@ Allow: /
 Disallow: /api/
 
 # Production Sitemap
-Sitemap: https://bbdmobility.com.ng/sitemap.xml
-Host: https://bbdmobility.com.ng
+Sitemap: https://www.bbdmobility.com.ng/sitemap.xml
+Host: https://www.bbdmobility.com.ng
