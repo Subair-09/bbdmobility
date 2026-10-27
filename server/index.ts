@@ -65,7 +65,13 @@ function generateBookingReference(): string {
 // Resend client initialization
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
-const businessEmail = process.env.BUSINESS_EMAIL || 'support@bbdmobility.com';
+
+// Target emails for all incoming booking notifications
+const DEFAULT_BUSINESS_EMAILS = ['Sales@bbdautosng.com', 'Info@bbdautosng.com'];
+const businessEmails = process.env.BUSINESS_EMAILS
+  ? process.env.BUSINESS_EMAILS.split(',').map((e) => e.trim()).filter(Boolean)
+  : (process.env.BUSINESS_EMAIL ? [process.env.BUSINESS_EMAIL] : DEFAULT_BUSINESS_EMAILS);
+
 const fromEmail = process.env.FROM_EMAIL || 'BBD Mobility <onboarding@resend.dev>';
 
 // Health endpoint
@@ -73,6 +79,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     resendConfigured: !!resendApiKey,
+    recipientEmails: businessEmails,
     timestamp: new Date().toISOString(),
   });
 });
@@ -92,6 +99,7 @@ app.post('/api/newsletter', async (req, res) => {
     }
 
     if (resend) {
+      // 1. Send welcome email to subscriber
       await resend.emails.send({
         from: fromEmail,
         to: [email],
@@ -113,8 +121,24 @@ app.post('/api/newsletter', async (req, res) => {
           </div>
         `,
       });
+
+      // 2. Also notify business inbox about the new subscriber
+      await resend.emails.send({
+        from: fromEmail,
+        to: businessEmails,
+        subject: `[New Newsletter Subscriber] ${email}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px; color: #092957;">
+            <h2>New Newsletter Subscriber</h2>
+            <p>A new visitor has subscribed to the BBD Mobility newsletter:</p>
+            <p style="font-size: 16px; font-weight: bold; color: #E30620;">${email}</p>
+            <p style="color: #64748B; font-size: 12px;">Received on ${new Date().toLocaleString()}</p>
+          </div>
+        `,
+      });
     } else {
       console.log(`[NEWSLETTER DEV LOG] New subscriber: ${email}`);
+      console.log(`Notification would be sent to: ${businessEmails.join(', ')}`);
     }
 
     return res.json({
@@ -221,31 +245,42 @@ app.post('/api/bookings', async (req, res) => {
 
     // Attempt sending via Resend if configured
     if (resend) {
-      // 1. Notify business owner
-      await resend.emails.send({
+      // 1. Dispatch booking details to configured business inboxes: Sales@bbdautosng.com & Info@bbdautosng.com
+      const dispatchResult = await resend.emails.send({
         from: fromEmail,
-        to: [businessEmail],
-        subject: `[New Booking] ${bookingRef} - ${sType}`,
+        to: businessEmails,
+        replyTo: sEmail && sEmail.includes('@') ? sEmail : undefined,
+        subject: `[New Booking] ${bookingRef} - ${sType} (${pLoc} → ${dLoc})`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #092957;">
-            <div style="background-color: #092957; padding: 20px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 22px;">BBD MOBILITY DISPATCH</h1>
-              <p style="color: #E30620; margin: 4px 0 0 0; font-weight: bold;">New Delivery Booking Received</p>
+            <div style="background-color: #092957; padding: 22px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 22px; letter-spacing: 0.5px;">BBD MOBILITY DISPATCH</h1>
+              <p style="color: #E30620; margin: 4px 0 0 0; font-weight: bold; font-size: 13px;">New Delivery Booking Received</p>
             </div>
             <div style="padding: 24px; background: #ffffff; border: 1px solid #e2e8f0;">
-              <p>A new customer booking has been submitted. Details below:</p>
+              <p style="font-size: 15px; margin-top: 0;">A new customer delivery booking has been submitted. Full details below:</p>
               ${bookingDetailsHtml}
-              <p style="margin-top: 24px;">Please assign a rider and contact the customer to confirm pickup schedule.</p>
+              <div style="margin-top: 24px; padding: 14px; background: #F8FAFC; border-left: 4px solid #092957; border-radius: 4px;">
+                <strong>Action Required:</strong> Please assign a courier rider and phone the customer at <strong>${sPhone}</strong> to confirm the pickup schedule.
+              </div>
+            </div>
+            <div style="text-align: center; font-size: 11px; color: #64748B; padding: 16px;">
+              BBD Mobility Automated Dispatch System &bull; Recipients: ${businessEmails.join(', ')}
             </div>
           </div>
         `,
       });
+
+      if (dispatchResult.error) {
+        console.error('Resend dispatch email error:', dispatchResult.error);
+      }
 
       // 2. Send confirmation to customer if email was provided
       if (sEmail && sEmail.includes('@')) {
         await resend.emails.send({
           from: fromEmail,
           to: [sEmail],
+          replyTo: 'Info@bbdautosng.com',
           subject: `BBD Mobility Booking Confirmation - ${bookingRef}`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #092957;">
@@ -260,7 +295,7 @@ app.post('/api/bookings', async (req, res) => {
                 ${bookingDetailsHtml}
                 <div style="background: #F4F6F8; padding: 16px; border-left: 4px solid #E30620; margin: 24px 0;">
                   <strong style="color: #092957;">Need urgent support?</strong><br>
-                  Call us directly at <strong>+234 812 345 6789</strong> or email <strong>support@bbdmobility.com</strong> with your reference <strong>${bookingRef}</strong>.
+                  Call us directly at <strong>+234 812 345 6789</strong> or email <strong>Info@bbdautosng.com</strong> / <strong>Sales@bbdautosng.com</strong> with your reference <strong>${bookingRef}</strong>.
                 </div>
               </div>
               <div style="text-align: center; font-size: 12px; color: #64748B; padding: 16px;">
@@ -273,10 +308,11 @@ app.post('/api/bookings', async (req, res) => {
     } else {
       console.log('----------------------------------------------------');
       console.log(`[BOOKING DEV MODE] Reference: ${bookingRef}`);
+      console.log(`Target Notification Emails: ${businessEmails.join(', ')}`);
       console.log(`Service: ${sType} | From: ${pLoc} -> To: ${dLoc}`);
       console.log(`Sender: ${sName} (${sPhone}) | Receiver: ${rName} (${rPhone})`);
       console.log(`Package: ${pDetails || 'N/A'}`);
-      console.log('To send real emails, set RESEND_API_KEY in .env');
+      console.log('To send real emails via Resend, set RESEND_API_KEY in .env');
       console.log('----------------------------------------------------');
     }
 
@@ -284,6 +320,7 @@ app.post('/api/bookings', async (req, res) => {
       success: true,
       bookingReference: bookingRef,
       message: 'Booking request successfully received! Our team will contact you promptly.',
+      recipients: businessEmails,
       demoMode: !resend,
     });
   } catch (err: any) {
@@ -296,6 +333,7 @@ app.post('/api/bookings', async (req, res) => {
 
 app.listen(port, () => {
   console.log(`BBD Mobility API server running at http://localhost:${port}`);
+  console.log(`Booking notifications configured for: ${businessEmails.join(', ')}`);
   if (!resendApiKey) {
     console.log(`[NOTICE] RESEND_API_KEY is not set. Operating in development mode (logging bookings).`);
   } else {

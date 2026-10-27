@@ -239,11 +239,11 @@ export const Footer: React.FC<FooterProps> = ({ onOpenModal, onSelectService }) 
               </li>
               <li>
                 <a
-                  href="mailto:support@bbdmobility.com"
+                  href="mailto:Info@bbdautosng.com"
                   className="hover:text-white flex items-center gap-1.5 transition-colors py-0.5"
                 >
                   <Mail className="w-3.5 h-3.5 text-bbd-red flex-shrink-0" />
-                  <span className="truncate max-w-[170px]">support@bbdmobility.com</span>
+                  <span className="truncate max-w-[170px]">Info@bbdautosng.com</span>
                 </a>
               </li>
             </ul>
