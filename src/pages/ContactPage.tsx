@@ -144,7 +144,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({
               </p>
             </motion.div>
 
-            {/* Right Visual: Ultra-Sharp HD Courier Rider on Highway */}
+            {/* Right Visual: Ultra-Sharp HD Contact Hero Photograph */}
             <div className="lg:col-span-6 relative flex items-center justify-end overflow-hidden -mx-4 sm:-mx-6 lg:mx-0">
               {/* Corner Brand Diagonal Stripes */}
               <div className="absolute top-0 right-0 flex space-x-1.5 transform -skew-x-12 pr-4 pt-2 z-20 pointer-events-none">
@@ -158,8 +158,8 @@ export const ContactPage: React.FC<ContactPageProps> = ({
               <div className="hidden lg:block absolute left-8 inset-y-0 w-3 bg-[#E30620] transform -skew-x-12 z-10" />
 
               <img
-                src="/assets/highway-rider-sharp.jpg"
-                alt="BBD Mobility Fast, Safe, Reliable"
+                src="/assets/contact-hero-hd.jpg"
+                alt="BBD Mobility Customer Support Dispatch"
                 className="w-full h-full min-h-[220px] sm:min-h-[280px] lg:min-h-[340px] object-cover object-center"
               />
             </div>
