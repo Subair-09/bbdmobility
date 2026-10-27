@@ -72,7 +72,7 @@ const businessEmails = process.env.BUSINESS_EMAILS
   ? process.env.BUSINESS_EMAILS.split(',').map((e) => e.trim()).filter(Boolean)
   : (process.env.BUSINESS_EMAIL ? [process.env.BUSINESS_EMAIL] : DEFAULT_BUSINESS_EMAILS);
 
-const fromEmail = process.env.FROM_EMAIL || 'BBD Mobility <noreply@bbdmobility.com.ng>';
+const fromEmail = process.env.FROM_EMAIL || 'BBD Mobility <booking@bbdmobility.com.ng>';
 
 // Health endpoint
 app.get('/api/health', (_req, res) => {
