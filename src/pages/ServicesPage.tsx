@@ -1,19 +1,17 @@
 import React, { useEffect } from 'react';
 import {
   FileText,
-  UtensilsCrossed,
+  ShoppingCart,
   Package,
-  Gift,
-  CalendarClock,
-  CheckCircle2,
-  Zap,
+  User,
+  Calendar,
+  ArrowRight,
   ShieldCheck,
+  Coins,
   MapPin,
   Headphones,
-  ArrowRight,
-  Shield,
-  Coins,
-  Users,
+  Truck,
+  UserCheck,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -25,58 +23,52 @@ interface ServicesPageProps {
 
 export const ServicesPage: React.FC<ServicesPageProps> = ({
   onBookNow,
-  onOpenModal,
 }) => {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.title = 'Delivery Services | BBD Mobility - Move What Matters';
   }, []);
 
-  const serviceCategories = [
+  const services = [
     {
-      id: 'documents',
+      id: 'docs',
       name: 'Documents & Files',
+      desc: 'Contracts, papers, forms and more.',
+      image: '/assets/service-card-docs.jpg',
       icon: FileText,
-      badge: 'Confidential & Fast',
-      description:
-        'Contracts, legal papers, official documents, tenders, certificates, and confidential items delivered with complete safety and urgency.',
-      features: ['Tamper-evident handling', 'Urgent same-day dispatch', 'Signature on delivery'],
+      serviceKey: 'Documents & Files',
     },
     {
       id: 'food',
       name: 'Food & Groceries',
-      icon: UtensilsCrossed,
-      badge: 'Fresh & Prompt',
-      description:
-        'Fresh cooked meals, groceries, restaurant parcels, and daily essentials transported carefully to arrive fresh, hot, and on time.',
-      features: ['Careful temperature transit', 'No spillage guarantee', 'Direct doorstep drop-off'],
+      desc: 'Fresh food, groceries and essentials.',
+      image: '/assets/service-card-food.jpg',
+      icon: ShoppingCart,
+      serviceKey: 'Food & Groceries',
     },
     {
-      id: 'ecommerce',
-      name: 'E-Commerce Packages',
+      id: 'ecom',
+      name: 'E-commerce Packages',
+      desc: 'Online orders and retail items.',
+      image: '/assets/service-card-ecom.jpg',
       icon: Package,
-      badge: 'Merchant Friendly',
-      description:
-        'Customer orders, fashion items, beauty products, electronics, and merchandise dispatched reliably for businesses and independent sellers.',
-      features: ['Reliable parcel logistics', 'Same-day customer fulfillment', 'Customer delivery alert'],
+      serviceKey: 'E-commerce Packages',
     },
     {
       id: 'personal',
       name: 'Personal Items',
-      icon: Gift,
-      badge: 'Everyday Errands',
-      description:
-        'Gifts, keys, gadgets, fashion accessories, forgotten essentials, and personal errands moved across the city without stress.',
-      features: ['Door-to-door convenience', 'Fragile item care', 'Direct rider coordination'],
+      desc: 'Gifts, valuables and more.',
+      image: '/assets/service-card-personal.jpg',
+      icon: User,
+      serviceKey: 'Personal Items',
     },
     {
       id: 'scheduled',
-      name: 'Scheduled Deliveries',
-      icon: CalendarClock,
-      badge: 'Plan in Advance',
-      description:
-        'Set up advance delivery dates or recurring schedules for business runs, batch dispatches, and scheduled pickups that fit your timeline.',
-      features: ['Advance date selection', 'Automated rider booking', 'Guaranteed pickup slot'],
+      name: 'Same-Day & Scheduled',
+      desc: 'Book now or schedule for later.',
+      image: '/assets/service-card-scheduled.jpg',
+      icon: Calendar,
+      serviceKey: 'Same-Day & Scheduled',
     },
   ];
 
@@ -84,61 +76,53 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
     <div className="bg-white text-bbd-navy font-sans">
       
       {/* =========================================================================
-          SECTION 1: HERO BANNER (Navy Left, Rider Graphic Right with Skew Slash)
+          SECTION 1: HERO BANNER (Exact Mockup Match)
+          - Navy Left (#092957) with Red & White angled accent
+          - Rider on highway seen from rear with BBD box on Right
          ========================================================================= */}
       <section className="relative overflow-hidden bg-[#092957] text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 min-h-[300px] sm:min-h-[360px] items-stretch">
+          <div className="grid grid-cols-1 lg:grid-cols-12 min-h-[320px] sm:min-h-[380px] lg:min-h-[420px] items-stretch">
             
-            {/* Left Column */}
+            {/* Left Content Column */}
             <motion.div
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="lg:col-span-7 py-10 sm:py-14 flex flex-col justify-center text-left space-y-4 pr-0 lg:pr-8 z-10"
+              className="lg:col-span-7 py-12 sm:py-16 flex flex-col justify-center text-left space-y-4 pr-0 lg:pr-8 z-10"
             >
+              {/* Category Pill Tag */}
               <div className="flex items-center space-x-2">
-                <span className="w-6 h-[2.5px] bg-[#E30620] rounded-full inline-block" />
-                <span className="text-[11px] sm:text-xs font-bold tracking-widest text-white uppercase">
+                <span className="w-6 h-[2px] bg-[#E30620] inline-block" />
+                <span className="text-[11px] sm:text-xs font-bold tracking-widest text-slate-100 uppercase">
                   OUR SERVICES
                 </span>
               </div>
 
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black italic tracking-tight leading-[1.1]">
+              {/* Exact Main Headline */}
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black italic tracking-tight leading-[1.08] text-white">
                 Fast. Safe. Reliable. <br />
-                <span className="text-[#E30620]">Delivery Services for You.</span>
+                <span className="text-[#E30620]">Delivery Services</span> <br />
+                for You.
               </h1>
 
-              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed max-w-xl">
+              {/* Exact Subtitle */}
+              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed max-w-md pt-1">
                 From important documents to daily essentials, BBD Mobility delivers with speed, safety and care. Choose the service that fits your needs.
               </p>
-
-              <div className="pt-2 flex flex-wrap gap-3">
-                <button
-                  onClick={() => onBookNow()}
-                  className="inline-flex items-center justify-center px-6 py-3 rounded-md bg-[#E30620] hover:bg-[#b8051a] text-white font-bold text-xs uppercase tracking-wider shadow-lg hover:shadow-red-600/30 transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
-                >
-                  Book a Delivery Now
-                  <ArrowRight className="ml-2 w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => onOpenModal('how-it-works')}
-                  className="inline-flex items-center justify-center px-5 py-3 rounded-md bg-white/10 hover:bg-white/20 text-white font-semibold text-xs tracking-wide backdrop-blur-sm transition-all border border-white/20 cursor-pointer"
-                >
-                  How It Works
-                </button>
-              </div>
             </motion.div>
 
-            {/* Right Column Visual: Razor-sharp HD Expressway Courier */}
+            {/* Right Visual Column (Courier Rider from behind with BBD Box + Red Skew Angle) */}
             <div className="lg:col-span-5 relative flex items-center justify-end overflow-hidden -mx-4 sm:-mx-6 lg:mx-0">
-              <div className="hidden lg:block absolute left-0 inset-y-0 w-16 bg-gradient-to-r from-[#092957] via-[#092957]/80 to-transparent z-10 pointer-events-none" />
-              <div className="hidden lg:block absolute left-6 inset-y-0 w-3 bg-[#E30620] transform -skew-x-12 z-10" />
+              {/* Diagonal transition effect matching mockup */}
+              <div className="hidden lg:block absolute left-0 inset-y-0 w-20 bg-gradient-to-r from-[#092957] via-[#092957]/80 to-transparent z-10 pointer-events-none" />
+              <div className="hidden lg:block absolute left-8 inset-y-0 w-4 bg-[#E30620] transform -skew-x-12 z-10 shadow-lg" />
+              <div className="hidden lg:block absolute bottom-0 left-0 w-24 h-16 bg-[#E30620] transform -skew-x-12 z-10" />
 
               <img
-                src="/assets/highway-rider-sharp.jpg"
-                alt="BBD Mobility Courier Services"
-                className="w-full h-full min-h-[240px] sm:min-h-[300px] lg:min-h-[360px] object-cover object-center"
+                src="/assets/service-hero-rider.jpg"
+                alt="BBD Mobility Courier Rider"
+                className="w-full h-full min-h-[260px] sm:min-h-[320px] lg:min-h-[420px] object-cover object-center"
               />
             </div>
 
@@ -147,126 +131,78 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
       </section>
 
       {/* =========================================================================
-          SECTION 2: WHAT WE DELIVER (5 Service Cards)
+          SECTION 2: WHAT WE DELIVER (Exact Mockup Match: 5 Cards in a Row)
          ========================================================================= */}
-      <section className="py-14 sm:py-20 bg-slate-50 border-b border-gray-200">
+      <section className="py-14 sm:py-18 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
-          <div className="text-center max-w-2xl mx-auto mb-12 sm:mb-16">
-            <div className="inline-flex items-center space-x-2 mb-2">
+          {/* Section Header */}
+          <div className="text-left mb-8 sm:mb-10">
+            <div className="flex items-center space-x-2 mb-1.5">
               <span className="w-5 h-[2px] bg-[#E30620] inline-block" />
-              <span className="text-xs font-bold tracking-widest text-[#E30620] uppercase">
+              <span className="text-[11px] font-bold tracking-widest text-[#E30620] uppercase">
                 OUR SERVICES
               </span>
-              <span className="w-5 h-[2px] bg-[#E30620] inline-block" />
             </div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#092957] tracking-tight">
-              What We Deliver
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black italic text-[#092957] tracking-tight">
+              What We <span className="text-[#E30620]">Deliver</span>
             </h2>
-            <p className="mt-2 text-xs sm:text-sm text-gray-600">
-              Reliable delivery solutions for individuals and businesses across Lagos and beyond.
+            <p className="mt-1 text-xs sm:text-sm text-gray-500">
+              Reliable delivery solutions for individuals and businesses.
             </p>
           </div>
 
-          {/* Cards Grid: 3 on top row, 2 centered on second row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            {serviceCategories.slice(0, 3).map((service, index) => {
-              const IconComp = service.icon;
+          {/* 5-Column Responsive Cards Grid matching mockup */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
+            {services.map((item, index) => {
+              const IconComp = item.icon;
               return (
                 <motion.div
-                  key={service.id}
-                  initial={{ opacity: 0, y: 20 }}
+                  key={item.id}
+                  initial={{ opacity: 0, y: 15 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ duration: 0.4, delay: index * 0.1 }}
-                  className="bg-white rounded-xl p-6 sm:p-7 shadow-sm hover:shadow-xl border border-gray-100 transition-all duration-300 flex flex-col justify-between group hover:-translate-y-1"
+                  transition={{ duration: 0.35, delay: index * 0.08 }}
+                  className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group hover:-translate-y-1"
                 >
                   <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 rounded-xl bg-red-50 text-[#E30620] flex items-center justify-center group-hover:bg-[#E30620] group-hover:text-white transition-colors duration-300 shadow-sm">
-                        <IconComp className="w-6 h-6" />
-                      </div>
-                      <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                        {service.badge}
-                      </span>
+                    {/* Top Photographic Crop from Mockup */}
+                    <div className="relative h-28 sm:h-32 w-full overflow-hidden bg-slate-100">
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
                     </div>
 
-                    <h3 className="text-lg font-bold text-[#092957] mb-2 group-hover:text-[#E30620] transition-colors">
-                      {service.name}
-                    </h3>
-                    <p className="text-xs text-gray-600 leading-relaxed mb-4">
-                      {service.description}
-                    </p>
+                    {/* Floating Circular Icon Badge Overlapping Card Photo */}
+                    <div className="-mt-5 ml-4 relative z-10">
+                      <div className="w-10 h-10 rounded-full bg-white shadow-md border border-gray-100 flex items-center justify-center text-[#092957] group-hover:bg-[#E30620] group-hover:text-white transition-colors duration-300">
+                        <IconComp className="w-4 h-4" />
+                      </div>
+                    </div>
 
-                    <div className="space-y-2 pt-2 border-t border-gray-100 mb-6">
-                      {service.features.map((feat, fIdx) => (
-                        <div key={fIdx} className="flex items-center text-[11px] text-gray-500">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-[#E30620] mr-2 flex-shrink-0" />
-                          <span>{feat}</span>
-                        </div>
-                      ))}
+                    {/* Card Content */}
+                    <div className="p-4 pt-2.5 text-left">
+                      <h3 className="text-xs sm:text-sm font-bold text-[#092957] group-hover:text-[#E30620] transition-colors leading-snug">
+                        {item.name}
+                      </h3>
+                      <p className="text-[11px] text-gray-500 mt-1 leading-relaxed line-clamp-2">
+                        {item.desc}
+                      </p>
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => onBookNow(service.name)}
-                    className="w-full inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-[#092957] hover:bg-[#E30620] text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
-                  >
-                    <span>Book This Service</span>
-                    <ArrowRight className="ml-2 w-3.5 h-3.5" />
-                  </button>
-                </motion.div>
-              );
-            })}
-          </div>
-
-          {/* Second Row (2 cards centered on desktop) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto gap-6 sm:gap-8 mt-6 sm:mt-8">
-            {serviceCategories.slice(3).map((service, index) => {
-              const IconComp = service.icon;
-              return (
-                <motion.div
-                  key={service.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.4, delay: 0.3 + index * 0.1 }}
-                  className="bg-white rounded-xl p-6 sm:p-7 shadow-sm hover:shadow-xl border border-gray-100 transition-all duration-300 flex flex-col justify-between group hover:-translate-y-1"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 rounded-xl bg-red-50 text-[#E30620] flex items-center justify-center group-hover:bg-[#E30620] group-hover:text-white transition-colors duration-300 shadow-sm">
-                        <IconComp className="w-6 h-6" />
-                      </div>
-                      <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                        {service.badge}
-                      </span>
-                    </div>
-
-                    <h3 className="text-lg font-bold text-[#092957] mb-2 group-hover:text-[#E30620] transition-colors">
-                      {service.name}
-                    </h3>
-                    <p className="text-xs text-gray-600 leading-relaxed mb-4">
-                      {service.description}
-                    </p>
-
-                    <div className="space-y-2 pt-2 border-t border-gray-100 mb-6">
-                      {service.features.map((feat, fIdx) => (
-                        <div key={fIdx} className="flex items-center text-[11px] text-gray-500">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-[#E30620] mr-2 flex-shrink-0" />
-                          <span>{feat}</span>
-                        </div>
-                      ))}
-                    </div>
+                  {/* Circular Red Arrow Button at bottom */}
+                  <div className="p-4 pt-0 text-left">
+                    <button
+                      onClick={() => onBookNow(item.serviceKey)}
+                      aria-label={`Book ${item.name}`}
+                      className="w-7 h-7 rounded-full bg-[#E30620] hover:bg-[#b8051a] text-white flex items-center justify-center transition-transform hover:scale-110 shadow-xs cursor-pointer"
+                    >
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-
-                  <button
-                    onClick={() => onBookNow(service.name)}
-                    className="w-full inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-[#092957] hover:bg-[#E30620] text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
-                  >
-                    <span>Book This Service</span>
-                    <ArrowRight className="ml-2 w-3.5 h-3.5" />
-                  </button>
                 </motion.div>
               );
             })}
@@ -276,177 +212,174 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
       </section>
 
       {/* =========================================================================
-          SECTION 3: REAL PEOPLE. REAL DELIVERIES & WHY CHOOSE BBD MOBILITY?
+          SECTION 3: SPLIT SECTION (Exact Mockup Match)
+          - Left: Courier Rider Photo with Slanted Navy Box ("Real People. Real Deliveries.")
+          - Right: "Why Choose BBD Mobility?" + 4 Feature Rows
          ========================================================================= */}
-      <section className="py-14 sm:py-20 bg-white">
+      <section className="py-10 sm:py-16 bg-white border-t border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
             
-            {/* Left: Rider Photograph Card: 1200x896 Ultra-Sharp HD Photo */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-              className="lg:col-span-5 relative"
-            >
-              <div className="relative rounded-2xl overflow-hidden shadow-xl border-4 border-white bg-slate-100">
+            {/* Left Column: Composite Rider Photo + Slanted Navy Overlay */}
+            <div className="lg:col-span-6 relative overflow-hidden rounded-2xl shadow-xl bg-[#092957] min-h-[300px] sm:min-h-[360px] flex items-stretch">
+              {/* Background Rider Photo */}
+              <div className="w-1/2 relative overflow-hidden">
                 <img
-                  src="/assets/courier-rider-hd.jpg"
+                  src="/assets/service-split-rider.jpg"
                   alt="Real BBD Delivery Rider"
-                  className="w-full h-auto object-cover max-h-[420px]"
+                  className="w-full h-full object-cover object-center"
                 />
-                
-                {/* Floating On-Time Badge */}
-                <div className="absolute bottom-4 left-4 right-4 bg-[#092957]/95 backdrop-blur-md rounded-xl p-3.5 text-white border border-white/10 shadow-lg flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-lg bg-[#E30620] flex items-center justify-center flex-shrink-0">
-                    <ShieldCheck className="w-5 h-5 text-white" />
+              </div>
+
+              {/* Slanted Navy Panel with Text Overlay */}
+              <div className="w-1/2 bg-[#092957] text-white p-6 sm:p-8 flex flex-col justify-center text-left relative">
+                {/* Diagonal angle slice into photo */}
+                <div className="absolute -left-6 inset-y-0 w-12 bg-[#092957] transform -skew-x-12 pointer-events-none" />
+
+                <div className="relative z-10 space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-5 h-[2px] bg-[#E30620] inline-block" />
+                    <span className="text-[10px] sm:text-[11px] font-bold tracking-widest text-slate-200 uppercase">
+                      WHY CHOOSE US
+                    </span>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold tracking-tight">100% Commitment</h4>
-                    <p className="text-[11px] text-slate-300">Safe, on-time doorstep delivery guarantee</p>
-                  </div>
+
+                  <h3 className="text-xl sm:text-2xl lg:text-3xl font-black italic tracking-tight leading-tight">
+                    Real People. <br />
+                    <span className="text-[#E30620]">Real Deliveries.</span>
+                  </h3>
+
+                  <p className="text-[11px] sm:text-xs text-slate-200 leading-relaxed pt-1">
+                    BBD Mobility is built on trust, speed and a commitment to getting your packages where they need to be.
+                  </p>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
-            {/* Right: Why Choose BBD Mobility */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-              className="lg:col-span-7 space-y-6 text-left"
-            >
+            {/* Right Column: "Why Choose BBD Mobility?" + 4 Feature Rows */}
+            <div className="lg:col-span-6 text-left space-y-6">
               <div>
-                <div className="flex items-center space-x-2 mb-2">
-                  <span className="w-6 h-[2.5px] bg-[#E30620] rounded-full inline-block" />
-                  <span className="text-[11px] sm:text-xs font-bold tracking-widest text-[#E30620] uppercase">
-                    BBD MOBILITY ADVANTAGE
-                  </span>
-                </div>
-                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#092957] tracking-tight">
-                  Real People. Real Deliveries.
+                <h2 className="text-2xl sm:text-3xl font-black italic text-[#092957] tracking-tight">
+                  Why Choose <span className="text-[#E30620]">BBD Mobility?</span>
                 </h2>
-                <p className="mt-2 text-xs sm:text-sm text-gray-600 leading-relaxed">
-                  BBD Mobility is built on trust, speed and a commitment to getting your packages where they need to be.
-                </p>
               </div>
 
-              <div className="pt-2">
-                <h3 className="text-base sm:text-lg font-bold text-[#092957] mb-4 flex items-center">
-                  <span className="w-2 h-2 bg-[#E30620] rounded-full mr-2" />
-                  Why Choose BBD Mobility?
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {[
-                    {
-                      title: 'Professional & Verified Riders',
-                      desc: 'Trained, background-checked riders dedicated to handling every package with care.',
-                      icon: Users,
-                    },
-                    {
-                      title: 'Affordable & Transparent Rates',
-                      desc: 'Clear upfront pricing with no hidden charges, surprise fees, or surge multipliers.',
-                      icon: Coins,
-                    },
-                    {
-                      title: 'Wide Coverage Across Lagos',
-                      desc: 'Reaching both mainland and island hubs with extensive route efficiency.',
-                      icon: MapPin,
-                    },
-                    {
-                      title: 'Secure & Reliable Handling',
-                      desc: 'From pickup to destination handover, your items are fully monitored and protected.',
-                      icon: Shield,
-                    },
-                  ].map((benefit, bIdx) => {
-                    const BIcon = benefit.icon;
-                    return (
-                      <div
-                        key={bIdx}
-                        className="p-4 rounded-xl bg-slate-50 border border-slate-100 hover:border-red-200 transition-colors"
-                      >
-                        <div className="flex items-start space-x-3">
-                          <div className="w-8 h-8 rounded-full bg-red-100 text-[#E30620] flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <BIcon className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <h4 className="text-xs font-bold text-[#092957] leading-snug">
-                              {benefit.title}
-                            </h4>
-                            <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-                              {benefit.desc}
-                            </p>
-                          </div>
-                        </div>
+              <div className="space-y-4">
+                {[
+                  {
+                    title: 'Professional & Verified Riders',
+                    desc: 'Trained, background-checked and ready.',
+                    icon: UserCheck,
+                  },
+                  {
+                    title: 'Secure Packaging',
+                    desc: 'Your items are handled with care.',
+                    icon: ShieldCheck,
+                  },
+                  {
+                    title: 'Affordable Rates',
+                    desc: 'Great service, fair prices.',
+                    icon: Coins,
+                  },
+                  {
+                    title: 'Wide Coverage',
+                    desc: 'Across the city and beyond.',
+                    icon: MapPin,
+                  },
+                ].map((item, idx) => {
+                  const ItemIcon = item.icon;
+                  return (
+                    <div key={idx} className="flex items-center space-x-4">
+                      {/* Pink/Red Circular Icon Badge matching mockup */}
+                      <div className="w-11 h-11 rounded-full bg-red-50 text-[#E30620] flex items-center justify-center flex-shrink-0">
+                        <ItemIcon className="w-5 h-5" />
                       </div>
-                    );
-                  })}
-                </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-bold text-[#092957]">
+                          {item.title}
+                        </h4>
+                        <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5">
+                          {item.desc}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-
-            </motion.div>
+            </div>
 
           </div>
         </div>
       </section>
 
       {/* =========================================================================
-          SECTION 4: NEED A DELIVERY? CTA STRIP (Matching Mockup with 4 Guarantees)
+          SECTION 4: NEED A DELIVERY? CTA STRIP (Exact Mockup Match)
+          - Left: White box with 3D package icon + "Need a Delivery?" + Red pill button
+          - Center: Red & White diagonal transition slash
+          - Right: Navy background (#092957) with 4 Guarantees in a row
          ========================================================================= */}
-      <section className="py-14 bg-[#092957] text-white relative overflow-hidden">
-        {/* Subtle decorative accents */}
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-[#E30620]/15 to-transparent pointer-events-none" />
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="max-w-2xl mx-auto"
-          >
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold italic tracking-tight">
-              Need a <span className="text-[#E30620]">Delivery?</span>
-            </h2>
-            <p className="mt-3 text-xs sm:text-sm text-slate-200 leading-relaxed">
-              Book now and experience fast, safe and reliable delivery services across Lagos and beyond.
-            </p>
-
-            <div className="mt-6">
-              <button
-                onClick={() => onBookNow()}
-                className="inline-flex items-center justify-center px-8 py-3.5 rounded-lg bg-[#E30620] hover:bg-[#b8051a] text-white font-bold text-xs uppercase tracking-wider shadow-xl hover:shadow-red-600/30 transition-all cursor-pointer transform hover:-translate-y-0.5"
-              >
-                Book a Delivery
-                <ArrowRight className="ml-2 w-4 h-4" />
-              </button>
-            </div>
-          </motion.div>
-
-          {/* 4 Guarantees Strip */}
-          <div className="mt-12 pt-8 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            {[
-              { label: 'Fast Delivery', desc: 'Swift pickup & dispatch', icon: Zap },
-              { label: 'Safe & Secure', desc: 'Handled with utmost care', icon: ShieldCheck },
-              { label: 'Wide Coverage', desc: 'Mainland, Island & beyond', icon: MapPin },
-              { label: '24/7 Support', desc: 'Always here to assist', icon: Headphones },
-            ].map((item, idx) => {
-              const GIcon = item.icon;
-              return (
-                <div key={idx} className="flex flex-col items-center">
-                  <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-[#E30620] mb-2">
-                    <GIcon className="w-5 h-5" />
-                  </div>
-                  <h4 className="text-xs font-bold text-white">{item.label}</h4>
-                  <p className="text-[10px] text-slate-300 mt-0.5">{item.desc}</p>
+      <section className="bg-white border-t border-gray-200 overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
+            
+            {/* Left Portion (White background with 3D package + Copy + Red Pill Button) */}
+            <div className="lg:col-span-6 p-6 sm:p-8 lg:p-10 flex items-center text-left">
+              <div className="flex items-start sm:items-center space-x-4">
+                {/* 3D Package Box Icon with motion lines */}
+                <div className="w-12 h-12 rounded-xl bg-blue-50 text-[#092957] flex items-center justify-center flex-shrink-0">
+                  <Package className="w-6 h-6 text-[#092957]" />
                 </div>
-              );
-            })}
-          </div>
 
+                <div className="space-y-2">
+                  <h3 className="text-lg sm:text-xl font-black text-[#092957] tracking-tight">
+                    Need a Delivery?
+                  </h3>
+                  <p className="text-xs text-gray-600">
+                    Book now and experience fast, safe and reliable delivery services.
+                  </p>
+
+                  <div className="pt-1">
+                    <button
+                      onClick={() => onBookNow()}
+                      className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-[#E30620] hover:bg-[#b8051a] text-white font-bold text-xs shadow-md transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
+                    >
+                      <span>Book a Delivery</span>
+                      <ArrowRight className="ml-1.5 w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Portion (Deep Navy background with 4 Guarantees) */}
+            <div className="lg:col-span-6 bg-[#092957] text-white p-6 sm:p-8 lg:p-10 relative flex items-center">
+              {/* Red Diagonal Slash Divider at boundary */}
+              <div className="hidden lg:block absolute -left-6 inset-y-0 w-8 bg-[#E30620] transform -skew-x-12 z-10 shadow-md" />
+              <div className="hidden lg:block absolute -left-12 inset-y-0 w-8 bg-white transform -skew-x-12 z-0" />
+
+              <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-4 text-center relative z-10">
+                {[
+                  { label: 'Fast Delivery', icon: Truck },
+                  { label: 'Safe & Secure', icon: ShieldCheck },
+                  { label: 'Wide Coverage', icon: MapPin },
+                  { label: '24/7 Support', icon: Headphones },
+                ].map((g, gIdx) => {
+                  const GIcon = g.icon;
+                  return (
+                    <div key={gIdx} className="flex flex-col items-center">
+                      <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white mb-2">
+                        <GIcon className="w-4 h-4" />
+                      </div>
+                      <span className="text-[11px] font-bold text-slate-100 leading-tight">
+                        {g.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+          </div>
         </div>
       </section>
 
