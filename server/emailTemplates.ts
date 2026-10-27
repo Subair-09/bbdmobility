@@ -738,3 +738,86 @@ ${message}
 </html>`;
 }
 
+/**
+ * Generates an HTML welcome email sent to newsletter subscribers.
+ * Matches exact pixel mockup in media_1793119025457_7e8178ea.jpg.
+ */
+export function generateSubscriberWelcomeHtml(
+  email: string,
+  assetsBaseUrl: string = 'https://raw.githubusercontent.com/Subair-09/bbdmobility/main/public/assets'
+): string {
+  return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Welcome to BBD Mobility Newsletter</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F4F6F8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #F4F6F8; margin: 0; padding: 20px 0;">
+    <tr>
+      <td align="center" style="margin: 0; padding: 0;">
+        <table border="0" cellpadding="0" cellspacing="0" width="682" style="width: 682px; max-width: 682px; background-color: #FFFFFF; margin: 0 auto; box-shadow: 0 4px 20px rgba(9, 41, 87, 0.05);">
+          
+          <!-- Top Header Bar -->
+          <tr>
+            <td style="padding: 0; line-height: 0;">
+              <img src="${assetsBaseUrl}/newsletter-email-header.png" width="682" height="162" style="display: block; width: 682px; height: 162px;" alt="BBD Mobility - Move What Matters" />
+            </td>
+          </tr>
+
+          <!-- Main Content Section -->
+          <tr>
+            <td style="padding: 32px 36px 20px 36px; text-align: center;">
+              
+              <!-- Celebration Envelope Icon -->
+              <div style="margin: 0 auto 16px auto; text-align: center; line-height: 0;">
+                <img src="${assetsBaseUrl}/newsletter-icon-envelope.png" width="170" height="90" style="display: inline-block; margin: 0 auto;" alt="Subscription Confirmed" />
+              </div>
+
+              <!-- Main Heading: Thank You for Subscribing! -->
+              <h1 style="margin: 0 0 4px 0; font-size: 28px; font-weight: 800; color: #092957; line-height: 1.25;">
+                Thank You for
+              </h1>
+              <div style="font-size: 34px; font-weight: 900; color: #E30620; letter-spacing: -0.5px; margin-bottom: 16px;">
+                Subscribing!
+              </div>
+
+              <!-- Introductory Paragraphs -->
+              <p style="margin: 0 auto 8px auto; max-width: 530px; font-size: 14px; line-height: 1.6; color: #1E293B; font-weight: 500;">
+                You are now subscribed to <strong style="color: #092957;">BBD Mobility updates</strong>, exclusive shipping tips, and special delivery promotions.
+              </p>
+              <p style="margin: 0 auto; max-width: 530px; font-size: 13px; line-height: 1.5; color: #64748B;">
+                Stay safe and swift with our trusted courier network.
+              </p>
+
+              <!-- 4 Feature Cards Container -->
+              <div style="margin: 24px auto 0 auto; text-align: center; line-height: 0;">
+                <img src="${assetsBaseUrl}/newsletter-features-card.png" width="632" height="182" style="display: block; width: 632px; height: 182px; margin: 0 auto;" alt="Latest Updates • Shipping Tips • Special Promotions • Trusted Delivery" />
+              </div>
+
+            </td>
+          </tr>
+
+          <!-- Middle Partner Banner ("More Than Delivery. We're a Partner in Your Journey.") -->
+          <tr>
+            <td style="padding: 0; line-height: 0;">
+              <img src="${assetsBaseUrl}/newsletter-partner-banner.png" width="682" height="197" style="display: block; width: 682px; height: 197px;" alt="More Than Delivery. We're a Partner in Your Journey." />
+            </td>
+          </tr>
+
+          <!-- Bottom Navy Footer -->
+          <tr>
+            <td style="padding: 0; line-height: 0;">
+              <img src="${assetsBaseUrl}/newsletter-email-footer.png" width="682" height="139" style="display: block; width: 682px; height: 139px;" alt="BBD Mobility - Fast • Safe • Reliable Logistics Across Lagos" />
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+

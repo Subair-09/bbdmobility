@@ -7,6 +7,7 @@ import {
   generateCustomerBookingConfirmationHtml,
   generateAdminContactAlertHtml,
   generateCustomerContactAckHtml,
+  generateSubscriberWelcomeHtml,
 } from './emailTemplates.ts';
 
 dotenv.config();
@@ -117,27 +118,13 @@ app.post('/api/newsletter', async (req, res) => {
     }
 
     if (resend) {
-      // 1. Send welcome email to subscriber
+      // 1. Send pixel-perfect welcome email to subscriber
+      const subscriberHtml = generateSubscriberWelcomeHtml(email);
       await resend.emails.send({
         from: fromEmail,
         to: [email],
-        subject: 'Welcome to BBD Mobility Newsletter',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #092957;">
-            <div style="background-color: #092957; padding: 24px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 24px;">BBD MOBILITY</h1>
-              <p style="color: #E30620; margin: 4px 0 0 0; font-weight: bold;">Move What Matters</p>
-            </div>
-            <div style="padding: 32px 24px; background: #ffffff; border: 1px solid #e2e8f0;">
-              <h2>Thank You for Subscribing!</h2>
-              <p>You are now subscribed to BBD Mobility updates, exclusive shipping tips, and special delivery promotions.</p>
-              <p>Stay safe and swift with our trusted courier network.</p>
-            </div>
-            <div style="text-align: center; font-size: 12px; color: #64748B; padding: 16px;">
-              &copy; ${new Date().getFullYear()} BBD Mobility. All rights reserved.
-            </div>
-          </div>
-        `,
+        subject: 'Welcome to BBD Mobility Updates',
+        html: subscriberHtml,
       });
 
       // 2. Also notify business inbox about the new subscriber
