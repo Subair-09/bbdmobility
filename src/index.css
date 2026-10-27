@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #0F264A;
+    scroll-behavior: smooth;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Montserrat', 'Inter', sans-serif;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Diagonal brand stripes utility */
+.brand-stripes-tr {
+  background: linear-gradient(135deg, 
+    transparent 0%, 
+    transparent 60%, 
+    #092957 60%, 
+    #092957 74%, 
+    transparent 74%, 
+    transparent 80%, 
+    #E30620 80%, 
+    #E30620 100%);
+}
+
+.brand-stripes-br {
+  background: linear-gradient(135deg, 
+    transparent 0%, 
+    transparent 45%, 
+    #092957 45%, 
+    #092957 65%, 
+    transparent 65%, 
+    transparent 75%, 
+    #E30620 75%, 
+    #E30620 100%);
+}
