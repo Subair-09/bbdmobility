@@ -219,8 +219,8 @@ export const ContactPage: React.FC<ContactPageProps> = ({
               <h3 className="font-extrabold text-sm sm:text-base text-[#092957]">Our Office</h3>
               <p className="text-[11px] text-slate-500">Visit our office for in-person support.</p>
               <div className="pt-1 text-xs sm:text-sm font-bold text-[#092957] leading-snug">
-                <div>12, Allen Avenue,</div>
-                <div className="text-slate-600 font-medium text-xs">Ikeja, Lagos, Nigeria</div>
+                <div>20, Babayanju Street,</div>
+                <div className="text-slate-600 font-medium text-xs">Shogunle, Lagos 102214, Nigeria</div>
               </div>
             </div>
 
@@ -413,11 +413,11 @@ export const ContactPage: React.FC<ContactPageProps> = ({
                   <div className="flex items-center space-x-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#E30620] animate-pulse" />
                     <span className="text-xs font-bold text-[#092957]">
-                      BBD Mobility Central Hub • Ikeja, Lagos
+                      BBD Mobility Hub • Shogunle, Lagos
                     </span>
                   </div>
                   <a
-                    href="https://maps.app.goo.gl/rK7CzQk5TTuBBmcM8"
+                    href="https://maps.app.goo.gl/pjan2ghRaWLWe3Xb8"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-[11px] font-bold text-[#E30620] hover:underline flex items-center gap-0.5"
@@ -430,8 +430,8 @@ export const ContactPage: React.FC<ContactPageProps> = ({
                 {/* Live Interactive Google Map */}
                 <div className="relative w-full h-[230px] sm:h-[260px] bg-slate-100">
                   <iframe
-                    title="BBD Mobility Location Map - Ikeja Lagos"
-                    src="https://maps.google.com/maps?q=Ikeja,+Lagos,+Nigeria&t=&z=14&ie=UTF8&iwloc=&output=embed"
+                    title="BBD Mobility Location Map - 20 Babayanju St, Shogunle, Lagos"
+                    src="https://maps.google.com/maps?q=20+Babayanju+St,+Shogunle,+Lagos+102214,+Lagos&hl=en&z=16&output=embed"
                     className="w-full h-full border-0"
                     loading="lazy"
                     allowFullScreen
