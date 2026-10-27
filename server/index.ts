@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { Resend } from 'resend';
+import { generateAdminBookingAlertHtml } from './emailTemplates.ts';
 
 dotenv.config();
 
@@ -248,30 +249,28 @@ app.post('/api/bookings', async (req, res) => {
 
     // Attempt sending via Resend if configured
     if (resend) {
-      // 1. Dispatch booking details to configured business inboxes: Sales@bbdautosng.com & Info@bbdautosng.com
+      // 1. Dispatch pixel-perfect booking alert to business inboxes: Sales@bbdautosng.com & Info@bbdautosng.com
+      const adminAlertHtml = generateAdminBookingAlertHtml({
+        bookingRef,
+        sType,
+        pLoc,
+        dLoc,
+        pDetails,
+        sName,
+        sPhone,
+        sEmail,
+        rName,
+        rPhone,
+        instructions,
+        businessEmails,
+      });
+
       const dispatchResult = await resend.emails.send({
         from: fromEmail,
         to: businessEmails,
         replyTo: sEmail && sEmail.includes('@') ? sEmail : undefined,
         subject: `[New Booking] ${bookingRef} - ${sType} (${pLoc} → ${dLoc})`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #092957;">
-            <div style="background-color: #092957; padding: 22px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 22px; letter-spacing: 0.5px;">BBD MOBILITY DISPATCH</h1>
-              <p style="color: #E30620; margin: 4px 0 0 0; font-weight: bold; font-size: 13px;">New Delivery Booking Received</p>
-            </div>
-            <div style="padding: 24px; background: #ffffff; border: 1px solid #e2e8f0;">
-              <p style="font-size: 15px; margin-top: 0;">A new customer delivery booking has been submitted. Full details below:</p>
-              ${bookingDetailsHtml}
-              <div style="margin-top: 24px; padding: 14px; background: #F8FAFC; border-left: 4px solid #092957; border-radius: 4px;">
-                <strong>Action Required:</strong> Please assign a courier rider and phone the customer at <strong>${sPhone}</strong> to confirm the pickup schedule.
-              </div>
-            </div>
-            <div style="text-align: center; font-size: 11px; color: #64748B; padding: 16px;">
-              BBD Mobility Automated Dispatch System &bull; Recipients: ${businessEmails.join(', ')}
-            </div>
-          </div>
-        `,
+        html: adminAlertHtml,
       });
 
       if (dispatchResult.error) {
