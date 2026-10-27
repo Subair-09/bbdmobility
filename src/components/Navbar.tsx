@@ -59,8 +59,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
           
-          {/* Left: Official Logo + Live Dispatch Pill */}
-          <div className="flex-shrink-0 flex items-center space-x-3">
+          {/* Left: Official Logo */}
+          <div className="flex-shrink-0 flex items-center">
             <a href="#home" className="flex items-center group">
               <img
                 src="/assets/logo.png"
@@ -68,12 +68,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="h-9 sm:h-11 md:h-12 w-auto object-contain transition-transform group-hover:scale-[1.02]"
               />
             </a>
-            
-            {/* Live Dispatch Indicator (Desktop) */}
-            <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Live Dispatch</span>
-            </div>
           </div>
 
           {/* Center: Desktop Navigation links with animated active underline */}
@@ -166,15 +160,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             transition={{ duration: 0.25, ease: 'easeInOut' }}
             className="md:hidden border-t border-gray-100 bg-white/98 backdrop-blur-lg px-4 pt-4 pb-6 shadow-2xl overflow-hidden"
           >
-            {/* Status indicator inside drawer */}
-            <div className="flex items-center justify-between mb-3 px-2 py-1.5 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-xs text-slate-600 font-medium">BBD Dispatch Status:</span>
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                Active across Nigeria
-              </span>
-            </div>
-
             <div className="flex flex-col space-y-1">
               {navItems.map((item, idx) => {
                 const isActive = activeNav === item.name;

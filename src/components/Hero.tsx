@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, ShieldCheck, Headphones, Users, ArrowRight, Sparkles } from 'lucide-react';
+import { Zap, ShieldCheck, Headphones, Users, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { BookingCard } from './BookingCard';
 
@@ -140,22 +140,17 @@ export const Hero: React.FC<HeroProps> = ({ onBookClick, selectedServiceType }) 
               </motion.div>
             </motion.div>
 
-            {/* Red Rounded Button with subtle pulse */}
-            <motion.div variants={itemVariants} className="pt-2 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            {/* Red Rounded Button */}
+            <motion.div variants={itemVariants} className="pt-2">
               <motion.button
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={onBookClick}
-                className="w-full sm:w-auto inline-flex items-center justify-center px-7 py-3.5 bg-bbd-red hover:bg-bbd-red-hover active:bg-bbd-red-hover text-white text-sm font-bold rounded-full shadow-md hover:shadow-lg transition-all group"
+                className="inline-flex items-center justify-center px-7 py-3.5 bg-bbd-red hover:bg-bbd-red-hover active:bg-bbd-red-hover text-white text-sm font-bold rounded-full shadow-md hover:shadow-lg transition-all group"
               >
                 <span>Book a Delivery</span>
                 <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
               </motion.button>
-
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                <Sparkles className="w-3.5 h-3.5 text-bbd-red" />
-                <span>Instant dispatch response</span>
-              </div>
             </motion.div>
           </motion.div>
 
