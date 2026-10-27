@@ -338,12 +338,16 @@ app.post('/api/bookings', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`BBD Mobility API server running at http://localhost:${port}`);
-  console.log(`Booking notifications configured for: ${businessEmails.join(', ')}`);
-  if (!resendApiKey) {
-    console.log(`[NOTICE] RESEND_API_KEY is not set. Operating in development mode (logging bookings).`);
-  } else {
-    console.log(`[OK] Resend email notifications active.`);
-  }
-});
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`BBD Mobility API server running at http://localhost:${port}`);
+    console.log(`Booking notifications configured for: ${businessEmails.join(', ')}`);
+    if (!resendApiKey) {
+      console.log(`[NOTICE] RESEND_API_KEY is not set. Operating in development mode (logging bookings).`);
+    } else {
+      console.log(`[OK] Resend email notifications active.`);
+    }
+  });
+}
+
+export default app;
