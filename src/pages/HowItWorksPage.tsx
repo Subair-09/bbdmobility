@@ -8,7 +8,6 @@ import {
   Truck,
   Users,
   Smartphone,
-  Sparkles,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -252,18 +251,7 @@ export const HowItWorksPage: React.FC<HowItWorksPageProps> = ({
                     alt="Ready to Send Your Package - BBD Mobility"
                     className="w-full h-[300px] sm:h-[360px] lg:h-[390px] object-cover object-center group-hover:scale-105 transition-transform duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#092957]/70 via-transparent to-transparent pointer-events-none" />
-                  
-                  {/* Floating Verified Badge */}
-                  <div className="absolute bottom-4 left-4 right-4 bg-[#092957]/95 backdrop-blur-md rounded-xl p-3 border border-white/10 shadow-lg flex items-center space-x-3 text-left">
-                    <div className="w-9 h-9 rounded-lg bg-[#E30620] flex items-center justify-center flex-shrink-0 text-white">
-                      <CheckCircle2 className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-white leading-tight">Instant Dispatch Guarantee</p>
-                      <p className="text-[10px] text-slate-300">Fast, safe & tracked doorstep handover</p>
-                    </div>
-                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#092957]/30 via-transparent to-transparent pointer-events-none" />
                 </div>
               </div>
 
@@ -391,15 +379,6 @@ export const HowItWorksPage: React.FC<HowItWorksPageProps> = ({
                   alt="Verified BBD Mobility Courier Rider"
                   className="w-full h-auto object-cover max-h-[420px]"
                 />
-                <div className="absolute bottom-4 left-4 right-4 bg-[#092957]/95 backdrop-blur-md rounded-xl p-3 text-white border border-white/10 shadow-lg flex items-center space-x-3">
-                  <div className="w-9 h-9 rounded-lg bg-[#E30620] flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-4 h-4 text-white" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold">100% Vetted Couriers</h4>
-                    <p className="text-[10px] text-slate-300">Trained for safety & courtesy</p>
-                  </div>
-                </div>
               </div>
             </div>
 
