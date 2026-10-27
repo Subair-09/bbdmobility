@@ -138,11 +138,11 @@ export const AboutPage: React.FC<AboutPageProps> = ({
               </div>
             </div>
 
-            {/* Right Column: 3 Couriers in Uniform Photo */}
+            {/* Right Column: Ultra-Sharp HD Couriers in Uniform Photo */}
             <div className="lg:col-span-6">
               <div className="rounded-2xl overflow-hidden shadow-lg border border-gray-100 bg-slate-100">
                 <img
-                  src="/assets/about-team-couriers.jpg"
+                  src="/assets/courier-delivery-hd.jpg"
                   alt="BBD Mobility Couriers Team"
                   className="w-full h-[260px] sm:h-[340px] lg:h-[360px] object-cover object-center"
                 />
@@ -160,11 +160,11 @@ export const AboutPage: React.FC<AboutPageProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
             
-            {/* Column 1: Courier on Motorcycle Photo */}
+            {/* Column 1: Ultra-Sharp HD Courier on Motorcycle Photo */}
             <div className="lg:col-span-4">
               <div className="rounded-2xl overflow-hidden shadow-md border border-gray-100 bg-slate-100 h-full">
                 <img
-                  src="/assets/about-rider-story.jpg"
+                  src="/assets/courier-rider-hd.jpg"
                   alt="BBD Mobility Courier Rider"
                   className="w-full h-[240px] sm:h-[300px] lg:h-[340px] object-cover object-center"
                 />

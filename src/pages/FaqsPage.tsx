@@ -241,13 +241,13 @@ export const FaqsPage: React.FC<FaqsPageProps> = ({
               </div>
             </motion.div>
 
-            {/* Right Visual (Female CSR in uniform looking at phone) */}
+            {/* Right Visual: 1200x896 Ultra-Sharp HD Female CSR in uniform with headset */}
             <div className="lg:col-span-5 relative flex items-center justify-end overflow-hidden -mx-4 sm:-mx-6 lg:mx-0">
               <div className="hidden lg:block absolute left-0 inset-y-0 w-16 bg-gradient-to-r from-[#092957] via-[#092957]/80 to-transparent z-10 pointer-events-none" />
               <div className="hidden lg:block absolute left-6 inset-y-0 w-3 bg-[#E30620] transform -skew-x-12 z-10" />
 
               <img
-                src="/assets/faq-hero-support.jpg"
+                src="/assets/faq-hero-support-hd.jpg"
                 alt="BBD Mobility Customer Service Representative"
                 className="w-full h-full min-h-[240px] sm:min-h-[300px] lg:min-h-[360px] object-cover object-center"
               />

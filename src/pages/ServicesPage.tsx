@@ -130,13 +130,13 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
               </div>
             </motion.div>
 
-            {/* Right Column Visual */}
+            {/* Right Column Visual: Razor-sharp HD Expressway Courier */}
             <div className="lg:col-span-5 relative flex items-center justify-end overflow-hidden -mx-4 sm:-mx-6 lg:mx-0">
               <div className="hidden lg:block absolute left-0 inset-y-0 w-16 bg-gradient-to-r from-[#092957] via-[#092957]/80 to-transparent z-10 pointer-events-none" />
               <div className="hidden lg:block absolute left-6 inset-y-0 w-3 bg-[#E30620] transform -skew-x-12 z-10" />
 
               <img
-                src="/assets/services-rider-card.jpg"
+                src="/assets/highway-rider-sharp.jpg"
                 alt="BBD Mobility Courier Services"
                 className="w-full h-full min-h-[240px] sm:min-h-[300px] lg:min-h-[360px] object-cover object-center"
               />
@@ -282,7 +282,7 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
             
-            {/* Left: Rider Photograph Card */}
+            {/* Left: Rider Photograph Card: 1200x896 Ultra-Sharp HD Photo */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -292,7 +292,7 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
             >
               <div className="relative rounded-2xl overflow-hidden shadow-xl border-4 border-white bg-slate-100">
                 <img
-                  src="/assets/services-rider-card.jpg"
+                  src="/assets/courier-rider-hd.jpg"
                   alt="Real BBD Delivery Rider"
                   className="w-full h-auto object-cover max-h-[420px]"
                 />

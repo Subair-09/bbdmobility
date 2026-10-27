@@ -110,17 +110,33 @@ export const HowItWorksPage: React.FC<HowItWorksPageProps> = ({
               </div>
             </motion.div>
 
-            {/* Right Column Visual */}
-            <div className="lg:col-span-5 relative flex items-center justify-end overflow-hidden -mx-4 sm:-mx-6 lg:mx-0">
-              <div className="hidden lg:block absolute left-0 inset-y-0 w-16 bg-gradient-to-r from-[#092957] via-[#092957]/80 to-transparent z-10 pointer-events-none" />
-              <div className="hidden lg:block absolute left-6 inset-y-0 w-3 bg-[#E30620] transform -skew-x-12 z-10" />
+            {/* Right Column Visual: Official BBD Mobility Logo Display */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="lg:col-span-5 relative flex items-center justify-center py-8 sm:py-12"
+            >
+              {/* Ambient radial red brand glow behind logo */}
+              <div className="absolute inset-0 bg-radial from-[#E30620]/25 via-transparent to-transparent blur-3xl pointer-events-none" />
 
-              <img
-                src="/assets/hiw-rider-portrait.jpg"
-                alt="BBD Mobility Courier Rider"
-                className="w-full h-full min-h-[240px] sm:min-h-[300px] lg:min-h-[360px] object-cover object-center"
-              />
-            </div>
+              {/* Branded Showcase Card */}
+              <div className="relative w-full max-w-sm rounded-2xl bg-white/5 border border-white/15 backdrop-blur-md p-8 sm:p-10 flex flex-col items-center justify-center text-center shadow-2xl group hover:border-[#E30620]/50 transition-all duration-300">
+                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-20 h-1 bg-[#E30620] rounded-full shadow-sm" />
+
+                <img
+                  src="/assets/logo-white.png"
+                  alt="BBD Mobility Logo"
+                  className="w-full max-w-[260px] sm:max-w-[290px] h-auto object-contain drop-shadow-xl transition-transform duration-300 group-hover:scale-105"
+                />
+
+                <div className="mt-5 pt-4 border-t border-white/10 w-full flex items-center justify-center space-x-2.5 text-xs font-semibold text-slate-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#E30620] animate-pulse" />
+                  <span className="italic tracking-wider text-slate-100 font-bold">Move What Matters</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#E30620] animate-pulse" />
+                </div>
+              </div>
+            </motion.div>
 
           </div>
         </div>
@@ -228,19 +244,85 @@ export const HowItWorksPage: React.FC<HowItWorksPageProps> = ({
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-12 items-center relative z-10">
               
-              {/* Left Column: Phone Mockup */}
+              {/* Left Column: HD Interactive Smartphone Mockup */}
               <div className="lg:col-span-5 flex justify-center">
-                <div className="relative max-w-xs w-full rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 bg-slate-900 group">
-                  <img
-                    src="/assets/hiw-phone-mockup.jpg"
-                    alt="BBD Mobility Online Booking Process"
-                    className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#092957]/80 via-transparent to-transparent pointer-events-none" />
-                  <div className="absolute bottom-3 left-3 right-3 text-center">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white bg-[#E30620] px-3 py-1 rounded-full shadow-md">
-                      Instant Booking App
-                    </span>
+                <div className="relative w-full max-w-[280px] sm:max-w-[300px] bg-slate-950 rounded-[36px] p-3.5 shadow-2xl border-[3px] border-slate-700/60 ring-1 ring-white/10">
+                  {/* Phone Speaker Notch */}
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 w-20 h-4 bg-slate-900 rounded-full flex items-center justify-center space-x-1.5 z-20">
+                    <div className="w-2.5 h-2.5 rounded-full bg-slate-950" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-950" />
+                  </div>
+
+                  {/* Inner Phone Screen */}
+                  <div className="rounded-[28px] overflow-hidden bg-white text-slate-900 pt-7 pb-4 px-4 shadow-inner flex flex-col justify-between min-h-[460px]">
+                    {/* Top App Header */}
+                    <div>
+                      <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                        <img
+                          src="/assets/logo.png"
+                          alt="BBD Mobility"
+                          className="h-6 w-auto object-contain"
+                        />
+                        <span className="text-[10px] font-bold text-[#E30620] bg-red-50 px-2 py-0.5 rounded-full">
+                          Live Dispatch
+                        </span>
+                      </div>
+
+                      {/* Route Card */}
+                      <div className="mt-3.5 bg-slate-50 rounded-xl p-3 border border-gray-100 space-y-2.5">
+                        <div className="flex items-start space-x-2.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 flex-shrink-0" />
+                          <div className="text-left">
+                            <p className="text-[10px] uppercase font-bold text-gray-400">Pickup</p>
+                            <p className="text-xs font-bold text-[#092957]">Ikeja GRA, Lagos</p>
+                          </div>
+                        </div>
+
+                        <div className="ml-1 pl-2.5 border-l-2 border-dashed border-gray-300 py-0.5">
+                          <span className="text-[10px] text-gray-500 font-medium">BBD Priority Express Route</span>
+                        </div>
+
+                        <div className="flex items-start space-x-2.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#E30620] mt-1 flex-shrink-0" />
+                          <div className="text-left">
+                            <p className="text-[10px] uppercase font-bold text-gray-400">Destination</p>
+                            <p className="text-xs font-bold text-[#092957]">Victoria Island, Lagos</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Assigned Rider Banner */}
+                      <div className="mt-3 bg-gradient-to-r from-[#092957] to-[#0d3670] rounded-xl p-3 text-white flex items-center space-x-3">
+                        <div className="w-9 h-9 rounded-full bg-[#E30620] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-sm">
+                          BO
+                        </div>
+                        <div className="text-left flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold truncate">Babatunde O.</p>
+                            <span className="text-[10px] text-yellow-300 font-semibold">★ 4.9</span>
+                          </div>
+                          <p className="text-[10px] text-slate-200">BBD Verified Courier #042</p>
+                        </div>
+                      </div>
+
+                      {/* Delivery Status Progress */}
+                      <div className="mt-3 p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl text-left">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-emerald-800">
+                          <span>Status: In Transit</span>
+                          <span>ETA: 18 Mins</span>
+                        </div>
+                        <div className="w-full bg-emerald-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                          <div className="bg-emerald-600 h-full w-2/3 rounded-full" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom CTA Button inside phone */}
+                    <div className="pt-3 border-t border-gray-100">
+                      <div className="w-full py-2 rounded-lg bg-[#E30620] text-white text-center text-xs font-bold tracking-wide shadow-sm">
+                        Confirming Delivery
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -361,13 +443,13 @@ export const HowItWorksPage: React.FC<HowItWorksPageProps> = ({
               </div>
             </div>
 
-            {/* Right Rider Photo */}
+            {/* Right Rider Photo: 1200x896 Ultra-Sharp HD Photography */}
             <div className="lg:col-span-5 relative">
               <div className="relative rounded-2xl overflow-hidden shadow-xl border-4 border-white bg-slate-100">
                 <img
-                  src="/assets/hiw-rider-portrait.jpg"
-                  alt="Verified Courier Rider"
-                  className="w-full h-auto object-cover max-h-[380px]"
+                  src="/assets/courier-rider-hd.jpg"
+                  alt="Verified BBD Mobility Courier Rider"
+                  className="w-full h-auto object-cover max-h-[420px]"
                 />
                 <div className="absolute bottom-4 left-4 right-4 bg-[#092957]/95 backdrop-blur-md rounded-xl p-3 text-white border border-white/10 shadow-lg flex items-center space-x-3">
                   <div className="w-9 h-9 rounded-lg bg-[#E30620] flex items-center justify-center flex-shrink-0">
