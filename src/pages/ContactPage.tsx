@@ -19,6 +19,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { SEO } from '../components/SEO';
 
 interface ContactPageProps {
   onBackToHome: () => void;
@@ -43,8 +44,53 @@ export const ContactPage: React.FC<ContactPageProps> = ({
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.title = 'Contact Us | BBD Mobility - Move What Matters';
   }, []);
+
+  const contactSchema = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'BreadcrumbList',
+        'itemListElement': [
+          {
+            '@type': 'ListItem',
+            'position': 1,
+            'name': 'Home',
+            'item': 'https://bbdmobility.com.ng/'
+          },
+          {
+            '@type': 'ListItem',
+            'position': 2,
+            'name': 'Contact Us',
+            'item': 'https://bbdmobility.com.ng/contact'
+          }
+        ]
+      },
+      {
+        '@type': 'ContactPage',
+        '@id': 'https://bbdmobility.com.ng/contact#webpage',
+        'url': 'https://bbdmobility.com.ng/contact',
+        'name': 'Contact BBD Mobility',
+        'description': 'Customer service, dispatch inquiries, and office location for BBD Mobility in Lagos, Nigeria.',
+        'mainEntity': {
+          '@type': ['DeliveryService', 'LocalBusiness'],
+          'name': 'BBD Mobility',
+          'telephone': '+2348123456789',
+          'email': 'Info@bbdautosng.com',
+          'address': {
+            '@type': 'PostalAddress',
+            'streetAddress': '20 Babayanju St, Shogunle',
+            'addressLocality': 'Ikeja',
+            'addressRegion': 'Lagos',
+            'postalCode': '102214',
+            'addressCountry': 'NG'
+          },
+          'hasMap': 'https://maps.app.goo.gl/pjan2ghRaWLWe3Xb8',
+          'areaServed': 'Lagos State, Nigeria'
+        }
+      }
+    ]
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,6 +166,14 @@ export const ContactPage: React.FC<ContactPageProps> = ({
 
   return (
     <div className="bg-white text-bbd-navy font-sans">
+      <SEO
+        title="Contact Us — BBD Mobility Courier Dispatch Lagos"
+        description="Contact BBD Mobility for courier bookings and dispatch support in Lagos. Visit us at 20 Babayanju St, Shogunle, call +234 812 345 6789, or message us online."
+        canonicalPath="/contact"
+        keywords="contact BBD Mobility, courier phone number Lagos, dispatch service Ikeja, courier office Shogunle Lagos"
+        schema={contactSchema}
+        image="/assets/contact-hero-hd.jpg"
+      />
       
       {/* =========================================================================
           SECTION 1: HERO BANNER (Exact Match: Navy Left, Rider with Script on Right)
@@ -167,7 +221,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({
 
               <img
                 src="/assets/contact-hero-hd.jpg"
-                alt="BBD Mobility Customer Support Dispatch"
+                alt="BBD Mobility customer support dispatch representative in Lagos"
                 className="w-full h-full min-h-[220px] sm:min-h-[280px] lg:min-h-[340px] object-cover object-center"
               />
             </div>

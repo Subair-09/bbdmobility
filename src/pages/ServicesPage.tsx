@@ -14,6 +14,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { SEO } from '../components/SEO';
 
 interface ServicesPageProps {
   onBackToHome: () => void;
@@ -26,8 +27,97 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
 }) => {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.title = 'Delivery Services | BBD Mobility - Move What Matters';
   }, []);
+
+  const servicesSchema = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'BreadcrumbList',
+        'itemListElement': [
+          {
+            '@type': 'ListItem',
+            'position': 1,
+            'name': 'Home',
+            'item': 'https://bbdmobility.com.ng/'
+          },
+          {
+            '@type': 'ListItem',
+            'position': 2,
+            'name': 'Services',
+            'item': 'https://bbdmobility.com.ng/services'
+          }
+        ]
+      },
+      {
+        '@type': 'ItemList',
+        '@id': 'https://bbdmobility.com.ng/services#catalog',
+        'name': 'BBD Mobility Delivery Services in Lagos',
+        'itemListElement': [
+          {
+            '@type': 'Service',
+            'position': 1,
+            'name': 'Documents & Files Delivery',
+            'description': 'Safe, confidential delivery of contracts, documents, legal papers, and forms across Lagos.',
+            'provider': {
+              '@type': 'Organization',
+              'name': 'BBD Mobility',
+              'url': 'https://bbdmobility.com.ng'
+            },
+            'areaServed': 'Lagos, Nigeria'
+          },
+          {
+            '@type': 'Service',
+            'position': 2,
+            'name': 'Food & Groceries Delivery',
+            'description': 'Quick, clean transportation of cooked food, groceries, and perishables across Lagos.',
+            'provider': {
+              '@type': 'Organization',
+              'name': 'BBD Mobility',
+              'url': 'https://bbdmobility.com.ng'
+            },
+            'areaServed': 'Lagos, Nigeria'
+          },
+          {
+            '@type': 'Service',
+            'position': 3,
+            'name': 'E-commerce Packages Delivery',
+            'description': 'Reliable last-mile delivery service for online shops, social vendors, and retail customers.',
+            'provider': {
+              '@type': 'Organization',
+              'name': 'BBD Mobility',
+              'url': 'https://bbdmobility.com.ng'
+            },
+            'areaServed': 'Lagos, Nigeria'
+          },
+          {
+            '@type': 'Service',
+            'position': 4,
+            'name': 'Personal Items Delivery',
+            'description': 'Discreet, safe errand courier service for gifts, personal essentials, and urgent handovers.',
+            'provider': {
+              '@type': 'Organization',
+              'name': 'BBD Mobility',
+              'url': 'https://bbdmobility.com.ng'
+            },
+            'areaServed': 'Lagos, Nigeria'
+          },
+          {
+            '@type': 'Service',
+            'position': 5,
+            'name': 'Same-Day & Scheduled Delivery',
+            'description': 'Flexible courier scheduling for urgent same-day dispatches or planned future delivery slots.',
+            'provider': {
+              '@type': 'Organization',
+              'name': 'BBD Mobility',
+              'url': 'https://bbdmobility.com.ng'
+            },
+            'areaServed': 'Lagos, Nigeria'
+          }
+        ]
+      }
+    ]
+  };
 
   const services = [
     {
@@ -74,6 +164,14 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
 
   return (
     <div className="bg-white text-bbd-navy font-sans">
+      <SEO
+        title="Courier & Package Delivery Services in Lagos | BBD Mobility"
+        description="Explore BBD Mobility delivery services in Lagos: documents & files, food & groceries, e-commerce packages, personal items, and same-day delivery. Book online today."
+        canonicalPath="/services"
+        keywords="delivery services Lagos, courier services Lagos, parcel delivery Ikeja Lagos, same day courier Lagos, e-commerce dispatch Lagos"
+        schema={servicesSchema}
+        image="/assets/service-hero-rider.jpg"
+      />
       
       {/* =========================================================================
           SECTION 1: HERO BANNER (Exact Mockup Match)
@@ -121,7 +219,7 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
 
               <img
                 src="/assets/service-hero-rider.jpg"
-                alt="BBD Mobility Courier Rider"
+                alt="BBD Mobility courier rider on highway in Lagos"
                 className="w-full h-full min-h-[260px] sm:min-h-[320px] lg:min-h-[420px] object-cover object-center"
               />
             </div>
@@ -170,8 +268,9 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
                     <div className="relative h-28 sm:h-32 w-full overflow-hidden bg-slate-100">
                       <img
                         src={item.image}
-                        alt={item.name}
+                        alt={`BBD Mobility ${item.name} delivery service in Lagos`}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
                       />
                     </div>
 
@@ -226,8 +325,9 @@ export const ServicesPage: React.FC<ServicesPageProps> = ({
               <div className="w-1/2 relative overflow-hidden">
                 <img
                   src="/assets/service-split-rider.jpg"
-                  alt="Real BBD Delivery Rider"
+                  alt="Real BBD Mobility dispatch courier rider in Lagos"
                   className="w-full h-full object-cover object-center"
+                  loading="lazy"
                 />
               </div>
 

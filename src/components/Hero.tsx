@@ -79,7 +79,7 @@ export const Hero: React.FC<HeroProps> = ({ onBookClick, selectedServiceType }) 
               variants={itemVariants}
               className="text-slate-600 text-sm sm:text-base leading-relaxed max-w-sm sm:max-w-md"
             >
-              BBD Mobility delivers your packages, documents and essentials quickly and safely — anywhere in the city.
+              BBD Mobility delivers your packages, documents and essentials quickly and safely across Lagos, Nigeria — anywhere in the city.
             </motion.p>
 
             {/* Four compact icon-and-label features */}
@@ -168,8 +168,9 @@ export const Hero: React.FC<HeroProps> = ({ onBookClick, selectedServiceType }) 
             >
               <img
                 src="/assets/hero-composite.jpg"
-                alt="BBD Mobility courier delivering package to customer"
+                alt="BBD Mobility courier delivering package to customer in Lagos"
                 className="w-full h-auto object-contain mx-auto drop-shadow-md rounded-xl"
+                loading="eager"
               />
             </motion.div>
           </motion.div>

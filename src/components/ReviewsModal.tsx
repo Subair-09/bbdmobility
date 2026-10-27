@@ -89,8 +89,9 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({ isOpen, onClose }) =
                   <div className="flex items-center space-x-3">
                     <img
                       src={r.avatar}
-                      alt={r.name}
+                      alt={`Customer ${r.name}`}
                       className="w-10 h-10 rounded-full object-cover border border-red-100"
+                      loading="lazy"
                     />
                     <div>
                       <h4 className="text-xs sm:text-sm font-bold text-bbd-navy">{r.name}</h4>

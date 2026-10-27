@@ -91,8 +91,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <img
                 src="/assets/logo.png"
-                alt="BBD Mobility"
+                alt="BBD Mobility - Courier & Delivery Services Lagos"
                 className="h-9 sm:h-11 md:h-12 w-auto object-contain transition-transform group-hover:scale-[1.02]"
+                width={160}
+                height={48}
               />
             </button>
           </div>

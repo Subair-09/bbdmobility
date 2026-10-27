@@ -14,6 +14,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { SEO } from '../components/SEO';
 
 interface AboutPageProps {
   onBackToHome: () => void;
@@ -27,11 +28,64 @@ export const AboutPage: React.FC<AboutPageProps> = ({
 }) => {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.title = 'About Us | BBD Mobility - Move What Matters';
   }, []);
+
+  const aboutSchema = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'BreadcrumbList',
+        'itemListElement': [
+          {
+            '@type': 'ListItem',
+            'position': 1,
+            'name': 'Home',
+            'item': 'https://bbdmobility.com.ng/'
+          },
+          {
+            '@type': 'ListItem',
+            'position': 2,
+            'name': 'About Us',
+            'item': 'https://bbdmobility.com.ng/about'
+          }
+        ]
+      },
+      {
+        '@type': 'AboutPage',
+        '@id': 'https://bbdmobility.com.ng/about#webpage',
+        'url': 'https://bbdmobility.com.ng/about',
+        'name': 'About BBD Mobility',
+        'description': 'Mission, logistics background, and delivery values of BBD Mobility in Lagos, Nigeria.',
+        'mainEntity': {
+          '@type': 'Organization',
+          'name': 'BBD Mobility',
+          'url': 'https://bbdmobility.com.ng',
+          'slogan': 'Move What Matters.',
+          'telephone': '+2348123456789',
+          'email': 'Info@bbdautosng.com',
+          'address': {
+            '@type': 'PostalAddress',
+            'streetAddress': '20 Babayanju St, Shogunle',
+            'addressLocality': 'Ikeja',
+            'addressRegion': 'Lagos',
+            'postalCode': '102214',
+            'addressCountry': 'NG'
+          }
+        }
+      }
+    ]
+  };
 
   return (
     <div className="bg-white text-bbd-navy font-sans">
+      <SEO
+        title="About Us — Reliable Logistics & Couriers in Lagos | BBD Mobility"
+        description="Discover BBD Mobility's mission to provide dependable, fast, and safe parcel delivery across Lagos, Nigeria. Connecting people and businesses with trust."
+        canonicalPath="/about"
+        keywords="about BBD Mobility, Lagos courier company, delivery service mission Nigeria, logistics team Lagos"
+        schema={aboutSchema}
+        image="/assets/about-hero-rider.jpg"
+      />
       
       {/* =========================================================================
           SECTION 1: HERO BANNER (Exact Match: Navy Left, Rider Right with Diagonal Cut)
@@ -143,8 +197,9 @@ export const AboutPage: React.FC<AboutPageProps> = ({
               <div className="rounded-2xl overflow-hidden shadow-lg border border-gray-100 bg-slate-100">
                 <img
                   src="/assets/courier-delivery-hd.jpg"
-                  alt="BBD Mobility Couriers Team"
+                  alt="BBD Mobility professional courier team in uniform holding delivery parcels in Lagos"
                   className="w-full h-[260px] sm:h-[340px] lg:h-[360px] object-cover object-center"
+                  loading="lazy"
                 />
               </div>
             </div>
@@ -165,8 +220,9 @@ export const AboutPage: React.FC<AboutPageProps> = ({
               <div className="rounded-2xl overflow-hidden shadow-md border border-gray-100 bg-slate-100 h-full">
                 <img
                   src="/assets/courier-rider-hd.jpg"
-                  alt="BBD Mobility Courier Rider"
+                  alt="BBD Mobility courier rider with branded motorcycle and delivery box in Lagos"
                   className="w-full h-[240px] sm:h-[300px] lg:h-[340px] object-cover object-center"
+                  loading="lazy"
                 />
               </div>
             </div>

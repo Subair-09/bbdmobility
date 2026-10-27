@@ -5,6 +5,7 @@ import {
   Mail, 
   MessageSquare, 
   HelpCircle,
+  MapPin,
   CheckCircle2,
   AlertCircle,
   Loader2
@@ -102,8 +103,10 @@ export const Footer: React.FC<FooterProps> = ({
             >
               <img
                 src="/assets/logo-white.png"
-                alt="BBD Mobility"
+                alt="BBD Mobility - Move What Matters"
                 className="h-10 sm:h-11 w-auto object-contain"
+                width={150}
+                height={44}
               />
             </button>
             <p className="text-xs italic text-bbd-red font-bold tracking-wide">
@@ -327,6 +330,12 @@ export const Footer: React.FC<FooterProps> = ({
                   <Mail className="w-3.5 h-3.5 text-bbd-red flex-shrink-0" />
                   <span className="truncate max-w-[170px]">Info@bbdautosng.com</span>
                 </a>
+              </li>
+              <li>
+                <div className="text-slate-400 flex items-start gap-1.5 py-0.5 text-xs">
+                  <MapPin className="w-3.5 h-3.5 text-bbd-red flex-shrink-0 mt-0.5" />
+                  <span className="leading-tight">20 Babayanju St, Shogunle, Lagos</span>
+                </div>
               </li>
             </ul>
           </div>

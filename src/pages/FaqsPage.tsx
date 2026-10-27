@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { SEO } from '../components/SEO';
 
 interface FaqsPageProps {
   onBackToHome: () => void;
@@ -38,7 +39,6 @@ export const FaqsPage: React.FC<FaqsPageProps> = ({
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.title = 'Frequently Asked Questions | BBD Mobility - Move What Matters';
   }, []);
 
   const categories = [
@@ -64,7 +64,7 @@ export const FaqsPage: React.FC<FaqsPageProps> = ({
       category: 'booking',
       question: 'Can I edit or cancel my delivery after booking?',
       answer:
-        'Yes, you can modify or cancel your booking as long as a rider has not yet been dispatched. Please contact our support team immediately via phone or WhatsApp at +234 912 345 6789 with your booking reference.',
+        'Yes, you can modify or cancel your booking as long as a rider has not yet been dispatched. Please contact our support team immediately via phone or WhatsApp at +234 812 345 6789 with your booking reference.',
     },
     {
       id: 'b-3',
@@ -170,7 +170,7 @@ export const FaqsPage: React.FC<FaqsPageProps> = ({
       category: 'support',
       question: 'How can I speak directly with customer care?',
       answer:
-        'You can call our dedicated support hotline at +234 912 345 6789, email info@bbdmobility.com, or use our Contact Us page. Our representatives are available 24/7 to help.',
+        'You can call our dedicated support hotline at +234 812 345 6789, email Info@bbdautosng.com, or use our Contact Us page. Our representatives are available to help with your delivery inquiries.',
     },
   ];
 
@@ -191,8 +191,51 @@ export const FaqsPage: React.FC<FaqsPageProps> = ({
     setExpandedId((prev) => (prev === id ? null : id));
   };
 
+  const faqPageSchema = useMemo(() => ({
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'BreadcrumbList',
+        'itemListElement': [
+          {
+            '@type': 'ListItem',
+            'position': 1,
+            'name': 'Home',
+            'item': 'https://bbdmobility.com.ng/'
+          },
+          {
+            '@type': 'ListItem',
+            'position': 2,
+            'name': 'FAQs',
+            'item': 'https://bbdmobility.com.ng/faqs'
+          }
+        ]
+      },
+      {
+        '@type': 'FAQPage',
+        '@id': 'https://bbdmobility.com.ng/faqs#faq',
+        'mainEntity': faqItems.map((item) => ({
+          '@type': 'Question',
+          'name': item.question,
+          'acceptedAnswer': {
+            '@type': 'Answer',
+            'text': item.answer,
+          },
+        })),
+      }
+    ]
+  }), [faqItems]);
+
   return (
     <div className="bg-white text-bbd-navy font-sans">
+      <SEO
+        title="Frequently Asked Questions — Lagos Couriers | BBD Mobility"
+        description="Find answers to common questions about booking deliveries, Lagos service areas, payment options, and courier dispatches with BBD Mobility."
+        canonicalPath="/faqs"
+        keywords="BBD Mobility FAQs, courier questions Lagos, delivery FAQ Nigeria, parcel booking help Lagos"
+        schema={faqPageSchema}
+        image="/assets/faq-hero-support-hd.jpg"
+      />
       
       {/* =========================================================================
           SECTION 1: HERO BANNER (Navy Left, Representative Right with Red Skew Slash)
@@ -248,7 +291,7 @@ export const FaqsPage: React.FC<FaqsPageProps> = ({
 
               <img
                 src="/assets/faq-hero-support-hd.jpg"
-                alt="BBD Mobility Customer Service Representative"
+                alt="BBD Mobility customer support representative assisting delivery clients in Lagos"
                 className="w-full h-full min-h-[240px] sm:min-h-[300px] lg:min-h-[360px] object-cover object-center"
               />
             </div>
@@ -336,7 +379,7 @@ export const FaqsPage: React.FC<FaqsPageProps> = ({
                 <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-300">
                   <span className="flex items-center">
                     <Phone className="w-3.5 h-3.5 mr-1 text-[#E30620]" />
-                    +234 912 345 6789
+                    +234 812 345 6789
                   </span>
                   <span className="flex items-center">
                     <MessageSquare className="w-3.5 h-3.5 mr-1 text-[#E30620]" />

@@ -16,6 +16,7 @@ import { ContactPage } from './pages/ContactPage';
 import { ServicesPage } from './pages/ServicesPage';
 import { HowItWorksPage } from './pages/HowItWorksPage';
 import { FaqsPage } from './pages/FaqsPage';
+import { SEO } from './components/SEO';
 
 export function App() {
   const [currentView, setCurrentView] = useState<'home' | 'about' | 'contact' | 'services' | 'how-it-works' | 'faqs'>('home');
@@ -239,6 +240,14 @@ export function App() {
         ) : (
           /* Homepage with full content */
           <>
+            <SEO
+              title="Courier & Delivery Services in Lagos, Nigeria | BBD Mobility"
+              description="Book reliable parcel delivery and courier services in Lagos, Nigeria, with BBD Mobility. Arrange your pickup and drop-off conveniently. Move What Matters."
+              canonicalPath="/"
+              keywords="courier services in Lagos, delivery services in Lagos, parcel delivery Lagos, book delivery Lagos, local delivery service Lagos, package pickup Lagos Nigeria, dispatch rider Lagos"
+              image="/assets/highway-rider-sharp.jpg"
+            />
+
             {/* Hero Section with Rider Image & Booking Card */}
             <Hero
               onBookClick={() => handleBookNowClick()}

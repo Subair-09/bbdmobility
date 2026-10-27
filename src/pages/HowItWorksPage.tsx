@@ -10,6 +10,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { SEO } from '../components/SEO';
 
 interface HowItWorksPageProps {
   onBackToHome: () => void;
@@ -23,8 +24,62 @@ export const HowItWorksPage: React.FC<HowItWorksPageProps> = ({
 }) => {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.title = 'How It Works | BBD Mobility - Move What Matters';
   }, []);
+
+  const howItWorksSchema = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'BreadcrumbList',
+        'itemListElement': [
+          {
+            '@type': 'ListItem',
+            'position': 1,
+            'name': 'Home',
+            'item': 'https://bbdmobility.com.ng/'
+          },
+          {
+            '@type': 'ListItem',
+            'position': 2,
+            'name': 'How It Works',
+            'item': 'https://bbdmobility.com.ng/how-it-works'
+          }
+        ]
+      },
+      {
+        '@type': 'HowTo',
+        '@id': 'https://bbdmobility.com.ng/how-it-works#guide',
+        'name': 'How to Book a Delivery with BBD Mobility in Lagos',
+        'description': 'Four simple steps to arrange fast and secure courier delivery across Lagos, Nigeria.',
+        'step': [
+          {
+            '@type': 'HowToStep',
+            'position': 1,
+            'name': 'Book Your Delivery',
+            'text': 'Enter your pickup and drop-off addresses, package details, and contact information through the online form.'
+          },
+          {
+            '@type': 'HowToStep',
+            'position': 2,
+            'name': 'Get Instant Confirmation',
+            'text': 'Receive immediate confirmation with your booking reference, route summary, and dispatch notice.'
+          },
+          {
+            '@type': 'HowToStep',
+            'position': 3,
+            'name': 'Vetted Rider Assigned',
+            'text': 'A background-checked BBD courier rider near your pickup location is assigned to collect your parcel.'
+          },
+          {
+            '@type': 'HowToStep',
+            'position': 4,
+            'name': 'Safe Doorstep Delivery',
+            'text': 'Your package is safely transported in a weatherproof box and handed over directly to the recipient.'
+          }
+        ]
+      }
+    ]
+  };
 
   const steps = [
     {
@@ -61,6 +116,14 @@ export const HowItWorksPage: React.FC<HowItWorksPageProps> = ({
 
   return (
     <div className="bg-white text-bbd-navy font-sans">
+      <SEO
+        title="How It Works — Courier Booking in Lagos | BBD Mobility"
+        description="Learn how to book a courier in Lagos with BBD Mobility in 4 simple steps: enter pickup & drop-off details, get confirmation, rider dispatched, and safe delivery."
+        canonicalPath="/how-it-works"
+        keywords="how to book courier Lagos, parcel delivery process Lagos, book dispatch rider Nigeria, BBD Mobility steps"
+        schema={howItWorksSchema}
+        image="/assets/ready-to-send-package-hd.jpg"
+      />
       
       {/* =========================================================================
           SECTION 1: HERO BANNER (Navy Left, Visual Right with Red Skew Slash)
@@ -248,8 +311,9 @@ export const HowItWorksPage: React.FC<HowItWorksPageProps> = ({
                 <div className="relative w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 bg-slate-900 group">
                   <img
                     src="/assets/ready-to-send-package-hd.jpg"
-                    alt="Ready to Send Your Package - BBD Mobility"
+                    alt="Customer handing over delivery package to BBD Mobility courier in Lagos"
                     className="w-full h-[300px] sm:h-[360px] lg:h-[390px] object-cover object-center group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#092957]/30 via-transparent to-transparent pointer-events-none" />
                 </div>
@@ -376,8 +440,9 @@ export const HowItWorksPage: React.FC<HowItWorksPageProps> = ({
               <div className="relative rounded-2xl overflow-hidden shadow-xl border-4 border-white bg-slate-100">
                 <img
                   src="/assets/courier-rider-hd.jpg"
-                  alt="Verified BBD Mobility Courier Rider"
+                  alt="Verified BBD Mobility dispatch courier rider in Lagos"
                   className="w-full h-auto object-cover max-h-[420px]"
+                  loading="lazy"
                 />
               </div>
             </div>

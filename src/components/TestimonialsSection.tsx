@@ -146,8 +146,9 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
                   <div className="flex items-center space-x-3 mb-4">
                     <img
                       src={item.avatar}
-                      alt={item.name}
+                      alt={`Customer ${item.name}`}
                       className="w-11 h-11 rounded-full object-cover border-2 border-red-100 shadow-xs"
+                      loading="lazy"
                     />
                     <div>
                       <h4 className="text-sm font-bold text-bbd-navy">{item.name}</h4>
@@ -187,8 +188,9 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
               <div className="flex items-center space-x-3 mb-4">
                 <img
                   src={testimonials[currentIndex].avatar}
-                  alt={testimonials[currentIndex].name}
+                  alt={`Customer ${testimonials[currentIndex].name}`}
                   className="w-12 h-12 rounded-full object-cover border-2 border-red-100 shadow-xs"
+                  loading="lazy"
                 />
                 <div>
                   <h4 className="text-sm font-bold text-bbd-navy">{testimonials[currentIndex].name}</h4>
