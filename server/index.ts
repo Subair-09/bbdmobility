@@ -196,6 +196,9 @@ app.post('/api/bookings', async (req, res) => {
     if (!sPhone || sPhone.length < 6) {
       return res.status(400).json({ error: 'Please provide a valid sender phone number.' });
     }
+    if (!sEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sEmail)) {
+      return res.status(400).json({ error: 'Please provide a valid email address to receive your booking confirmation.' });
+    }
     if (!rName) {
       return res.status(400).json({ error: 'Please provide recipient name.' });
     }
@@ -275,9 +278,9 @@ app.post('/api/bookings', async (req, res) => {
         console.error('Resend dispatch email error:', dispatchResult.error);
       }
 
-      // 2. Send confirmation to customer if email was provided
+      // 2. Send confirmation to customer
       if (sEmail && sEmail.includes('@')) {
-        await resend.emails.send({
+        const customerResult = await resend.emails.send({
           from: fromEmail,
           to: [sEmail],
           replyTo: 'Info@bbdautosng.com',
@@ -291,11 +294,11 @@ app.post('/api/bookings', async (req, res) => {
               <div style="padding: 28px; background: #ffffff; border: 1px solid #e2e8f0;">
                 <h2 style="color: #092957; margin-top: 0;">We've Received Your Booking Request!</h2>
                 <p>Hello <strong>${sName}</strong>,</p>
-                <p>Thank you for choosing BBD Mobility. Our dispatch team is reviewing your request and will contact you shortly to coordinate pickup.</p>
+                <p>Thank you for choosing BBD Mobility. Our dispatch team is reviewing your delivery request and our assigned rider will contact you promptly at <strong>${sPhone}</strong> to coordinate pickup.</p>
                 ${bookingDetailsHtml}
                 <div style="background: #F4F6F8; padding: 16px; border-left: 4px solid #E30620; margin: 24px 0;">
-                  <strong style="color: #092957;">Need urgent support?</strong><br>
-                  Call us directly at <strong>+234 812 345 6789</strong> or email <strong>Info@bbdautosng.com</strong> / <strong>Sales@bbdautosng.com</strong> with your reference <strong>${bookingRef}</strong>.
+                  <strong style="color: #092957;">Need immediate assistance?</strong><br>
+                  Call our dispatch hotline at <strong>+234 812 345 6789</strong> or reply to this email (<strong>Info@bbdautosng.com</strong>) with your reference: <strong style="color: #E30620;">${bookingRef}</strong>.
                 </div>
               </div>
               <div style="text-align: center; font-size: 12px; color: #64748B; padding: 16px;">
@@ -304,11 +307,18 @@ app.post('/api/bookings', async (req, res) => {
             </div>
           `,
         });
+
+        if (customerResult.error) {
+          console.error(`Resend customer confirmation email error (${sEmail}):`, customerResult.error);
+        } else {
+          console.log(`[OK] Customer confirmation email sent to: ${sEmail}`);
+        }
       }
     } else {
       console.log('----------------------------------------------------');
       console.log(`[BOOKING DEV MODE] Reference: ${bookingRef}`);
-      console.log(`Target Notification Emails: ${businessEmails.join(', ')}`);
+      console.log(`Target Dispatch Inboxes: ${businessEmails.join(', ')}`);
+      console.log(`Customer Confirmation Sent To: ${sEmail}`);
       console.log(`Service: ${sType} | From: ${pLoc} -> To: ${dLoc}`);
       console.log(`Sender: ${sName} (${sPhone}) | Receiver: ${rName} (${rPhone})`);
       console.log(`Package: ${pDetails || 'N/A'}`);
