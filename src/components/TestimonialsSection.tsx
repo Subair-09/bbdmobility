@@ -21,7 +21,7 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
     {
       id: '2',
       name: 'Tunde Adebayo',
-      location: 'Abuja',
+      location: 'Lagos',
       avatar: '/assets/avatar-tunde-hd.jpg',
       quote: 'Very reliable service. I use them for my business deliveries and they never disappoint.',
       stars: 5,
@@ -29,7 +29,7 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
     {
       id: '3',
       name: 'Faith Okafor',
-      location: 'Port Harcourt',
+      location: 'Lagos',
       avatar: '/assets/avatar-faith-hd.jpg',
       quote: 'Easy booking process and great customer support. Highly recommended!',
       stars: 5,
@@ -37,7 +37,7 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
     {
       id: '4',
       name: 'Emeka Nwosu',
-      location: 'Ibadan',
+      location: 'Lagos',
       avatar: '/assets/avatar-tunde-hd.jpg',
       quote: 'Fragile documents arrived intact with zero delays. The courier communicated at every step.',
       stars: 5,
@@ -45,7 +45,7 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
     {
       id: '5',
       name: 'Amina Bello',
-      location: 'Kano',
+      location: 'Lagos',
       avatar: '/assets/avatar-ngozi-hd.jpg',
       quote: 'Scheduled dispatch arrived right on the dot. Outstanding service quality for e-commerce.',
       stars: 5,

@@ -20,7 +20,7 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({ isOpen, onClose }) =
     },
     {
       name: 'Tunde Adebayo',
-      location: 'Abuja',
+      location: 'Lagos',
       avatar: '/assets/avatar-tunde-hd.jpg',
       quote: 'Very reliable service. I use them for my business deliveries and they never disappoint. Seamless dispatch process and prompt pickup every single time.',
       rating: 5,
@@ -28,7 +28,7 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({ isOpen, onClose }) =
     },
     {
       name: 'Faith Okafor',
-      location: 'Port Harcourt',
+      location: 'Lagos',
       avatar: '/assets/avatar-faith-hd.jpg',
       quote: 'Easy booking process and great customer support. Highly recommended! The support team followed up immediately to confirm recipient phone availability.',
       rating: 5,
@@ -36,7 +36,7 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({ isOpen, onClose }) =
     },
     {
       name: 'Emeka Nwosu',
-      location: 'Ibadan',
+      location: 'Lagos',
       avatar: '/assets/avatar-tunde-hd.jpg',
       quote: 'We sent critical tender documentation across town during torrential rain. The waterproof courier box kept every sheet bone-dry. Outstanding dependability.',
       rating: 5,
@@ -44,7 +44,7 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({ isOpen, onClose }) =
     },
     {
       name: 'Amina Bello',
-      location: 'Kano',
+      location: 'Lagos',
       avatar: '/assets/avatar-ngozi-hd.jpg',
       quote: 'Our online pastry store relies on BBD Mobility for same-day scheduled drops. Delivery riders are courteous, neatly uniformed, and respect our customers.',
       rating: 5,
