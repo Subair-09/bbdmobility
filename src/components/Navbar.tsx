@@ -10,17 +10,22 @@ interface NavbarProps {
   onNavigateHome: (targetId?: string) => void;
   onNavigateAbout: () => void;
   onNavigateContact: () => void;
-  currentView: 'home' | 'about' | 'contact';
+  onNavigateServices: () => void;
+  onNavigateHowItWorks: () => void;
+  onNavigateFaqs: () => void;
+  currentView: 'home' | 'about' | 'contact' | 'services' | 'how-it-works' | 'faqs';
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  onOpenModal,
   onBookNowClick,
   activeNav,
   setActiveNav,
   onNavigateHome,
   onNavigateAbout,
   onNavigateContact,
+  onNavigateServices,
+  onNavigateHowItWorks,
+  onNavigateFaqs,
   currentView,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -37,9 +42,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navItems = [
     { name: 'Home', type: 'home' as const },
     { name: 'Services', type: 'services' as const },
-    { name: 'How It Works', modal: 'how-it-works' as const, type: 'modal' as const },
+    { name: 'How It Works', type: 'how-it-works' as const },
     { name: 'About Us', type: 'about' as const },
-    { name: 'FAQs', modal: 'faqs' as const, type: 'modal' as const },
+    { name: 'FAQs', type: 'faqs' as const },
     { name: 'Contact', type: 'contact' as const },
   ];
 
@@ -51,21 +56,18 @@ export const Navbar: React.FC<NavbarProps> = ({
       onNavigateContact();
     } else if (item.type === 'about') {
       onNavigateAbout();
+    } else if (item.type === 'services') {
+      onNavigateServices();
+    } else if (item.type === 'how-it-works') {
+      onNavigateHowItWorks();
+    } else if (item.type === 'faqs') {
+      onNavigateFaqs();
     } else if (item.type === 'home') {
       if (currentView !== 'home') {
         onNavigateHome();
       } else {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
-    } else if (item.type === 'services') {
-      if (currentView !== 'home') {
-        onNavigateHome('services');
-      } else {
-        const el = document.getElementById('services');
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      }
-    } else if (item.type === 'modal' && item.modal) {
-      onOpenModal(item.modal);
     }
   };
 

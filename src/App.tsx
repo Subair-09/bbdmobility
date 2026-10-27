@@ -13,9 +13,12 @@ import { ReviewsModal } from './components/ReviewsModal';
 import { InfoModal, ModalType } from './components/InfoModal';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
+import { ServicesPage } from './pages/ServicesPage';
+import { HowItWorksPage } from './pages/HowItWorksPage';
+import { FaqsPage } from './pages/FaqsPage';
 
 export function App() {
-  const [currentView, setCurrentView] = useState<'home' | 'about' | 'contact'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'about' | 'contact' | 'services' | 'how-it-works' | 'faqs'>('home');
   const [activeNav, setActiveNav] = useState('Home');
   const [selectedService, setSelectedService] = useState('Documents & Files');
   const [allServicesOpen, setAllServicesOpen] = useState(false);
@@ -35,6 +38,15 @@ export function App() {
       } else if (path === '/about' || hash === '#/about' || hash === '#about-page') {
         setCurrentView('about');
         setActiveNav('About Us');
+      } else if (path === '/services' || hash === '#/services' || hash === '#services-page') {
+        setCurrentView('services');
+        setActiveNav('Services');
+      } else if (path === '/how-it-works' || hash === '#/how-it-works' || hash === '#how-it-works-page') {
+        setCurrentView('how-it-works');
+        setActiveNav('How It Works');
+      } else if (path === '/faqs' || path === '/faq' || hash === '#/faqs' || hash === '#faqs-page') {
+        setCurrentView('faqs');
+        setActiveNav('FAQs');
       } else {
         setCurrentView('home');
         if (hash === '#services') {
@@ -75,6 +87,33 @@ export function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const navigateToServices = () => {
+    setCurrentView('services');
+    setActiveNav('Services');
+    if (window.location.pathname !== '/services') {
+      window.history.pushState(null, '', '/services');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToHowItWorks = () => {
+    setCurrentView('how-it-works');
+    setActiveNav('How It Works');
+    if (window.location.pathname !== '/how-it-works') {
+      window.history.pushState(null, '', '/how-it-works');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToFaqs = () => {
+    setCurrentView('faqs');
+    setActiveNav('FAQs');
+    if (window.location.pathname !== '/faqs') {
+      window.history.pushState(null, '', '/faqs');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const navigateToHome = (targetId?: string) => {
     setCurrentView('home');
     setActiveNav(targetId === 'services' ? 'Services' : 'Home');
@@ -99,7 +138,10 @@ export function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleBookNowClick = () => {
+  const handleBookNowClick = (serviceType?: string) => {
+    if (serviceType) {
+      setSelectedService(serviceType);
+    }
     if (currentView !== 'home') {
       navigateToHome();
       setTimeout(() => {
@@ -133,10 +175,13 @@ export function App() {
         activeNav={activeNav}
         setActiveNav={setActiveNav}
         onOpenModal={(type) => setInfoModalType(type)}
-        onBookNowClick={handleBookNowClick}
+        onBookNowClick={() => handleBookNowClick()}
         onNavigateHome={navigateToHome}
         onNavigateAbout={navigateToAbout}
         onNavigateContact={navigateToContact}
+        onNavigateServices={navigateToServices}
+        onNavigateHowItWorks={navigateToHowItWorks}
+        onNavigateFaqs={navigateToFaqs}
         currentView={currentView}
       />
 
@@ -145,22 +190,58 @@ export function App() {
           /* Dedicated Contact Page */
           <ContactPage
             onBackToHome={() => navigateToHome()}
-            onBookNow={handleBookNowClick}
-            onOpenModal={(type) => setInfoModalType(type)}
+            onBookNow={() => handleBookNowClick()}
+            onOpenModal={(type) => {
+              if (type === 'how-it-works') navigateToHowItWorks();
+              else if (type === 'faqs') navigateToFaqs();
+              else setInfoModalType(type);
+            }}
           />
         ) : currentView === 'about' ? (
           /* Dedicated About Page */
           <AboutPage
             onBackToHome={() => navigateToHome()}
-            onBookNow={handleBookNowClick}
-            onOpenModal={(type) => setInfoModalType(type)}
+            onBookNow={() => handleBookNowClick()}
+            onOpenModal={(type) => {
+              if (type === 'contact') navigateToContact();
+              else if (type === 'faqs') navigateToFaqs();
+            }}
+          />
+        ) : currentView === 'services' ? (
+          /* Dedicated Services Page */
+          <ServicesPage
+            onBackToHome={() => navigateToHome()}
+            onBookNow={(svc) => handleBookNowClick(svc)}
+            onOpenModal={(type) => {
+              if (type === 'contact') navigateToContact();
+              else if (type === 'faqs') navigateToFaqs();
+              else if (type === 'how-it-works') navigateToHowItWorks();
+            }}
+          />
+        ) : currentView === 'how-it-works' ? (
+          /* Dedicated How It Works Page */
+          <HowItWorksPage
+            onBackToHome={() => navigateToHome()}
+            onBookNow={() => handleBookNowClick()}
+            onOpenModal={(type) => {
+              if (type === 'contact') navigateToContact();
+              else if (type === 'faqs') navigateToFaqs();
+              else if (type === 'services') navigateToServices();
+            }}
+          />
+        ) : currentView === 'faqs' ? (
+          /* Dedicated FAQs Page */
+          <FaqsPage
+            onBackToHome={() => navigateToHome()}
+            onBookNow={() => handleBookNowClick()}
+            onNavigateContact={navigateToContact}
           />
         ) : (
           /* Homepage with full content */
           <>
             {/* Hero Section with Rider Image & Booking Card */}
             <Hero
-              onBookClick={handleBookNowClick}
+              onBookClick={() => handleBookNowClick()}
               selectedServiceType={selectedService}
             />
 
@@ -191,6 +272,9 @@ export function App() {
         onNavigateHome={navigateToHome}
         onNavigateAbout={navigateToAbout}
         onNavigateContact={navigateToContact}
+        onNavigateServices={navigateToServices}
+        onNavigateHowItWorks={navigateToHowItWorks}
+        onNavigateFaqs={navigateToFaqs}
         currentView={currentView}
       />
 
@@ -213,7 +297,7 @@ export function App() {
             </a>
 
             <button
-              onClick={handleBookNowClick}
+              onClick={() => handleBookNowClick()}
               className="flex-1 py-3 px-4 bg-bbd-red hover:bg-bbd-red-hover active:scale-[0.98] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-md transition-all"
             >
               <span>Book a Delivery Now</span>
@@ -238,7 +322,7 @@ export function App() {
       <InfoModal
         type={infoModalType}
         onClose={() => setInfoModalType(null)}
-        onBookNow={handleBookNowClick}
+        onBookNow={() => handleBookNowClick()}
       />
     </div>
   );

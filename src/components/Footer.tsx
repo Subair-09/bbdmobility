@@ -17,7 +17,10 @@ interface FooterProps {
   onNavigateHome?: (targetId?: string) => void;
   onNavigateAbout?: () => void;
   onNavigateContact?: () => void;
-  currentView?: 'home' | 'about' | 'contact';
+  onNavigateServices?: () => void;
+  onNavigateHowItWorks?: () => void;
+  onNavigateFaqs?: () => void;
+  currentView?: 'home' | 'about' | 'contact' | 'services' | 'how-it-works' | 'faqs';
 }
 
 export const Footer: React.FC<FooterProps> = ({
@@ -26,6 +29,9 @@ export const Footer: React.FC<FooterProps> = ({
   onNavigateHome,
   onNavigateAbout,
   onNavigateContact,
+  onNavigateServices,
+  onNavigateHowItWorks,
+  onNavigateFaqs,
   currentView,
 }) => {
   const [email, setEmail] = useState('');
@@ -168,51 +174,63 @@ export const Footer: React.FC<FooterProps> = ({
               <li>
                 <button
                   onClick={() => (onNavigateHome ? onNavigateHome() : window.scrollTo({ top: 0, behavior: 'smooth' }))}
-                  className="hover:text-white transition-colors block py-0.5 text-left"
+                  className={`hover:text-white transition-colors block py-0.5 text-left ${
+                    currentView === 'home' ? 'text-[#E30620] font-bold' : ''
+                  }`}
                 >
                   Home
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() =>
-                    onNavigateHome
-                      ? onNavigateHome('services')
-                      : document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })
-                  }
-                  className="hover:text-white transition-colors block py-0.5 text-left"
+                  onClick={() => (onNavigateServices ? onNavigateServices() : onNavigateHome ? onNavigateHome('services') : null)}
+                  className={`hover:text-white transition-colors block py-0.5 text-left ${
+                    currentView === 'services' ? 'text-[#E30620] font-bold' : ''
+                  }`}
                 >
                   Services
                 </button>
               </li>
-              {[
-                { label: 'How It Works', modal: 'how-it-works' as const },
-                { label: 'About Us', modal: 'about-us' as const },
-                { label: 'FAQs', modal: 'faqs' as const },
-                { label: 'Contact', modal: 'contact' as const },
-              ].map((item) => (
-                <li key={item.label}>
-                  <button
-                    onClick={() => {
-                      if (item.label === 'About Us' && onNavigateAbout) {
-                        onNavigateAbout();
-                      } else if (item.label === 'Contact' && onNavigateContact) {
-                        onNavigateContact();
-                      } else {
-                        onOpenModal(item.modal);
-                      }
-                    }}
-                    className={`hover:text-white transition-colors text-left block py-0.5 ${
-                      (item.label === 'About Us' && currentView === 'about') ||
-                      (item.label === 'Contact' && currentView === 'contact')
-                        ? 'text-[#E30620] font-bold'
-                        : ''
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                </li>
-              ))}
+              <li>
+                <button
+                  onClick={() => (onNavigateHowItWorks ? onNavigateHowItWorks() : onOpenModal('how-it-works'))}
+                  className={`hover:text-white transition-colors block py-0.5 text-left ${
+                    currentView === 'how-it-works' ? 'text-[#E30620] font-bold' : ''
+                  }`}
+                >
+                  How It Works
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => (onNavigateAbout ? onNavigateAbout() : onOpenModal('about-us'))}
+                  className={`hover:text-white transition-colors block py-0.5 text-left ${
+                    currentView === 'about' ? 'text-[#E30620] font-bold' : ''
+                  }`}
+                >
+                  About Us
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => (onNavigateFaqs ? onNavigateFaqs() : onOpenModal('faqs'))}
+                  className={`hover:text-white transition-colors block py-0.5 text-left ${
+                    currentView === 'faqs' ? 'text-[#E30620] font-bold' : ''
+                  }`}
+                >
+                  FAQs
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => (onNavigateContact ? onNavigateContact() : onOpenModal('contact'))}
+                  className={`hover:text-white transition-colors block py-0.5 text-left ${
+                    currentView === 'contact' ? 'text-[#E30620] font-bold' : ''
+                  }`}
+                >
+                  Contact
+                </button>
+              </li>
             </ul>
           </div>
 
@@ -232,8 +250,14 @@ export const Footer: React.FC<FooterProps> = ({
                 <li key={svc}>
                   <button
                     onClick={() => {
-                      onSelectService(svc);
-                      document.getElementById('booking-form')?.scrollIntoView({ behavior: 'smooth' });
+                      if (currentView === 'services') {
+                        onSelectService(svc);
+                      } else if (onNavigateServices) {
+                        onNavigateServices();
+                      } else {
+                        onSelectService(svc);
+                        document.getElementById('booking-form')?.scrollIntoView({ behavior: 'smooth' });
+                      }
                     }}
                     className="hover:text-white transition-colors text-left block py-0.5"
                   >
@@ -241,6 +265,15 @@ export const Footer: React.FC<FooterProps> = ({
                   </button>
                 </li>
               ))}
+              <li className="pt-1">
+                <button
+                  onClick={() => (onNavigateServices ? onNavigateServices() : null)}
+                  className="text-xs text-[#E30620] hover:text-white transition-colors font-semibold flex items-center gap-1"
+                >
+                  <span>View All Services</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              </li>
             </ul>
           </div>
 
@@ -252,7 +285,7 @@ export const Footer: React.FC<FooterProps> = ({
             <ul className="space-y-2.5 text-xs">
               <li>
                 <button
-                  onClick={() => onOpenModal('faqs')}
+                  onClick={() => (onNavigateFaqs ? onNavigateFaqs() : onOpenModal('faqs'))}
                   className="hover:text-white flex items-center gap-1.5 transition-colors py-0.5"
                 >
                   <HelpCircle className="w-3.5 h-3.5 text-bbd-red flex-shrink-0" />
@@ -261,7 +294,7 @@ export const Footer: React.FC<FooterProps> = ({
               </li>
               <li>
                 <button
-                  onClick={() => onOpenModal('contact')}
+                  onClick={() => (onNavigateContact ? onNavigateContact() : onOpenModal('contact'))}
                   className="hover:text-white flex items-center gap-1.5 transition-colors py-0.5"
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-bbd-red flex-shrink-0" />
