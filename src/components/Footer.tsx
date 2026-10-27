@@ -355,6 +355,16 @@ export const Footer: React.FC<FooterProps> = ({ onOpenModal, onSelectService }) 
           </div>
         </div>
 
+        {/* Agency Signature */}
+        <div className="mt-4 pt-3.5 border-t border-slate-800/70 flex items-center justify-center text-[11px] text-slate-400 text-center">
+          <p>
+            Designed &amp; Developed by{' '}
+            <span className="text-slate-200 font-semibold tracking-wide hover:text-bbd-red transition-colors">
+              Quotients Digital Horizon Ltd
+            </span>
+          </p>
+        </div>
+
       </div>
     </footer>
   );
