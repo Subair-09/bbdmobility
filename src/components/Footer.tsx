@@ -74,7 +74,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenModal, onSelectService }) 
               <img
                 src="/assets/logo-white.png"
                 alt="BBD Mobility"
-                className="h-10 w-auto object-contain"
+                className="h-10 sm:h-11 w-auto object-contain"
               />
             </div>
             <p className="text-xs italic text-bbd-red font-bold tracking-wide">
