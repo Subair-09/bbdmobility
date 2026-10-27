@@ -120,7 +120,15 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
         body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
+      let data: any = {};
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.error('[API Non-JSON Response]:', text);
+        throw new Error('Server returned an unexpected response. Please ensure your Vercel deployment has finished and try again.');
+      }
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'Booking request failed.');

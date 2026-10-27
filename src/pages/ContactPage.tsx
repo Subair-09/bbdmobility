@@ -82,7 +82,15 @@ export const ContactPage: React.FC<ContactPageProps> = ({
         }),
       });
 
-      const data = await res.json();
+      let data: any = {};
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error('[Contact Non-JSON Response]:', text);
+        throw new Error('Server returned an unexpected response. Please try again.');
+      }
 
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to send message.');

@@ -55,7 +55,16 @@ export const Footer: React.FC<FooterProps> = ({
         body: JSON.stringify({ email: email.trim() }),
       });
 
-      const data = await res.json();
+      let data: any = {};
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error('[Newsletter Non-JSON Response]:', text);
+        throw new Error('Server returned an unexpected response. Please try again later.');
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Subscription failed.');
       }
