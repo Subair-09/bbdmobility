@@ -244,84 +244,24 @@ export const HowItWorksPage: React.FC<HowItWorksPageProps> = ({
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-12 items-center relative z-10">
               
-              {/* Left Column: HD Interactive Smartphone Mockup */}
+              {/* Left Column: Ultra-Sharp HD Delivery Handover Photograph */}
               <div className="lg:col-span-5 flex justify-center">
-                <div className="relative w-full max-w-[280px] sm:max-w-[300px] bg-slate-950 rounded-[36px] p-3.5 shadow-2xl border-[3px] border-slate-700/60 ring-1 ring-white/10">
-                  {/* Phone Speaker Notch */}
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 w-20 h-4 bg-slate-900 rounded-full flex items-center justify-center space-x-1.5 z-20">
-                    <div className="w-2.5 h-2.5 rounded-full bg-slate-950" />
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-950" />
-                  </div>
-
-                  {/* Inner Phone Screen */}
-                  <div className="rounded-[28px] overflow-hidden bg-white text-slate-900 pt-7 pb-4 px-4 shadow-inner flex flex-col justify-between min-h-[460px]">
-                    {/* Top App Header */}
-                    <div>
-                      <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                        <img
-                          src="/assets/logo.png"
-                          alt="BBD Mobility"
-                          className="h-6 w-auto object-contain"
-                        />
-                        <span className="text-[10px] font-bold text-[#E30620] bg-red-50 px-2 py-0.5 rounded-full">
-                          Live Dispatch
-                        </span>
-                      </div>
-
-                      {/* Route Card */}
-                      <div className="mt-3.5 bg-slate-50 rounded-xl p-3 border border-gray-100 space-y-2.5">
-                        <div className="flex items-start space-x-2.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 flex-shrink-0" />
-                          <div className="text-left">
-                            <p className="text-[10px] uppercase font-bold text-gray-400">Pickup</p>
-                            <p className="text-xs font-bold text-[#092957]">Ikeja GRA, Lagos</p>
-                          </div>
-                        </div>
-
-                        <div className="ml-1 pl-2.5 border-l-2 border-dashed border-gray-300 py-0.5">
-                          <span className="text-[10px] text-gray-500 font-medium">BBD Priority Express Route</span>
-                        </div>
-
-                        <div className="flex items-start space-x-2.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-[#E30620] mt-1 flex-shrink-0" />
-                          <div className="text-left">
-                            <p className="text-[10px] uppercase font-bold text-gray-400">Destination</p>
-                            <p className="text-xs font-bold text-[#092957]">Victoria Island, Lagos</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Assigned Rider Banner */}
-                      <div className="mt-3 bg-gradient-to-r from-[#092957] to-[#0d3670] rounded-xl p-3 text-white flex items-center space-x-3">
-                        <div className="w-9 h-9 rounded-full bg-[#E30620] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-sm">
-                          BO
-                        </div>
-                        <div className="text-left flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs font-bold truncate">Babatunde O.</p>
-                            <span className="text-[10px] text-yellow-300 font-semibold">★ 4.9</span>
-                          </div>
-                          <p className="text-[10px] text-slate-200">BBD Verified Courier #042</p>
-                        </div>
-                      </div>
-
-                      {/* Delivery Status Progress */}
-                      <div className="mt-3 p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl text-left">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-emerald-800">
-                          <span>Status: In Transit</span>
-                          <span>ETA: 18 Mins</span>
-                        </div>
-                        <div className="w-full bg-emerald-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
-                          <div className="bg-emerald-600 h-full w-2/3 rounded-full" />
-                        </div>
-                      </div>
+                <div className="relative w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 bg-slate-900 group">
+                  <img
+                    src="/assets/ready-to-send-package-hd.jpg"
+                    alt="Ready to Send Your Package - BBD Mobility"
+                    className="w-full h-[300px] sm:h-[360px] lg:h-[390px] object-cover object-center group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#092957]/70 via-transparent to-transparent pointer-events-none" />
+                  
+                  {/* Floating Verified Badge */}
+                  <div className="absolute bottom-4 left-4 right-4 bg-[#092957]/95 backdrop-blur-md rounded-xl p-3 border border-white/10 shadow-lg flex items-center space-x-3 text-left">
+                    <div className="w-9 h-9 rounded-lg bg-[#E30620] flex items-center justify-center flex-shrink-0 text-white">
+                      <CheckCircle2 className="w-5 h-5" />
                     </div>
-
-                    {/* Bottom CTA Button inside phone */}
-                    <div className="pt-3 border-t border-gray-100">
-                      <div className="w-full py-2 rounded-lg bg-[#E30620] text-white text-center text-xs font-bold tracking-wide shadow-sm">
-                        Confirming Delivery
-                      </div>
+                    <div>
+                      <p className="text-xs font-bold text-white leading-tight">Instant Dispatch Guarantee</p>
+                      <p className="text-[10px] text-slate-300">Fast, safe & tracked doorstep handover</p>
                     </div>
                   </div>
                 </div>
