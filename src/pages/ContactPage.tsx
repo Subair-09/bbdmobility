@@ -406,47 +406,37 @@ export const ContactPage: React.FC<ContactPageProps> = ({
             {/* Right Column (Span 5): Map Card & Quick Links */}
             <div className="lg:col-span-5 space-y-6">
               
-              {/* Clean Vector Map Card */}
-              <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-slate-900 relative group">
-                {/* Modern Cartographic SVG Map of Lagos */}
-                <div className="w-full h-[200px] sm:h-[220px] bg-[#0c1f38] relative overflow-hidden flex items-center justify-center">
-                  <svg className="w-full h-full opacity-40" viewBox="0 0 500 250" preserveAspectRatio="none">
-                    {/* Waterways / Lagos Lagoon & Coast */}
-                    <path d="M 0,160 Q 150,140 280,180 T 500,165 L 500,250 L 0,250 Z" fill="#061324" />
-                    <path d="M 120,40 Q 220,10 320,60 T 450,30 L 450,100 Q 300,120 180,90 Z" fill="#061324" />
-                    {/* Highway Grid Lines */}
-                    <line x1="50" y1="0" x2="350" y2="250" stroke="#1d4273" strokeWidth="2" strokeDasharray="4 2" />
-                    <line x1="120" y1="0" x2="120" y2="250" stroke="#1d4273" strokeWidth="1.5" />
-                    <line x1="0" y1="120" x2="500" y2="120" stroke="#1d4273" strokeWidth="2" />
-                    <line x1="280" y1="0" x2="280" y2="250" stroke="#1d4273" strokeWidth="1.5" />
-                    <line x1="0" y1="70" x2="500" y2="190" stroke="#1d4273" strokeWidth="1" strokeDasharray="3 3" />
-                  </svg>
-
-                  {/* Pulsing Central Hub Marker on Ikeja */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-                    <span className="relative flex h-6 w-6">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#E30620] opacity-75" />
-                      <span className="relative inline-flex rounded-full h-6 w-6 bg-[#E30620] items-center justify-center text-white shadow-lg">
-                        <MapPin className="w-3.5 h-3.5 text-white" />
-                      </span>
+              {/* Interactive Google Map Card */}
+              <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-md bg-white relative group">
+                {/* Header bar above map */}
+                <div className="bg-slate-50 px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#E30620] animate-pulse" />
+                    <span className="text-xs font-bold text-[#092957]">
+                      BBD Mobility Central Hub • Ikeja, Lagos
                     </span>
-
-                    <div className="mt-2 bg-[#092957]/95 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 shadow-xl text-center">
-                      <p className="text-xs font-bold text-white tracking-wide">BBD Mobility Central Hub</p>
-                      <p className="text-[10px] text-slate-300">Ikeja, Lagos, Nigeria</p>
-                    </div>
                   </div>
-
-                  {/* Floating Action Pill */}
                   <a
-                    href="https://maps.google.com/?q=Ikeja+Lagos+Nigeria"
+                    href="https://maps.app.goo.gl/rK7CzQk5TTuBBmcM8"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="absolute bottom-3 right-3 px-3 py-1.5 rounded-lg bg-white/90 hover:bg-white text-[#092957] text-[10px] font-bold shadow-md transition-all hover:scale-105 flex items-center space-x-1"
+                    className="text-[11px] font-bold text-[#E30620] hover:underline flex items-center gap-0.5"
                   >
                     <span>Open in Maps</span>
-                    <ChevronRight className="w-3 h-3 text-[#E30620]" />
+                    <ChevronRight className="w-3.5 h-3.5" />
                   </a>
+                </div>
+
+                {/* Live Interactive Google Map */}
+                <div className="relative w-full h-[230px] sm:h-[260px] bg-slate-100">
+                  <iframe
+                    title="BBD Mobility Location Map - Ikeja Lagos"
+                    src="https://maps.google.com/maps?q=Ikeja,+Lagos,+Nigeria&t=&z=14&ie=UTF8&iwloc=&output=embed"
+                    className="w-full h-full border-0"
+                    loading="lazy"
+                    allowFullScreen
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
                 </div>
               </div>
 
