@@ -424,3 +424,263 @@ export function generateCustomerBookingConfirmationHtml(
 </body>
 </html>`;
 }
+
+export interface ContactEmailData {
+  name: string;
+  email: string;
+  phone: string;
+  subject: string;
+  message: string;
+  businessEmails?: string[];
+  submittedAt?: string;
+}
+
+/**
+ * Generates an HTML notification email sent to the Admin / Business Inboxes
+ * whenever a user submits the Contact Us form.
+ */
+export function generateAdminContactAlertHtml(
+  data: ContactEmailData,
+  assetsBaseUrl: string = 'https://raw.githubusercontent.com/Subair-09/bbdmobility/main/public/assets'
+): string {
+  const { name, email, phone, subject, message, businessEmails = [], submittedAt } = data;
+  const timeStr = submittedAt || new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos', dateStyle: 'medium', timeStyle: 'short' });
+
+  return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>New Contact Form Inquiry - ${subject}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F1F5F9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #F1F5F9; padding: 30px 10px;">
+    <tr>
+      <td align="center">
+        <table border="0" cellpadding="0" cellspacing="0" width="640" style="width: 100%; max-width: 640px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(9, 41, 87, 0.08); border: 1px solid #E2E8F0;">
+          
+          <!-- Header Bar -->
+          <tr>
+            <td style="background-color: #092957; padding: 28px 32px; text-align: left; border-bottom: 4px solid #E30620;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td align="left" style="vertical-align: middle;">
+                    <span style="font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: 0.5px; display: block;">
+                      BBD MOBILITY
+                    </span>
+                    <span style="font-size: 11px; font-weight: 700; color: #E30620; letter-spacing: 1.5px; text-transform: uppercase;">
+                      MOVE WHAT MATTERS &bull; DISPATCH DESK
+                    </span>
+                  </td>
+                  <td align="right" style="vertical-align: middle;">
+                    <span style="background-color: #E30620; color: #ffffff; font-size: 11px; font-weight: 800; padding: 6px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.8px; display: inline-block;">
+                      New Inquiry
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Title Banner -->
+          <tr>
+            <td style="padding: 28px 32px 10px 32px;">
+              <h1 style="margin: 0 0 6px 0; font-size: 20px; font-weight: 800; color: #092957;">
+                Incoming Customer Inquiry
+              </h1>
+              <p style="margin: 0; font-size: 13px; color: #64748B;">
+                A visitor submitted a new message through the BBD Mobility website contact form.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Contact Details Table -->
+          <tr>
+            <td style="padding: 16px 32px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; border-collapse: separate; overflow: hidden;">
+                <tr>
+                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; width: 130px; font-size: 13px; font-weight: 700; color: #092957;">
+                    Full Name:
+                  </td>
+                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 14px; font-weight: 600; color: #0F172A;">
+                    ${name}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 13px; font-weight: 700; color: #092957;">
+                    Email Address:
+                  </td>
+                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 14px; color: #E30620; font-weight: 600;">
+                    <a href="mailto:${email}" style="color: #E30620; text-decoration: none;">${email}</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 13px; font-weight: 700; color: #092957;">
+                    Phone Number:
+                  </td>
+                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 14px; color: #092957; font-weight: 600;">
+                    <a href="tel:${phone}" style="color: #092957; text-decoration: none;">${phone}</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 13px; font-weight: 700; color: #092957;">
+                    Subject:
+                  </td>
+                  <td style="padding: 12px 18px; border-bottom: 1px solid #E2E8F0; font-size: 14px; font-weight: 700; color: #092957;">
+                    ${subject}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 18px; font-size: 13px; font-weight: 700; color: #092957;">
+                    Date &amp; Time:
+                  </td>
+                  <td style="padding: 12px 18px; font-size: 13px; color: #64748B;">
+                    ${timeStr} (West Africa Time)
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Message Callout Box -->
+          <tr>
+            <td style="padding: 10px 32px 24px 32px;">
+              <div style="font-size: 13px; font-weight: 700; color: #092957; margin-bottom: 8px;">
+                Customer's Message:
+              </div>
+              <div style="background-color: #FFFFFF; border: 2px solid #E2E8F0; border-left: 5px solid #E30620; border-radius: 8px; padding: 18px 20px; font-size: 14px; line-height: 1.6; color: #1E293B; white-space: pre-wrap;">
+${message}
+              </div>
+            </td>
+          </tr>
+
+          <!-- Action Buttons -->
+          <tr>
+            <td style="padding: 0 32px 28px 32px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td align="left" style="vertical-align: middle;">
+                    <a href="mailto:${email}?subject=Re:%20${encodeURIComponent(subject)}" style="background-color: #E30620; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 700; padding: 12px 22px; border-radius: 8px; display: inline-block;">
+                      Reply to ${name} &rarr;
+                    </a>
+                    &nbsp;&nbsp;
+                    <a href="tel:${phone}" style="background-color: #092957; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 700; padding: 12px 20px; border-radius: 8px; display: inline-block;">
+                      Call ${phone}
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer Metadata -->
+          <tr>
+            <td style="background-color: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 18px 32px; text-align: center; font-size: 11px; color: #94A3B8;">
+              <p style="margin: 0 0 4px 0;">
+                Delivered automatically to BBD Mobility Admin Inboxes: <strong style="color: #64748B;">${businessEmails.join(', ')}</strong>
+              </p>
+              <p style="margin: 0;">
+                &copy; ${new Date().getFullYear()} BBD Mobility &bull; Powered by Resend API
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Generates an HTML auto-acknowledgement email sent to the Customer
+ * confirming that their contact message has reached BBD Mobility.
+ */
+export function generateCustomerContactAckHtml(
+  data: ContactEmailData,
+  assetsBaseUrl: string = 'https://raw.githubusercontent.com/Subair-09/bbdmobility/main/public/assets'
+): string {
+  const { name, subject, message } = data;
+
+  return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>We received your message - BBD Mobility</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F1F5F9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #F1F5F9; padding: 30px 10px;">
+    <tr>
+      <td align="center">
+        <table border="0" cellpadding="0" cellspacing="0" width="640" style="width: 100%; max-width: 640px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(9, 41, 87, 0.08); border: 1px solid #E2E8F0;">
+          
+          <!-- Header Bar -->
+          <tr>
+            <td style="background-color: #092957; padding: 28px 32px; text-align: center; border-bottom: 4px solid #E30620;">
+              <span style="font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 0.5px; display: block;">
+                BBD MOBILITY
+              </span>
+              <span style="font-size: 11px; font-weight: 700; color: #E30620; letter-spacing: 1.5px; text-transform: uppercase;">
+                MOVE WHAT MATTERS
+              </span>
+            </td>
+          </tr>
+
+          <!-- Body Content -->
+          <tr>
+            <td style="padding: 32px 32px 16px 32px;">
+              <h2 style="margin: 0 0 12px 0; font-size: 20px; font-weight: 800; color: #092957;">
+                Thank You for Contacting Us, ${name}!
+              </h2>
+              <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+                We have successfully received your inquiry regarding <strong style="color: #092957;">"${subject}"</strong>. Our logistics and customer support team in Lagos is reviewing your note and will be in touch shortly.
+              </p>
+              
+              <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #092957; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748B; margin-bottom: 6px;">
+                  Summary of your message:
+                </div>
+                <div style="font-size: 13px; color: #334155; line-height: 1.5; white-space: pre-wrap;">
+${message}
+                </div>
+              </div>
+
+              <!-- Urgent Contact Box -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FEF2F2; border: 1px solid #FEE2E2; border-radius: 10px; margin-top: 24px;">
+                <tr>
+                  <td style="padding: 14px 18px;">
+                    <div style="font-size: 13px; font-weight: 800; color: #E30620; margin-bottom: 4px;">
+                      Need Urgent Same-Day Delivery?
+                    </div>
+                    <div style="font-size: 12px; color: #475569; line-height: 1.5;">
+                      For urgent dispatch requests, call our hotline directly at <a href="tel:+2348123456789" style="color: #092957; font-weight: 800; text-decoration: none;">+234 812 345 6789</a> or email us at <a href="mailto:Info@bbdautosng.com" style="color: #E30620; font-weight: 700; text-decoration: none;">Info@bbdautosng.com</a>.
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 20px 32px; text-align: center; font-size: 11px; color: #94A3B8;">
+              <p style="margin: 0 0 6px 0; color: #64748B; font-weight: 600;">
+                BBD Mobility &bull; Fast &bull; Safe &bull; Reliable Logistics Across Lagos
+              </p>
+              <p style="margin: 0;">
+                &copy; ${new Date().getFullYear()} BBD Mobility. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+

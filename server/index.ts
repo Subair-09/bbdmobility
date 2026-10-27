@@ -5,6 +5,8 @@ import { Resend } from 'resend';
 import {
   generateAdminBookingAlertHtml,
   generateCustomerBookingConfirmationHtml,
+  generateAdminContactAlertHtml,
+  generateCustomerContactAckHtml,
 } from './emailTemplates.ts';
 
 dotenv.config();
@@ -70,11 +72,23 @@ function generateBookingReference(): string {
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
-// Target emails for all incoming booking notifications
+// Target admin emails for all incoming bookings, inquiries, and contact messages
+// Automatically supports ADMIN_EMAILS, ADMIN_EMAIL, BUSINESS_EMAILS, BUSINESS_EMAIL, CONTACT_EMAILS, CONTACT_EMAIL
 const DEFAULT_BUSINESS_EMAILS = ['Sales@bbdautosng.com', 'Info@bbdautosng.com'];
-const businessEmails = process.env.BUSINESS_EMAILS
-  ? process.env.BUSINESS_EMAILS.split(',').map((e) => e.trim()).filter(Boolean)
-  : (process.env.BUSINESS_EMAIL ? [process.env.BUSINESS_EMAIL] : DEFAULT_BUSINESS_EMAILS);
+const rawAdminEmails =
+  process.env.ADMIN_EMAILS ||
+  process.env.ADMIN_EMAIL ||
+  process.env.BUSINESS_EMAILS ||
+  process.env.BUSINESS_EMAIL ||
+  process.env.CONTACT_EMAILS ||
+  process.env.CONTACT_EMAIL;
+
+const businessEmails: string[] = rawAdminEmails
+  ? rawAdminEmails
+      .split(',')
+      .map((e) => e.trim())
+      .filter((e) => e.length > 0 && e.includes('@'))
+  : DEFAULT_BUSINESS_EMAILS;
 
 const fromEmail = process.env.FROM_EMAIL || 'BBD Mobility <booking@bbdmobility.com.ng>';
 
@@ -181,42 +195,74 @@ app.post('/api/contact', async (req, res) => {
     }
 
     if (resend) {
-      // Send notification to business inboxes
-      await resend.emails.send({
+      // 1. Generate and send high-fidelity notification email to Admin / Business Inboxes
+      const adminAlertHtml = generateAdminContactAlertHtml({
+        name: sName,
+        email: sEmail,
+        phone: sPhone,
+        subject: sSubject,
+        message: sMessage,
+        businessEmails,
+      });
+
+      const adminResult = await resend.emails.send({
         from: fromEmail,
         to: businessEmails,
         replyTo: sEmail,
-        subject: `[Contact Form] ${sSubject} - ${sName}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #092957;">
-            <div style="background-color: #092957; padding: 22px; text-align: center;">
-              <h2 style="color: #ffffff; margin: 0; font-size: 22px;">New Contact Message Received</h2>
-              <p style="color: #E30620; margin: 4px 0 0 0; font-weight: bold;">BBD Mobility Customer Desk</p>
-            </div>
-            <div style="padding: 24px; background: #ffffff; border: 1px solid #e2e8f0;">
-              <p><strong>From:</strong> ${sName}</p>
-              <p><strong>Email:</strong> ${sEmail}</p>
-              <p><strong>Phone:</strong> ${sPhone}</p>
-              <p><strong>Subject:</strong> ${sSubject}</p>
-              <div style="margin-top: 18px; padding: 16px; background: #F8FAFC; border-left: 4px solid #E30620; border-radius: 4px;">
-                <strong style="color: #092957;">Message:</strong>
-                <p style="margin: 8px 0 0 0; white-space: pre-wrap; color: #334155; line-height: 1.5;">${sMessage}</p>
-              </div>
-            </div>
-            <div style="text-align: center; font-size: 11px; color: #64748B; padding: 16px;">
-              BBD Mobility Contact Center &bull; Inboxes: ${businessEmails.join(', ')}
-            </div>
-          </div>
-        `,
+        subject: `[Contact Inquiry] ${sSubject} - ${sName}`,
+        html: adminAlertHtml,
       });
+
+      if (adminResult.error) {
+        console.error('[RESEND CONTACT INQUIRY ERROR]:', adminResult.error);
+      } else {
+        console.log(`[OK] Contact inquiry delivered to admin inboxes (${businessEmails.join(', ')}): id=${adminResult.data?.id}`);
+      }
+
+      // 2. Also send automated professional acknowledgement to the customer
+      if (sEmail && sEmail.includes('@')) {
+        try {
+          const customerAckHtml = generateCustomerContactAckHtml({
+            name: sName,
+            email: sEmail,
+            phone: sPhone,
+            subject: sSubject,
+            message: sMessage,
+            businessEmails,
+          });
+
+          const customerResult = await resend.emails.send({
+            from: fromEmail,
+            to: [sEmail],
+            replyTo: businessEmails[0] || 'Info@bbdautosng.com',
+            subject: `We've received your message - BBD Mobility`,
+            html: customerAckHtml,
+          });
+
+          if (customerResult.error) {
+            console.warn(`[CUSTOMER CONTACT ACK WARNING] (${sEmail}):`, customerResult.error);
+          } else {
+            console.log(`[OK] Customer contact acknowledgement delivered to: ${sEmail}`);
+          }
+        } catch (ackErr) {
+          console.warn('[CUSTOMER ACK EXCEPTION]:', ackErr);
+        }
+      }
     } else {
-      console.log(`[CONTACT FORM DEV LOG] From: ${sName} (${sPhone} | ${sEmail}) - Subject: ${sSubject}`);
+      console.log('----------------------------------------------------');
+      console.log(`[CONTACT FORM DEV LOG] New Contact Message Received:`);
+      console.log(`From: ${sName} | Email: ${sEmail} | Phone: ${sPhone}`);
+      console.log(`Subject: ${sSubject}`);
       console.log(`Message: ${sMessage}`);
+      console.log(`Target Admin Inboxes: ${businessEmails.join(', ')}`);
+      console.log('To send real emails via Resend, set RESEND_API_KEY in .env');
+      console.log('----------------------------------------------------');
     }
 
     return res.json({
       success: true,
       message: 'Thank you! Your message has been sent successfully. Our team will contact you shortly.',
+      recipients: businessEmails,
     });
   } catch (err: any) {
     console.error('Contact submission error:', err);
