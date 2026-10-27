@@ -157,6 +157,75 @@ app.post('/api/newsletter', async (req, res) => {
   }
 });
 
+// Contact form message submission endpoint
+app.post('/api/contact', async (req, res) => {
+  try {
+    const { name, email, phone, subject, message } = req.body || {};
+    const sName = sanitize(name);
+    const sEmail = sanitize(email);
+    const sPhone = sanitize(phone);
+    const sSubject = sanitize(subject) || 'General Inquiry';
+    const sMessage = sanitize(message);
+
+    if (!sName || sName.length < 2) {
+      return res.status(400).json({ error: 'Please enter your full name.' });
+    }
+    if (!sEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sEmail)) {
+      return res.status(400).json({ error: 'Please enter a valid email address.' });
+    }
+    if (!sPhone || sPhone.length < 6) {
+      return res.status(400).json({ error: 'Please enter your phone number.' });
+    }
+    if (!sMessage || sMessage.length < 5) {
+      return res.status(400).json({ error: 'Please enter your message.' });
+    }
+
+    if (resend) {
+      // Send notification to business inboxes
+      await resend.emails.send({
+        from: fromEmail,
+        to: businessEmails,
+        replyTo: sEmail,
+        subject: `[Contact Form] ${sSubject} - ${sName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #092957;">
+            <div style="background-color: #092957; padding: 22px; text-align: center;">
+              <h2 style="color: #ffffff; margin: 0; font-size: 22px;">New Contact Message Received</h2>
+              <p style="color: #E30620; margin: 4px 0 0 0; font-weight: bold;">BBD Mobility Customer Desk</p>
+            </div>
+            <div style="padding: 24px; background: #ffffff; border: 1px solid #e2e8f0;">
+              <p><strong>From:</strong> ${sName}</p>
+              <p><strong>Email:</strong> ${sEmail}</p>
+              <p><strong>Phone:</strong> ${sPhone}</p>
+              <p><strong>Subject:</strong> ${sSubject}</p>
+              <div style="margin-top: 18px; padding: 16px; background: #F8FAFC; border-left: 4px solid #E30620; border-radius: 4px;">
+                <strong style="color: #092957;">Message:</strong>
+                <p style="margin: 8px 0 0 0; white-space: pre-wrap; color: #334155; line-height: 1.5;">${sMessage}</p>
+              </div>
+            </div>
+            <div style="text-align: center; font-size: 11px; color: #64748B; padding: 16px;">
+              BBD Mobility Contact Center &bull; Inboxes: ${businessEmails.join(', ')}
+            </div>
+          </div>
+        `,
+      });
+    } else {
+      console.log(`[CONTACT FORM DEV LOG] From: ${sName} (${sPhone} | ${sEmail}) - Subject: ${sSubject}`);
+      console.log(`Message: ${sMessage}`);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Thank you! Your message has been sent successfully. Our team will contact you shortly.',
+    });
+  } catch (err: any) {
+    console.error('Contact submission error:', err);
+    return res.status(500).json({
+      error: 'Failed to send your message. Please try again or call our direct line.',
+    });
+  }
+});
+
 // Booking submission endpoint
 app.post('/api/bookings', async (req, res) => {
   try {

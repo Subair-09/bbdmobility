@@ -9,7 +9,8 @@ interface NavbarProps {
   setActiveNav: (nav: string) => void;
   onNavigateHome: (targetId?: string) => void;
   onNavigateAbout: () => void;
-  currentView: 'home' | 'about';
+  onNavigateContact: () => void;
+  currentView: 'home' | 'about' | 'contact';
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -19,6 +20,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveNav,
   onNavigateHome,
   onNavigateAbout,
+  onNavigateContact,
   currentView,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -38,23 +40,25 @@ export const Navbar: React.FC<NavbarProps> = ({
     { name: 'How It Works', modal: 'how-it-works' as const, type: 'modal' as const },
     { name: 'About Us', type: 'about' as const },
     { name: 'FAQs', modal: 'faqs' as const, type: 'modal' as const },
-    { name: 'Contact', modal: 'contact' as const, type: 'modal' as const },
+    { name: 'Contact', type: 'contact' as const },
   ];
 
   const handleNavClick = (item: typeof navItems[0]) => {
     setActiveNav(item.name);
     setMobileMenuOpen(false);
 
-    if (item.type === 'about') {
+    if (item.type === 'contact') {
+      onNavigateContact();
+    } else if (item.type === 'about') {
       onNavigateAbout();
     } else if (item.type === 'home') {
-      if (currentView === 'about') {
+      if (currentView !== 'home') {
         onNavigateHome();
       } else {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } else if (item.type === 'services') {
-      if (currentView === 'about') {
+      if (currentView !== 'home') {
         onNavigateHome('services');
       } else {
         const el = document.getElementById('services');

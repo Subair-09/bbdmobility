@@ -12,9 +12,10 @@ import { AllServicesModal } from './components/AllServicesModal';
 import { ReviewsModal } from './components/ReviewsModal';
 import { InfoModal, ModalType } from './components/InfoModal';
 import { AboutPage } from './pages/AboutPage';
+import { ContactPage } from './pages/ContactPage';
 
 export function App() {
-  const [currentView, setCurrentView] = useState<'home' | 'about'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'about' | 'contact'>('home');
   const [activeNav, setActiveNav] = useState('Home');
   const [selectedService, setSelectedService] = useState('Documents & Files');
   const [allServicesOpen, setAllServicesOpen] = useState(false);
@@ -28,7 +29,10 @@ export function App() {
       const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
 
-      if (path === '/about' || hash === '#/about' || hash === '#about-page') {
+      if (path === '/contact' || hash === '#/contact' || hash === '#contact-page') {
+        setCurrentView('contact');
+        setActiveNav('Contact');
+      } else if (path === '/about' || hash === '#/about' || hash === '#about-page') {
         setCurrentView('about');
         setActiveNav('About Us');
       } else {
@@ -58,6 +62,15 @@ export function App() {
     setActiveNav('About Us');
     if (window.location.pathname !== '/about') {
       window.history.pushState(null, '', '/about');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToContact = () => {
+    setCurrentView('contact');
+    setActiveNav('Contact');
+    if (window.location.pathname !== '/contact') {
+      window.history.pushState(null, '', '/contact');
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -123,11 +136,19 @@ export function App() {
         onBookNowClick={handleBookNowClick}
         onNavigateHome={navigateToHome}
         onNavigateAbout={navigateToAbout}
+        onNavigateContact={navigateToContact}
         currentView={currentView}
       />
 
       <main className="flex-grow">
-        {currentView === 'about' ? (
+        {currentView === 'contact' ? (
+          /* Dedicated Contact Page */
+          <ContactPage
+            onBackToHome={() => navigateToHome()}
+            onBookNow={handleBookNowClick}
+            onOpenModal={(type) => setInfoModalType(type)}
+          />
+        ) : currentView === 'about' ? (
           /* Dedicated About Page */
           <AboutPage
             onBackToHome={() => navigateToHome()}
@@ -135,7 +156,7 @@ export function App() {
             onOpenModal={(type) => setInfoModalType(type)}
           />
         ) : (
-          /* Homepage with full content, including Home About section */
+          /* Homepage with full content */
           <>
             {/* Hero Section with Rider Image & Booking Card */}
             <Hero
@@ -169,6 +190,8 @@ export function App() {
         onSelectService={handleSelectService}
         onNavigateHome={navigateToHome}
         onNavigateAbout={navigateToAbout}
+        onNavigateContact={navigateToContact}
+        currentView={currentView}
       />
 
       {/* Floating Mobile Sticky Action Bar */}

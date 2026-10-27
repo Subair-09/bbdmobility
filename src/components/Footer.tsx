@@ -16,6 +16,8 @@ interface FooterProps {
   onSelectService: (serviceName: string) => void;
   onNavigateHome?: (targetId?: string) => void;
   onNavigateAbout?: () => void;
+  onNavigateContact?: () => void;
+  currentView?: 'home' | 'about' | 'contact';
 }
 
 export const Footer: React.FC<FooterProps> = ({
@@ -23,6 +25,8 @@ export const Footer: React.FC<FooterProps> = ({
   onSelectService,
   onNavigateHome,
   onNavigateAbout,
+  onNavigateContact,
+  currentView,
 }) => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -192,11 +196,18 @@ export const Footer: React.FC<FooterProps> = ({
                     onClick={() => {
                       if (item.label === 'About Us' && onNavigateAbout) {
                         onNavigateAbout();
+                      } else if (item.label === 'Contact' && onNavigateContact) {
+                        onNavigateContact();
                       } else {
                         onOpenModal(item.modal);
                       }
                     }}
-                    className="hover:text-white transition-colors text-left block py-0.5"
+                    className={`hover:text-white transition-colors text-left block py-0.5 ${
+                      (item.label === 'About Us' && currentView === 'about') ||
+                      (item.label === 'Contact' && currentView === 'contact')
+                        ? 'text-[#E30620] font-bold'
+                        : ''
+                    }`}
                   >
                     {item.label}
                   </button>
