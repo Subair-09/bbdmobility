@@ -8,6 +8,7 @@ export interface BookingFormData {
   senderEmail: string;
   receiverName: string;
   receiverPhone: string;
+  receiverEmail: string;
   deliveryInstructions: string;
 }
 

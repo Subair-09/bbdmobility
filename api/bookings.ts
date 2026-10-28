@@ -3,6 +3,8 @@ import { Resend } from 'resend';
 
 interface BookingEmailData {
   bookingRef: string;
+  pickupOtp: string;
+  deliveryOtp: string;
   sType: string;
   pLoc: string;
   dLoc: string;
@@ -12,8 +14,13 @@ interface BookingEmailData {
   sEmail?: string;
   rName: string;
   rPhone: string;
+  rEmail?: string;
   instructions?: string;
   businessEmails: string[];
+}
+
+function generateOtp(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 function generateAdminBookingAlertHtml(
@@ -22,6 +29,8 @@ function generateAdminBookingAlertHtml(
 ): string {
   const {
     bookingRef,
+    pickupOtp,
+    deliveryOtp,
     sType,
     pLoc,
     dLoc,
@@ -31,11 +40,12 @@ function generateAdminBookingAlertHtml(
     sEmail,
     rName,
     rPhone,
+    rEmail,
     instructions,
   } = data;
 
   const senderDisplay = `${sName} (${sPhone}${sEmail ? ` | ${sEmail}` : ''})`;
-  const receiverDisplay = `${rName} (${rPhone})`;
+  const receiverDisplay = `${rName} (${rPhone}${rEmail ? ` | ${rEmail}` : ''})`;
   const instructionsDisplay = instructions || 'None';
   const packageDisplay = pDetails || 'N/A';
 
@@ -47,6 +57,16 @@ function generateAdminBookingAlertHtml(
     { icon: 'icon-box.png', label: 'Package Details', value: packageDisplay },
     { icon: 'icon-sender.png', label: 'Sender', value: senderDisplay },
     { icon: 'icon-recipient.png', label: 'Recipient', value: receiverDisplay },
+    {
+      icon: 'receiver-icon-otp.png',
+      label: 'Sender Pickup OTP',
+      value: `<span style="font-family: monospace; font-size: 14px; font-weight: 800; color: #092957; background: #E0F2FE; padding: 4px 10px; border-radius: 6px; letter-spacing: 2px;">${pickupOtp}</span> <span style="font-size: 11px; color: #64748B;">(share at pickup)</span>`
+    },
+    {
+      icon: 'receiver-icon-otp.png',
+      label: 'Receiver Delivery OTP',
+      value: `<span style="font-family: monospace; font-size: 14px; font-weight: 800; color: #E30620; background: #FEE2E2; padding: 4px 10px; border-radius: 6px; letter-spacing: 2px;">${deliveryOtp}</span> <span style="font-size: 11px; color: #64748B;">(verify at delivery)</span>`
+    },
     { icon: 'icon-doc.png', label: 'Delivery Instructions', value: instructionsDisplay },
   ];
 
@@ -141,7 +161,8 @@ function generateAdminBookingAlertHtml(
                             Action Required
                           </div>
                           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; color: #334155; line-height: 1.4;">
-                            Please assign a courier rider and phone the customer at <strong style="color: #E30620; font-weight: 800;">${sPhone}</strong> to confirm the pickup schedule.
+                            Assign a courier rider. Phone the customer at <strong style="color: #E30620; font-weight: 800;">${sPhone}</strong> to confirm pickup.
+                            Sender Pickup OTP: <strong style="color: #092957; font-family: monospace;">${pickupOtp}</strong> | Recipient Delivery OTP: <strong style="color: #E30620; font-family: monospace;">${deliveryOtp}</strong>.
                           </div>
                         </td>
                       </tr>
@@ -180,6 +201,7 @@ function generateCustomerBookingConfirmationHtml(
 ): string {
   const {
     bookingRef,
+    pickupOtp,
     sType,
     pLoc,
     dLoc,
@@ -189,11 +211,12 @@ function generateCustomerBookingConfirmationHtml(
     sEmail,
     rName,
     rPhone,
+    rEmail,
     instructions,
   } = data;
 
   const senderDisplay = `${sName} (${sPhone}${sEmail ? ` | ${sEmail}` : ''})`;
-  const receiverDisplay = `${rName} (${rPhone})`;
+  const receiverDisplay = `${rName} (${rPhone}${rEmail ? ` | ${rEmail}` : ''})`;
   const instructionsDisplay = instructions || 'None';
   const packageDisplay = pDetails || 'N/A';
 
@@ -207,6 +230,12 @@ function generateCustomerBookingConfirmationHtml(
     { icon: 'icon-box.png', label: 'Package Details', value: packageDisplay, actionHtml: '' },
     { icon: 'icon-sender.png', label: 'Sender', value: senderDisplay, actionHtml: '' },
     { icon: 'icon-recipient.png', label: 'Recipient', value: receiverDisplay, actionHtml: '' },
+    {
+      icon: 'receiver-icon-otp.png',
+      label: 'Your Pickup OTP',
+      value: `<span style="font-family: monospace; font-size: 15px; font-weight: 800; color: #092957; background: #E0F2FE; padding: 4px 12px; border-radius: 6px; letter-spacing: 2px;">${pickupOtp}</span> <span style="font-size: 11px; color: #0284C7; font-weight: 600; margin-left: 6px;">Share with rider upon pickup</span>`,
+      actionHtml: ''
+    },
     { icon: 'icon-doc.png', label: 'Delivery Instructions', value: instructionsDisplay, actionHtml: '' },
   ];
 
@@ -267,7 +296,7 @@ function generateCustomerBookingConfirmationHtml(
                       Hello ${sName},
                     </div>
                     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 12px; color: #334155; line-height: 1.5;">
-                      Thank you for choosing BBD Mobility. Our dispatch team is reviewing your delivery request and our assigned rider will contact you promptly at <strong style="color: #092957; font-weight: 800;">${sPhone}</strong> to coordinate pickup.
+                      Thank you for choosing BBD Mobility. Our dispatch team is assigning your rider. Please keep your Pickup OTP (<strong style="color: #092957; font-family: monospace;">${pickupOtp}</strong>) ready to give to the rider upon collection. A separate Delivery OTP has been dispatched to recipient <strong>${rName}</strong>.
                     </div>
                   </td>
                   <td style="width: 352px; padding: 0; line-height: 0; vertical-align: top;" align="right">
@@ -350,6 +379,295 @@ function generateCustomerBookingConfirmationHtml(
 </html>`;
 }
 
+function generateReceiverDeliveryHtml(
+  data: BookingEmailData,
+  assetsBaseUrl: string = 'https://raw.githubusercontent.com/Subair-09/bbdmobility/main/public/assets'
+): string {
+  const {
+    bookingRef,
+    deliveryOtp,
+    sType,
+    pLoc,
+    dLoc,
+    pDetails,
+    sName,
+    sPhone,
+  } = data;
+
+  const otpFormatted = deliveryOtp.split('').join(' ');
+
+  return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BBD Mobility - Delivery Verification Code (${bookingRef})</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F8FAFC; -webkit-font-smoothing: antialiased; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed; background-color: #F8FAFC;">
+    <tr>
+      <td align="center" style="padding: 20px 0;">
+        <table border="0" cellpadding="0" cellspacing="0" width="682" style="width: 682px; max-width: 682px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin: 0 auto;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="padding: 0; line-height: 0;">
+              <img src="${assetsBaseUrl}/receiver-email-header.png" width="682" height="106" style="display: block; width: 682px; height: 106px;" alt="BBD Mobility - Reliable Courier & Delivery Services in Lagos" />
+            </td>
+          </tr>
+
+          <!-- Hero Banner -->
+          <tr>
+            <td style="padding: 10px 20px 14px 20px; line-height: 0;">
+              <img src="${assetsBaseUrl}/receiver-email-hero.png" width="642" height="228" style="display: block; width: 642px; height: 228px; border-radius: 14px;" alt="Your Delivery is on the Way!" />
+            </td>
+          </tr>
+
+          <!-- Booking Reference & OTP + Delivery Details Card -->
+          <tr>
+            <td style="padding: 0 20px 14px 20px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="642" style="width: 642px; background-color: #ffffff; border: 1px solid #E2E8F0; border-radius: 16px; border-collapse: separate; border-spacing: 0;">
+                
+                <!-- Reference and OTP Row -->
+                <tr>
+                  <!-- Left: Booking Reference -->
+                  <td style="width: 320px; padding: 18px 20px; vertical-align: top; border-bottom: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0;">
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                      <tr>
+                        <td style="width: 44px; vertical-align: middle; padding-right: 10px;">
+                          <img src="${assetsBaseUrl}/receiver-icon-ref.png" width="34" height="36" style="display: block;" alt="Reference Icon" />
+                        </td>
+                        <td style="vertical-align: middle;">
+                          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: 600; color: #64748B;">
+                            Booking Reference
+                          </div>
+                          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 18px; font-weight: 800; color: #092957; letter-spacing: 0.5px; margin-top: 2px;">
+                            ${bookingRef}
+                          </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colspan="2" style="padding-top: 8px;">
+                          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; color: #64748B;">
+                            Keep this reference for your records.
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+
+                  <!-- Right: Delivery Verification OTP -->
+                  <td style="width: 322px; padding: 18px 20px; vertical-align: top; border-bottom: 1px solid #E2E8F0;">
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                      <tr>
+                        <td style="width: 44px; vertical-align: middle; padding-right: 10px;">
+                          <img src="${assetsBaseUrl}/receiver-icon-otp.png" width="34" height="36" style="display: block;" alt="OTP Shield" />
+                        </td>
+                        <td style="vertical-align: middle;">
+                          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: 600; color: #64748B;">
+                            Delivery Verification OTP
+                          </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colspan="2" style="padding-top: 10px;">
+                          <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #EBF5FF; border-radius: 8px;">
+                            <tr>
+                              <td align="center" style="padding: 8px 12px;">
+                                <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace, sans-serif; font-size: 22px; font-weight: 800; color: #092957; letter-spacing: 8px; display: inline-block;">
+                                  ${otpFormatted}
+                                </span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colspan="2" style="padding-top: 8px;">
+                          <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="vertical-align: middle; padding-right: 5px; font-size: 13px; color: #64748B; line-height: 1;">
+                                &#x1F552;
+                              </td>
+                              <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; color: #64748B; line-height: 1.3;">
+                                This code is valid for 30 minutes and can only be used once.
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Details Header -->
+                <tr>
+                  <td colspan="2" style="padding: 16px 20px 10px 20px;">
+                    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 16px; font-weight: 800; color: #092957;">
+                      Delivery Details
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- 2x3 Grid of Delivery Details -->
+                <tr>
+                  <td colspan="2" style="padding: 0 20px 18px 20px;">
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                      <!-- Row 1 -->
+                      <tr>
+                        <!-- Sender -->
+                        <td style="width: 50%; padding: 8px 12px 8px 0; vertical-align: top;">
+                          <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="width: 42px; vertical-align: middle; padding-right: 8px;">
+                                <img src="${assetsBaseUrl}/receiver-icon-shipper.png" width="34" height="34" style="display: block;" alt="Shipper" />
+                              </td>
+                              <td style="vertical-align: middle;">
+                                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; color: #64748B;">
+                                  Sender (Shipper)
+                                </div>
+                                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; font-weight: 700; color: #092957; margin-top: 1px;">
+                                  ${sName}
+                                </div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                        <!-- Rider Pickup Location -->
+                        <td style="width: 50%; padding: 8px 0 8px 12px; vertical-align: top;">
+                          <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="width: 42px; vertical-align: middle; padding-right: 8px;">
+                                <img src="${assetsBaseUrl}/receiver-icon-loc.png" width="34" height="34" style="display: block;" alt="Location" />
+                              </td>
+                              <td style="vertical-align: middle;">
+                                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; color: #64748B;">
+                                  Rider Pickup Location
+                                </div>
+                                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; font-weight: 700; color: #092957; margin-top: 1px;">
+                                  ${pLoc}
+                                </div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+
+                      <!-- Row 2 -->
+                      <tr>
+                        <!-- Sender Phone -->
+                        <td style="width: 50%; padding: 8px 12px 8px 0; vertical-align: top;">
+                          <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="width: 42px; vertical-align: middle; padding-right: 8px;">
+                                <img src="${assetsBaseUrl}/receiver-icon-phone.png" width="34" height="34" style="display: block;" alt="Phone" />
+                              </td>
+                              <td style="vertical-align: middle;">
+                                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; color: #64748B;">
+                                  Sender Phone
+                                </div>
+                                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; font-weight: 700; color: #092957; margin-top: 1px;">
+                                  ${sPhone}
+                                </div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                        <!-- Delivery Address -->
+                        <td style="width: 50%; padding: 8px 0 8px 12px; vertical-align: top;">
+                          <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="width: 42px; vertical-align: middle; padding-right: 8px;">
+                                <img src="${assetsBaseUrl}/receiver-icon-dest.png" width="34" height="34" style="display: block;" alt="Destination" />
+                              </td>
+                              <td style="vertical-align: middle;">
+                                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; color: #64748B;">
+                                  Delivery Address
+                                </div>
+                                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; font-weight: 700; color: #092957; margin-top: 1px;">
+                                  ${dLoc}
+                                </div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+
+                      <!-- Row 3 -->
+                      <tr>
+                        <!-- Package Description -->
+                        <td style="width: 50%; padding: 8px 12px 8px 0; vertical-align: top;">
+                          <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="width: 42px; vertical-align: middle; padding-right: 8px;">
+                                <img src="${assetsBaseUrl}/receiver-icon-pkg.png" width="34" height="34" style="display: block;" alt="Package" />
+                              </td>
+                              <td style="vertical-align: middle;">
+                                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; color: #64748B;">
+                                  Package Description
+                                </div>
+                                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; font-weight: 700; color: #092957; margin-top: 1px;">
+                                  ${pDetails || 'Standard Package'}
+                                </div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                        <!-- Expected Delivery -->
+                        <td style="width: 50%; padding: 8px 0 8px 12px; vertical-align: top;">
+                          <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="width: 42px; vertical-align: middle; padding-right: 8px;">
+                                <img src="${assetsBaseUrl}/receiver-icon-time.png" width="34" height="34" style="display: block;" alt="Expected Delivery" />
+                              </td>
+                              <td style="vertical-align: middle;">
+                                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 11px; color: #64748B;">
+                                  Expected Delivery
+                                </div>
+                                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; font-weight: 700; color: #092957; margin-top: 1px;">
+                                  ${sType || 'Standard Delivery'}
+                                </div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- How to Receive Your Package Card -->
+          <tr>
+            <td style="padding: 0 20px 14px 20px; line-height: 0;">
+              <img src="${assetsBaseUrl}/receiver-how-to-receive.png" width="642" height="102" style="display: block; width: 642px; height: 102px; border-radius: 14px;" alt="How to Receive Your Package" />
+            </td>
+          </tr>
+
+          <!-- Thank You Banner -->
+          <tr>
+            <td style="padding: 0 20px 20px 20px; line-height: 0;">
+              <img src="${assetsBaseUrl}/receiver-thank-you.png" width="642" height="80" style="display: block; width: 642px; height: 80px; border-radius: 12px;" alt="Thank you for choosing BBD Mobility!" />
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 0; line-height: 0;">
+              <img src="${assetsBaseUrl}/receiver-email-footer.png" width="682" height="148" style="display: block; width: 682px; height: 148px;" alt="Footer" />
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
 function sanitize(str: unknown): string {
   if (typeof str !== 'string') return '';
   return str
@@ -398,6 +716,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       senderEmail,
       receiverName,
       receiverPhone,
+      receiverEmail,
       deliveryInstructions,
     } = rawBody;
 
@@ -410,6 +729,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const sEmail = sanitize(senderEmail);
     const rName = sanitize(receiverName);
     const rPhone = sanitize(receiverPhone);
+    const rEmail = sanitize(receiverEmail);
     const instructions = sanitize(deliveryInstructions);
 
     if (!sType) {
@@ -428,7 +748,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Please provide a valid sender phone number.' });
     }
     if (!sEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sEmail)) {
-      return res.status(400).json({ error: 'Please provide a valid email address to receive your confirmation.' });
+      return res.status(400).json({ error: 'Please provide a valid sender email address.' });
     }
     if (!rName) {
       return res.status(400).json({ error: 'Please provide recipient name.' });
@@ -436,8 +756,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!rPhone || rPhone.length < 6) {
       return res.status(400).json({ error: 'Please provide a valid recipient phone number.' });
     }
+    if (!rEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rEmail)) {
+      return res.status(400).json({ error: 'Please provide a valid recipient email address for delivery verification.' });
+    }
 
     const bookingRef = generateBookingReference();
+
+    // Generate distinct, dynamic 6-digit OTPs for Sender (pickup) and Receiver (delivery)
+    const pickupOtp = generateOtp();
+    let deliveryOtp = generateOtp();
+    while (deliveryOtp === pickupOtp) {
+      deliveryOtp = generateOtp();
+    }
 
     const rawAdminEmails =
       process.env.ADMIN_EMAILS ||
@@ -459,8 +789,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
     if (resend) {
-      const adminAlertHtml = generateAdminBookingAlertHtml({
+      const emailData: BookingEmailData = {
         bookingRef,
+        pickupOtp,
+        deliveryOtp,
         sType,
         pLoc,
         dLoc,
@@ -470,41 +802,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         sEmail,
         rName,
         rPhone,
+        rEmail,
         instructions,
         businessEmails,
-      });
+      };
 
-      const dispatchResult = await resend.emails.send({
-        from: fromEmail,
-        to: businessEmails,
-        replyTo: sEmail && sEmail.includes('@') ? sEmail : undefined,
-        subject: `[New Booking] ${bookingRef} - ${sType} (${pLoc} → ${dLoc})`,
-        html: adminAlertHtml,
-      });
+      // 1. Dispatch Admin Alert Email with both OTPs
+      try {
+        const adminAlertHtml = generateAdminBookingAlertHtml(emailData);
+        const dispatchResult = await resend.emails.send({
+          from: fromEmail,
+          to: businessEmails,
+          replyTo: sEmail && sEmail.includes('@') ? sEmail : undefined,
+          subject: `[New Booking] ${bookingRef} - ${sType} (${pLoc} → ${dLoc})`,
+          html: adminAlertHtml,
+        });
 
-      if (dispatchResult.error) {
-        console.error('[RESEND DISPATCH ERROR]:', dispatchResult.error);
-      } else {
-        console.log(`[OK] Booking alert sent to: ${businessEmails.join(', ')}`);
+        if (dispatchResult.error) {
+          console.error('[RESEND DISPATCH ERROR]:', dispatchResult.error);
+        } else {
+          console.log(`[OK] Booking alert sent to: ${businessEmails.join(', ')}`);
+        }
+      } catch (adminErr) {
+        console.error('[RESEND ADMIN ALERT EXCEPTION]:', adminErr);
       }
 
+      // 2. Dispatch Sender Confirmation Email with Pickup OTP
       if (sEmail && sEmail.includes('@')) {
         try {
-          const customerConfirmationHtml = generateCustomerBookingConfirmationHtml({
-            bookingRef,
-            sType,
-            pLoc,
-            dLoc,
-            pDetails,
-            sName,
-            sPhone,
-            sEmail,
-            rName,
-            rPhone,
-            instructions,
-            businessEmails,
-          });
-
+          const customerConfirmationHtml = generateCustomerBookingConfirmationHtml(emailData);
           const customerResult = await resend.emails.send({
             from: fromEmail,
             to: [sEmail],
@@ -522,14 +848,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.warn('[CUSTOMER EMAIL EXCEPTION]:', custErr);
         }
       }
+
+      // 3. Dispatch Receiver Delivery Verification Email with Delivery OTP
+      if (rEmail && rEmail.includes('@')) {
+        try {
+          const receiverDeliveryHtml = generateReceiverDeliveryHtml(emailData);
+          const receiverResult = await resend.emails.send({
+            from: fromEmail,
+            to: [rEmail],
+            replyTo: businessEmails[0] || 'Info@bbdautosng.com',
+            subject: `BBD Mobility Delivery Notice - Verification Code: ${deliveryOtp} (${bookingRef})`,
+            html: receiverDeliveryHtml,
+          });
+
+          if (receiverResult.error) {
+            console.warn(`[RECEIVER EMAIL WARNING] (${rEmail}):`, receiverResult.error);
+          } else {
+            console.log(`[OK] Receiver delivery verification email delivered to: ${rEmail}`);
+          }
+        } catch (recErr) {
+          console.warn('[RECEIVER EMAIL EXCEPTION]:', recErr);
+        }
+      }
     } else {
       console.log(`[DEV MODE] Booking received: ${bookingRef} | Targets: ${businessEmails.join(', ')}`);
+      console.log(`Pickup OTP (Sender): ${pickupOtp} | Delivery OTP (Receiver): ${deliveryOtp}`);
     }
 
     return res.status(200).json({
       success: true,
       bookingReference: bookingRef,
-      message: 'Booking request successfully received! Our team will contact you promptly.',
+      pickupOtp,
+      deliveryOtp,
+      message: 'Booking request successfully received! Confirmation and OTP codes have been dispatched.',
       recipients: businessEmails,
       demoMode: !resend,
     });

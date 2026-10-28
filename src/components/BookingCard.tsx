@@ -49,6 +49,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
     senderEmail: '',
     receiverName: '',
     receiverPhone: '',
+    receiverEmail: '',
     deliveryInstructions: '',
   });
 
@@ -90,6 +91,11 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
     }
     if (!formData.receiverName.trim()) newErrors.receiverName = 'Recipient name is required.';
     if (!formData.receiverPhone.trim()) newErrors.receiverPhone = 'Recipient phone number is required.';
+    if (!formData.receiverEmail.trim()) {
+      newErrors.receiverEmail = 'Recipient email is required for delivery notification & OTP.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.receiverEmail.trim())) {
+      newErrors.receiverEmail = 'Please enter a valid recipient email address.';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -164,6 +170,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
       senderEmail: '',
       receiverName: '',
       receiverPhone: '',
+      receiverEmail: '',
       deliveryInstructions: '',
     });
     setErrors({});
@@ -437,6 +444,23 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
 
             <div>
               <label className="block text-xs font-semibold text-bbd-navy mb-1 flex items-center gap-1">
+                <Mail className="w-3 h-3 text-bbd-navy" />
+                <span>Recipient Email (for Delivery Verification OTP) *</span>
+              </label>
+              <input
+                type="email"
+                placeholder="recipient@example.com"
+                value={formData.receiverEmail}
+                onChange={(e) => handleChange('receiverEmail', e.target.value)}
+                className={`w-full px-3 py-2.5 bg-slate-50 text-xs sm:text-sm rounded-xl border focus:outline-none ${
+                  errors.receiverEmail ? 'border-red-400 bg-red-50/30' : 'border-gray-200 focus:border-bbd-navy focus:bg-white'
+                }`}
+              />
+              {errors.receiverEmail && <p className="text-[10px] text-red-600 mt-0.5">{errors.receiverEmail}</p>}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-bbd-navy mb-1 flex items-center gap-1">
                 <FileText className="w-3 h-3 text-bbd-navy" />
                 <span>Delivery Instructions (Optional)</span>
               </label>
@@ -500,7 +524,9 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-2">
                 <span className="text-slate-500">Recipient:</span>
-                <span className="font-medium text-slate-800">{formData.receiverName} ({formData.receiverPhone})</span>
+                <span className="font-medium text-slate-800 text-right max-w-[65%] truncate">
+                  {formData.receiverName} ({formData.receiverPhone} | {formData.receiverEmail})
+                </span>
               </div>
               {formData.packageDetails && (
                 <div className="flex justify-between border-b border-slate-200 pb-2">
@@ -600,10 +626,16 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               </div>
             )}
 
-            {formData.senderEmail && (
-              <div className="bg-emerald-50 border border-emerald-200/80 rounded-xl p-3 text-xs text-emerald-800 flex items-center justify-center gap-2 max-w-xs mx-auto text-center">
+            {(formData.senderEmail || formData.receiverEmail) && (
+              <div className="bg-emerald-50 border border-emerald-200/80 rounded-xl p-3 text-xs text-emerald-800 flex items-center justify-center gap-2 max-w-sm mx-auto text-center">
                 <Mail className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>Confirmation email dispatched to <strong>{formData.senderEmail}</strong></span>
+                <span>
+                  Booking confirmation &amp; OTP codes dispatched to{' '}
+                  <strong>{formData.senderEmail}</strong>
+                  {formData.receiverEmail ? (
+                    <> and recipient at <strong>{formData.receiverEmail}</strong></>
+                  ) : null}.
+                </span>
               </div>
             )}
 

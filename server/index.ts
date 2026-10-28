@@ -5,6 +5,7 @@ import { Resend } from 'resend';
 import {
   generateAdminBookingAlertHtml,
   generateCustomerBookingConfirmationHtml,
+  generateReceiverDeliveryHtml,
   generateAdminContactAlertHtml,
   generateCustomerContactAckHtml,
   generateSubscriberWelcomeHtml,
@@ -67,6 +68,11 @@ function generateBookingReference(): string {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
   return `BBD-${dateStr}-${randomPart}`;
+}
+
+// Generate 6-digit random OTP
+function generateOtp(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 // Resend client initialization
@@ -272,6 +278,7 @@ app.post('/api/bookings', async (req, res) => {
       senderEmail,
       receiverName,
       receiverPhone,
+      receiverEmail,
       deliveryInstructions,
     } = req.body || {};
 
@@ -285,6 +292,7 @@ app.post('/api/bookings', async (req, res) => {
     const sEmail = sanitize(senderEmail);
     const rName = sanitize(receiverName);
     const rPhone = sanitize(receiverPhone);
+    const rEmail = sanitize(receiverEmail);
     const instructions = sanitize(deliveryInstructions);
 
     if (!sType) {
@@ -303,7 +311,7 @@ app.post('/api/bookings', async (req, res) => {
       return res.status(400).json({ error: 'Please provide a valid sender phone number.' });
     }
     if (!sEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sEmail)) {
-      return res.status(400).json({ error: 'Please provide a valid email address to receive your booking confirmation.' });
+      return res.status(400).json({ error: 'Please provide a valid sender email address.' });
     }
     if (!rName) {
       return res.status(400).json({ error: 'Please provide recipient name.' });
@@ -311,115 +319,109 @@ app.post('/api/bookings', async (req, res) => {
     if (!rPhone || rPhone.length < 6) {
       return res.status(400).json({ error: 'Please provide a valid recipient phone number.' });
     }
+    if (!rEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rEmail)) {
+      return res.status(400).json({ error: 'Please provide a valid recipient email address for delivery verification.' });
+    }
 
     const bookingRef = generateBookingReference();
 
-    // Prepare HTML content for emails
-    const bookingDetailsHtml = `
-      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
-        <tr style="background: #F4F6F8;">
-          <td style="padding: 10px; font-weight: bold; width: 35%;">Booking Reference:</td>
-          <td style="padding: 10px; font-weight: bold; color: #E30620;">${bookingRef}</td>
-        </tr>
-        <tr>
-          <td style="padding: 10px; font-weight: bold;">Service Type:</td>
-          <td style="padding: 10px;">${sType}</td>
-        </tr>
-        <tr style="background: #F4F6F8;">
-          <td style="padding: 10px; font-weight: bold;">Pickup Location:</td>
-          <td style="padding: 10px;">${pLoc}</td>
-        </tr>
-        <tr>
-          <td style="padding: 10px; font-weight: bold;">Drop-off Location:</td>
-          <td style="padding: 10px;">${dLoc}</td>
-        </tr>
-        <tr style="background: #F4F6F8;">
-          <td style="padding: 10px; font-weight: bold;">Package Details:</td>
-          <td style="padding: 10px;">${pDetails || 'Not specified'}</td>
-        </tr>
-        <tr>
-          <td style="padding: 10px; font-weight: bold;">Sender:</td>
-          <td style="padding: 10px;">${sName} (${sPhone}${sEmail ? ` | ${sEmail}` : ''})</td>
-        </tr>
-        <tr style="background: #F4F6F8;">
-          <td style="padding: 10px; font-weight: bold;">Recipient:</td>
-          <td style="padding: 10px;">${rName} (${rPhone})</td>
-        </tr>
-        <tr>
-          <td style="padding: 10px; font-weight: bold;">Delivery Instructions:</td>
-          <td style="padding: 10px;">${instructions || 'None'}</td>
-        </tr>
-      </table>
-    `;
+    // Generate distinct, dynamic 6-digit OTPs for Sender (pickup) and Receiver (delivery)
+    const pickupOtp = generateOtp();
+    let deliveryOtp = generateOtp();
+    while (deliveryOtp === pickupOtp) {
+      deliveryOtp = generateOtp();
+    }
+
+    const emailData = {
+      bookingRef,
+      pickupOtp,
+      deliveryOtp,
+      sType,
+      pLoc,
+      dLoc,
+      pDetails,
+      sName,
+      sPhone,
+      sEmail,
+      rName,
+      rPhone,
+      rEmail,
+      instructions,
+      businessEmails,
+    };
 
     // Attempt sending via Resend if configured
     if (resend) {
-      // 1. Dispatch pixel-perfect booking alert to business inboxes: Sales@bbdautosng.com & Info@bbdautosng.com
-      const adminAlertHtml = generateAdminBookingAlertHtml({
-        bookingRef,
-        sType,
-        pLoc,
-        dLoc,
-        pDetails,
-        sName,
-        sPhone,
-        sEmail,
-        rName,
-        rPhone,
-        instructions,
-        businessEmails,
-      });
+      // 1. Dispatch Admin Alert Email with both OTPs
+      try {
+        const adminAlertHtml = generateAdminBookingAlertHtml(emailData);
+        const dispatchResult = await resend.emails.send({
+          from: fromEmail,
+          to: businessEmails,
+          replyTo: sEmail && sEmail.includes('@') ? sEmail : undefined,
+          subject: `[New Booking] ${bookingRef} - ${sType} (${pLoc} → ${dLoc})`,
+          html: adminAlertHtml,
+        });
 
-      const dispatchResult = await resend.emails.send({
-        from: fromEmail,
-        to: businessEmails,
-        replyTo: sEmail && sEmail.includes('@') ? sEmail : undefined,
-        subject: `[New Booking] ${bookingRef} - ${sType} (${pLoc} → ${dLoc})`,
-        html: adminAlertHtml,
-      });
-
-      if (dispatchResult.error) {
-        console.error('Resend dispatch email error:', dispatchResult.error);
+        if (dispatchResult.error) {
+          console.error('Resend dispatch email error:', dispatchResult.error);
+        } else {
+          console.log(`[OK] Booking alert sent to: ${businessEmails.join(', ')}`);
+        }
+      } catch (adminErr) {
+        console.error('Resend admin dispatch exception:', adminErr);
       }
 
-      // 2. Send pixel-perfect confirmation to customer
+      // 2. Dispatch Customer Confirmation with Pickup OTP to Sender
       if (sEmail && sEmail.includes('@')) {
-        const customerConfirmationHtml = generateCustomerBookingConfirmationHtml({
-          bookingRef,
-          sType,
-          pLoc,
-          dLoc,
-          pDetails,
-          sName,
-          sPhone,
-          sEmail,
-          rName,
-          rPhone,
-          instructions,
-          businessEmails,
-        });
+        try {
+          const customerConfirmationHtml = generateCustomerBookingConfirmationHtml(emailData);
+          const customerResult = await resend.emails.send({
+            from: fromEmail,
+            to: [sEmail],
+            replyTo: 'Info@bbdautosng.com',
+            subject: `BBD Mobility Booking Confirmation - ${bookingRef}`,
+            html: customerConfirmationHtml,
+          });
 
-        const customerResult = await resend.emails.send({
-          from: fromEmail,
-          to: [sEmail],
-          replyTo: 'Info@bbdautosng.com',
-          subject: `BBD Mobility Booking Confirmation - ${bookingRef}`,
-          html: customerConfirmationHtml,
-        });
+          if (customerResult.error) {
+            console.error(`Resend customer confirmation email error (${sEmail}):`, customerResult.error);
+          } else {
+            console.log(`[OK] Customer confirmation email sent to: ${sEmail}`);
+          }
+        } catch (custErr) {
+          console.error('Resend customer email exception:', custErr);
+        }
+      }
 
-        if (customerResult.error) {
-          console.error(`Resend customer confirmation email error (${sEmail}):`, customerResult.error);
-        } else {
-          console.log(`[OK] Customer confirmation email sent to: ${sEmail}`);
+      // 3. Dispatch Delivery Notice with Delivery Verification OTP to Recipient
+      if (rEmail && rEmail.includes('@')) {
+        try {
+          const receiverDeliveryHtml = generateReceiverDeliveryHtml(emailData);
+          const receiverResult = await resend.emails.send({
+            from: fromEmail,
+            to: [rEmail],
+            replyTo: 'Info@bbdautosng.com',
+            subject: `BBD Mobility Delivery Notice - Verification Code: ${deliveryOtp} (${bookingRef})`,
+            html: receiverDeliveryHtml,
+          });
+
+          if (receiverResult.error) {
+            console.error(`Resend receiver email error (${rEmail}):`, receiverResult.error);
+          } else {
+            console.log(`[OK] Receiver delivery verification email delivered to: ${rEmail}`);
+          }
+        } catch (recErr) {
+          console.error('Resend receiver email exception:', recErr);
         }
       }
     } else {
       console.log('----------------------------------------------------');
       console.log(`[BOOKING DEV MODE] Reference: ${bookingRef}`);
       console.log(`Target Dispatch Inboxes: ${businessEmails.join(', ')}`);
-      console.log(`Customer Confirmation Sent To: ${sEmail}`);
+      console.log(`Sender: ${sName} (${sPhone} | ${sEmail}) -> Pickup OTP: ${pickupOtp}`);
+      console.log(`Receiver: ${rName} (${rPhone} | ${rEmail}) -> Delivery OTP: ${deliveryOtp}`);
       console.log(`Service: ${sType} | From: ${pLoc} -> To: ${dLoc}`);
-      console.log(`Sender: ${sName} (${sPhone}) | Receiver: ${rName} (${rPhone})`);
       console.log(`Package: ${pDetails || 'N/A'}`);
       console.log('To send real emails via Resend, set RESEND_API_KEY in .env');
       console.log('----------------------------------------------------');
@@ -428,7 +430,9 @@ app.post('/api/bookings', async (req, res) => {
     return res.json({
       success: true,
       bookingReference: bookingRef,
-      message: 'Booking request successfully received! Our team will contact you promptly.',
+      pickupOtp,
+      deliveryOtp,
+      message: 'Booking request successfully received! Confirmation and OTP codes have been dispatched.',
       recipients: businessEmails,
       demoMode: !resend,
     });
@@ -437,6 +441,8 @@ app.post('/api/bookings', async (req, res) => {
     return res.status(500).json({
       error: 'Failed to process your delivery booking. Please check your network and try again, or call our direct line.',
     });
+  }
+});
   }
 });
 
