@@ -234,7 +234,7 @@ ${message}
                         Need Urgent Same-Day Delivery?
                       </div>
                       <div style="font-size: 13px; color: #334155; line-height: 1.5;">
-                        For urgent dispatch requests, call our hotline directly at <a href="tel:+2348123456789" style="color: #E30620; font-weight: 800; text-decoration: none;">+234 812 345 6789</a> or email us at <a href="mailto:Info@bbdautosng.com" style="color: #0284C7; font-weight: 700; text-decoration: underline;">Info@bbdautosng.com</a>.
+                        For urgent dispatch requests, call our hotline directly at <a href="tel:+2347087531198" style="color: #E30620; font-weight: 800; text-decoration: none;">+234 708 753 1198</a> or email us at <a href="mailto:Info@bbdautosng.com" style="color: #0284C7; font-weight: 700; text-decoration: underline;">Info@bbdautosng.com</a>.
                       </div>
                     </td>
                   </tr>

@@ -3,8 +3,7 @@ import { Resend } from 'resend';
 
 interface BookingEmailData {
   bookingRef: string;
-  pickupOtp: string;
-  deliveryOtp: string;
+  verificationOtp: string;
   sType: string;
   pLoc: string;
   dLoc: string;
@@ -29,8 +28,7 @@ function generateAdminBookingAlertHtml(
 ): string {
   const {
     bookingRef,
-    pickupOtp,
-    deliveryOtp,
+    verificationOtp,
     sType,
     pLoc,
     dLoc,
@@ -59,13 +57,8 @@ function generateAdminBookingAlertHtml(
     { icon: 'icon-recipient.png', label: 'Recipient', value: receiverDisplay },
     {
       icon: 'receiver-icon-otp.png',
-      label: 'Sender Pickup OTP',
-      value: `<span style="font-family: monospace; font-size: 14px; font-weight: 800; color: #092957; background: #E0F2FE; padding: 4px 10px; border-radius: 6px; letter-spacing: 2px;">${pickupOtp}</span> <span style="font-size: 11px; color: #64748B;">(share at pickup)</span>`
-    },
-    {
-      icon: 'receiver-icon-otp.png',
-      label: 'Receiver Delivery OTP',
-      value: `<span style="font-family: monospace; font-size: 14px; font-weight: 800; color: #E30620; background: #FEE2E2; padding: 4px 10px; border-radius: 6px; letter-spacing: 2px;">${deliveryOtp}</span> <span style="font-size: 11px; color: #64748B;">(verify at delivery)</span>`
+      label: 'Verification OTP',
+      value: `<span style="font-family: monospace; font-size: 15px; font-weight: 800; color: #092957; background: #E0F2FE; padding: 4px 12px; border-radius: 6px; letter-spacing: 2px;">${verificationOtp}</span> <span style="font-size: 11px; color: #64748B;">(shared between sender, receiver & rider)</span>`
     },
     { icon: 'icon-doc.png', label: 'Delivery Instructions', value: instructionsDisplay },
   ];
@@ -162,7 +155,7 @@ function generateAdminBookingAlertHtml(
                           </div>
                           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; color: #334155; line-height: 1.4;">
                             Assign a courier rider. Phone the customer at <strong style="color: #E30620; font-weight: 800;">${sPhone}</strong> to confirm pickup.
-                            Sender Pickup OTP: <strong style="color: #092957; font-family: monospace;">${pickupOtp}</strong> | Recipient Delivery OTP: <strong style="color: #E30620; font-family: monospace;">${deliveryOtp}</strong>.
+                            Delivery Verification OTP: <strong style="color: #092957; font-family: monospace; font-size: 15px;">${verificationOtp}</strong> (shared across sender, receiver &amp; rider).
                           </div>
                         </td>
                       </tr>
@@ -201,7 +194,7 @@ function generateCustomerBookingConfirmationHtml(
 ): string {
   const {
     bookingRef,
-    pickupOtp,
+    verificationOtp,
     sType,
     pLoc,
     dLoc,
@@ -232,8 +225,8 @@ function generateCustomerBookingConfirmationHtml(
     { icon: 'icon-recipient.png', label: 'Recipient', value: receiverDisplay, actionHtml: '' },
     {
       icon: 'receiver-icon-otp.png',
-      label: 'Your Pickup OTP',
-      value: `<span style="font-family: monospace; font-size: 15px; font-weight: 800; color: #092957; background: #E0F2FE; padding: 4px 12px; border-radius: 6px; letter-spacing: 2px;">${pickupOtp}</span> <span style="font-size: 11px; color: #0284C7; font-weight: 600; margin-left: 6px;">Share with rider upon pickup</span>`,
+      label: 'Verification OTP',
+      value: `<span style="font-family: monospace; font-size: 15px; font-weight: 800; color: #092957; background: #E0F2FE; padding: 4px 12px; border-radius: 6px; letter-spacing: 2px;">${verificationOtp}</span> <span style="font-size: 11px; color: #0284C7; font-weight: 600; margin-left: 6px;">Same code for sender &amp; recipient</span>`,
       actionHtml: ''
     },
     { icon: 'icon-doc.png', label: 'Delivery Instructions', value: instructionsDisplay, actionHtml: '' },
@@ -296,7 +289,7 @@ function generateCustomerBookingConfirmationHtml(
                       Hello ${sName},
                     </div>
                     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 12px; color: #334155; line-height: 1.5;">
-                      Thank you for choosing BBD Mobility. Our dispatch team is assigning your rider. Please keep your Pickup OTP (<strong style="color: #092957; font-family: monospace;">${pickupOtp}</strong>) ready to give to the rider upon collection. A separate Delivery OTP has been dispatched to recipient <strong>${rName}</strong>.
+                      Thank you for choosing BBD Mobility. Our dispatch team is assigning your rider. Your Delivery Verification OTP is <strong style="color: #092957; font-family: monospace; font-size: 14px;">${verificationOtp}</strong>. This same code has been delivered to recipient <strong>${rName}</strong> for a synchronized, secure handover.
                     </div>
                   </td>
                   <td style="width: 352px; padding: 0; line-height: 0; vertical-align: top;" align="right">
@@ -351,7 +344,7 @@ function generateCustomerBookingConfirmationHtml(
                             Need Immediate Assistance?
                           </div>
                           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; color: #334155; line-height: 1.4;">
-                            Call our dispatch hotline at <strong style="color: #092957; font-weight: 800;">+234 812 345 6789</strong> or reply to this email (<strong style="color: #092957; font-weight: 800;">Info@bbdautosng.com</strong>) with your reference: <strong style="color: #092957; font-weight: 800;">${bookingRef}</strong>.
+                            Call our dispatch hotline at <strong style="color: #092957; font-weight: 800;">+234 708 753 1198</strong> or reply to this email (<strong style="color: #092957; font-weight: 800;">Info@bbdautosng.com</strong>) with your reference: <strong style="color: #092957; font-weight: 800;">${bookingRef}</strong>.
                           </div>
                         </td>
                       </tr>
@@ -385,7 +378,7 @@ function generateReceiverDeliveryHtml(
 ): string {
   const {
     bookingRef,
-    deliveryOtp,
+    verificationOtp,
     sType,
     pLoc,
     dLoc,
@@ -394,7 +387,7 @@ function generateReceiverDeliveryHtml(
     sPhone,
   } = data;
 
-  const otpFormatted = deliveryOtp.split('').join(' ');
+  const otpFormatted = verificationOtp.split('').join(' ');
 
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
@@ -762,12 +755,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const bookingRef = generateBookingReference();
 
-    // Generate distinct, dynamic 6-digit OTPs for Sender (pickup) and Receiver (delivery)
-    const pickupOtp = generateOtp();
-    let deliveryOtp = generateOtp();
-    while (deliveryOtp === pickupOtp) {
-      deliveryOtp = generateOtp();
-    }
+    // Generate a unified dynamic 6-digit verification OTP shared across sender, receiver, and admin
+    const verificationOtp = generateOtp();
 
     const rawAdminEmails =
       process.env.ADMIN_EMAILS ||
@@ -791,8 +780,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (resend) {
       const emailData: BookingEmailData = {
         bookingRef,
-        pickupOtp,
-        deliveryOtp,
+        verificationOtp,
         sType,
         pLoc,
         dLoc,
@@ -807,7 +795,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         businessEmails,
       };
 
-      // 1. Dispatch Admin Alert Email with both OTPs
+      // 1. Dispatch Admin Alert Email with unified OTP
       try {
         const adminAlertHtml = generateAdminBookingAlertHtml(emailData);
         const dispatchResult = await resend.emails.send({
@@ -827,7 +815,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.error('[RESEND ADMIN ALERT EXCEPTION]:', adminErr);
       }
 
-      // 2. Dispatch Sender Confirmation Email with Pickup OTP
+      // 2. Dispatch Sender Confirmation Email with unified OTP
       if (sEmail && sEmail.includes('@')) {
         try {
           const customerConfirmationHtml = generateCustomerBookingConfirmationHtml(emailData);
@@ -849,7 +837,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
-      // 3. Dispatch Receiver Delivery Verification Email with Delivery OTP
+      // 3. Dispatch Receiver Delivery Verification Email with identical unified OTP
       if (rEmail && rEmail.includes('@')) {
         try {
           const receiverDeliveryHtml = generateReceiverDeliveryHtml(emailData);
@@ -857,7 +845,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             from: fromEmail,
             to: [rEmail],
             replyTo: businessEmails[0] || 'Info@bbdautosng.com',
-            subject: `BBD Mobility Delivery Notice - Verification Code: ${deliveryOtp} (${bookingRef})`,
+            subject: `BBD Mobility Delivery Notice - Verification Code: ${verificationOtp} (${bookingRef})`,
             html: receiverDeliveryHtml,
           });
 
@@ -872,14 +860,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else {
       console.log(`[DEV MODE] Booking received: ${bookingRef} | Targets: ${businessEmails.join(', ')}`);
-      console.log(`Pickup OTP (Sender): ${pickupOtp} | Delivery OTP (Receiver): ${deliveryOtp}`);
+      console.log(`Unified Verification OTP (Sender, Receiver, Admin): ${verificationOtp}`);
     }
 
     return res.status(200).json({
       success: true,
       bookingReference: bookingRef,
-      pickupOtp,
-      deliveryOtp,
+      verificationOtp,
       message: 'Booking request successfully received! Confirmation and OTP codes have been dispatched.',
       recipients: businessEmails,
       demoMode: !resend,

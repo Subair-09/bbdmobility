@@ -648,7 +648,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
 
             <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
               <a
-                href="tel:+2348123456789"
+                href="tel:+2347087531198"
                 className="flex-1 py-2.5 px-4 bg-bbd-navy hover:bg-bbd-navy-light text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors"
               >
                 <Phone className="w-3.5 h-3.5" />

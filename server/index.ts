@@ -325,17 +325,12 @@ app.post('/api/bookings', async (req, res) => {
 
     const bookingRef = generateBookingReference();
 
-    // Generate distinct, dynamic 6-digit OTPs for Sender (pickup) and Receiver (delivery)
-    const pickupOtp = generateOtp();
-    let deliveryOtp = generateOtp();
-    while (deliveryOtp === pickupOtp) {
-      deliveryOtp = generateOtp();
-    }
+    // Generate a unified dynamic 6-digit verification OTP shared across sender, receiver, and admin
+    const verificationOtp = generateOtp();
 
     const emailData = {
       bookingRef,
-      pickupOtp,
-      deliveryOtp,
+      verificationOtp,
       sType,
       pLoc,
       dLoc,
@@ -352,7 +347,7 @@ app.post('/api/bookings', async (req, res) => {
 
     // Attempt sending via Resend if configured
     if (resend) {
-      // 1. Dispatch Admin Alert Email with both OTPs
+      // 1. Dispatch Admin Alert Email with unified OTP
       try {
         const adminAlertHtml = generateAdminBookingAlertHtml(emailData);
         const dispatchResult = await resend.emails.send({
@@ -372,7 +367,7 @@ app.post('/api/bookings', async (req, res) => {
         console.error('Resend admin dispatch exception:', adminErr);
       }
 
-      // 2. Dispatch Customer Confirmation with Pickup OTP to Sender
+      // 2. Dispatch Customer Confirmation with unified OTP to Sender
       if (sEmail && sEmail.includes('@')) {
         try {
           const customerConfirmationHtml = generateCustomerBookingConfirmationHtml(emailData);
@@ -394,7 +389,7 @@ app.post('/api/bookings', async (req, res) => {
         }
       }
 
-      // 3. Dispatch Delivery Notice with Delivery Verification OTP to Recipient
+      // 3. Dispatch Delivery Notice with identical Delivery Verification OTP to Recipient
       if (rEmail && rEmail.includes('@')) {
         try {
           const receiverDeliveryHtml = generateReceiverDeliveryHtml(emailData);
@@ -402,7 +397,7 @@ app.post('/api/bookings', async (req, res) => {
             from: fromEmail,
             to: [rEmail],
             replyTo: 'Info@bbdautosng.com',
-            subject: `BBD Mobility Delivery Notice - Verification Code: ${deliveryOtp} (${bookingRef})`,
+            subject: `BBD Mobility Delivery Notice - Verification Code: ${verificationOtp} (${bookingRef})`,
             html: receiverDeliveryHtml,
           });
 
@@ -419,8 +414,9 @@ app.post('/api/bookings', async (req, res) => {
       console.log('----------------------------------------------------');
       console.log(`[BOOKING DEV MODE] Reference: ${bookingRef}`);
       console.log(`Target Dispatch Inboxes: ${businessEmails.join(', ')}`);
-      console.log(`Sender: ${sName} (${sPhone} | ${sEmail}) -> Pickup OTP: ${pickupOtp}`);
-      console.log(`Receiver: ${rName} (${rPhone} | ${rEmail}) -> Delivery OTP: ${deliveryOtp}`);
+      console.log(`Sender: ${sName} (${sPhone} | ${sEmail})`);
+      console.log(`Receiver: ${rName} (${rPhone} | ${rEmail})`);
+      console.log(`Unified Verification OTP (Sender, Receiver, Admin): ${verificationOtp}`);
       console.log(`Service: ${sType} | From: ${pLoc} -> To: ${dLoc}`);
       console.log(`Package: ${pDetails || 'N/A'}`);
       console.log('To send real emails via Resend, set RESEND_API_KEY in .env');
@@ -430,8 +426,7 @@ app.post('/api/bookings', async (req, res) => {
     return res.json({
       success: true,
       bookingReference: bookingRef,
-      pickupOtp,
-      deliveryOtp,
+      verificationOtp,
       message: 'Booking request successfully received! Confirmation and OTP codes have been dispatched.',
       recipients: businessEmails,
       demoMode: !resend,

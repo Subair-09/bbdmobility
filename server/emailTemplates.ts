@@ -1,7 +1,6 @@
 export interface BookingEmailData {
   bookingRef: string;
-  pickupOtp: string;
-  deliveryOtp: string;
+  verificationOtp: string;
   sType: string;
   pLoc: string;
   dLoc: string;
@@ -22,8 +21,7 @@ export function generateAdminBookingAlertHtml(
 ): string {
   const {
     bookingRef,
-    pickupOtp,
-    deliveryOtp,
+    verificationOtp,
     sType,
     pLoc,
     dLoc,
@@ -52,13 +50,8 @@ export function generateAdminBookingAlertHtml(
     { icon: 'icon-recipient.png', label: 'Recipient', value: receiverDisplay },
     {
       icon: 'receiver-icon-otp.png',
-      label: 'Sender Pickup OTP',
-      value: `<span style="font-family: monospace; font-size: 14px; font-weight: 800; color: #092957; background: #E0F2FE; padding: 4px 10px; border-radius: 6px; letter-spacing: 2px;">${pickupOtp}</span> <span style="font-size: 11px; color: #64748B;">(share at pickup)</span>`
-    },
-    {
-      icon: 'receiver-icon-otp.png',
-      label: 'Receiver Delivery OTP',
-      value: `<span style="font-family: monospace; font-size: 14px; font-weight: 800; color: #E30620; background: #FEE2E2; padding: 4px 10px; border-radius: 6px; letter-spacing: 2px;">${deliveryOtp}</span> <span style="font-size: 11px; color: #64748B;">(verify at delivery)</span>`
+      label: 'Verification OTP',
+      value: `<span style="font-family: monospace; font-size: 15px; font-weight: 800; color: #092957; background: #E0F2FE; padding: 4px 12px; border-radius: 6px; letter-spacing: 2px;">${verificationOtp}</span> <span style="font-size: 11px; color: #64748B;">(shared between sender, receiver & rider)</span>`
     },
     { icon: 'icon-doc.png', label: 'Delivery Instructions', value: instructionsDisplay },
   ];
@@ -168,7 +161,7 @@ export function generateAdminBookingAlertHtml(
                           </div>
                           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; color: #334155; line-height: 1.4;">
                             Assign a courier rider. Phone the customer at <strong style="color: #E30620; font-weight: 800;">${sPhone}</strong> to confirm pickup.
-                            Sender Pickup OTP: <strong style="color: #092957; font-family: monospace;">${pickupOtp}</strong> | Recipient Delivery OTP: <strong style="color: #E30620; font-family: monospace;">${deliveryOtp}</strong>.
+                            Delivery Verification OTP: <strong style="color: #092957; font-family: monospace; font-size: 15px;">${verificationOtp}</strong> (shared across sender, receiver &amp; rider).
                           </div>
                         </td>
                       </tr>
@@ -276,8 +269,8 @@ export function generateCustomerBookingConfirmationHtml(
     },
     {
       icon: 'receiver-icon-otp.png',
-      label: 'Your Pickup OTP',
-      value: `<span style="font-family: monospace; font-size: 15px; font-weight: 800; color: #092957; background: #E0F2FE; padding: 4px 12px; border-radius: 6px; letter-spacing: 2px;">${pickupOtp}</span> <span style="font-size: 11px; color: #0284C7; font-weight: 600; margin-left: 6px;">Share with rider upon pickup</span>`,
+      label: 'Verification OTP',
+      value: `<span style="font-family: monospace; font-size: 15px; font-weight: 800; color: #092957; background: #E0F2FE; padding: 4px 12px; border-radius: 6px; letter-spacing: 2px;">${verificationOtp}</span> <span style="font-size: 11px; color: #0284C7; font-weight: 600; margin-left: 6px;">Same code for sender &amp; recipient</span>`,
       actionHtml: '',
     },
     {
@@ -351,7 +344,7 @@ export function generateCustomerBookingConfirmationHtml(
                       Hello ${sName},
                     </div>
                     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 12px; color: #334155; line-height: 1.5;">
-                      Thank you for choosing BBD Mobility. Our dispatch team is assigning your rider. Please keep your Pickup OTP (<strong style="color: #092957; font-family: monospace;">${pickupOtp}</strong>) ready to give to the rider upon collection. A separate Delivery OTP has been dispatched to recipient <strong>${rName}</strong>.
+                      Thank you for choosing BBD Mobility. Our dispatch team is assigning your rider. Your Delivery Verification OTP is <strong style="color: #092957; font-family: monospace; font-size: 14px;">${verificationOtp}</strong>. This same code has been delivered to recipient <strong>${rName}</strong> for a synchronized, secure handover.
                     </div>
                   </td>
 
@@ -416,7 +409,7 @@ export function generateCustomerBookingConfirmationHtml(
                             Need Immediate Assistance?
                           </div>
                           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; color: #334155; line-height: 1.4;">
-                            Call our dispatch hotline at <strong style="color: #092957; font-weight: 800;">+234 812 345 6789</strong> or reply to this email (<strong style="color: #092957; font-weight: 800;">Info@bbdautosng.com</strong>) with your reference: <strong style="color: #092957; font-weight: 800;">${bookingRef}</strong>.
+                            Call our dispatch hotline at <strong style="color: #092957; font-weight: 800;">+234 708 753 1198</strong> or reply to this email (<strong style="color: #092957; font-weight: 800;">Info@bbdautosng.com</strong>) with your reference: <strong style="color: #092957; font-weight: 800;">${bookingRef}</strong>.
                           </div>
                         </td>
                       </tr>
@@ -456,7 +449,7 @@ export function generateReceiverDeliveryHtml(
 ): string {
   const {
     bookingRef,
-    deliveryOtp,
+    verificationOtp,
     sType,
     pLoc,
     dLoc,
@@ -465,7 +458,7 @@ export function generateReceiverDeliveryHtml(
     sPhone,
   } = data;
 
-  const otpFormatted = deliveryOtp.split('').join(' ');
+  const otpFormatted = verificationOtp.split('').join(' ');
 
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
@@ -843,7 +836,7 @@ export function generateReceiverDeliveryHtml(
                             Need Immediate Assistance?
                           </div>
                           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; color: #334155; line-height: 1.4;">
-                            Call our dispatch hotline at <strong style="color: #092957; font-weight: 800;">+234 812 345 6789</strong> or reply to this email (<strong style="color: #092957; font-weight: 800;">Info@bbdautosng.com</strong>) with your reference: <strong style="color: #092957; font-weight: 800;">${bookingRef}</strong>.
+                            Call our dispatch hotline at <strong style="color: #092957; font-weight: 800;">+234 708 753 1198</strong> or reply to this email (<strong style="color: #092957; font-weight: 800;">Info@bbdautosng.com</strong>) with your reference: <strong style="color: #092957; font-weight: 800;">${bookingRef}</strong>.
                           </div>
                         </td>
                       </tr>
@@ -1160,7 +1153,7 @@ ${message}
                         Need Urgent Same-Day Delivery?
                       </div>
                       <div style="font-size: 13px; color: #334155; line-height: 1.5;">
-                        For urgent dispatch requests, call our hotline directly at <a href="tel:+2348123456789" style="color: #E30620; font-weight: 800; text-decoration: none;">+234 812 345 6789</a> or email us at <a href="mailto:Info@bbdautosng.com" style="color: #0284C7; font-weight: 700; text-decoration: underline;">Info@bbdautosng.com</a>.
+                        For urgent dispatch requests, call our hotline directly at <a href="tel:+2347087531198" style="color: #E30620; font-weight: 800; text-decoration: none;">+234 708 753 1198</a> or email us at <a href="mailto:Info@bbdautosng.com" style="color: #0284C7; font-weight: 700; text-decoration: underline;">Info@bbdautosng.com</a>.
                       </div>
                     </td>
                   </tr>

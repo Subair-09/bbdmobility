@@ -298,7 +298,7 @@ export function App() {
             className="fixed bottom-3 inset-x-3 z-30 md:hidden bg-white/95 backdrop-blur-md rounded-2xl p-2.5 shadow-2xl border border-gray-200/80 flex items-center gap-2"
           >
             <a
-              href="tel:+2348123456789"
+              href="tel:+2347087531198"
               className="p-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-bbd-navy transition-colors flex items-center justify-center flex-shrink-0"
               aria-label="Call Dispatch"
             >

@@ -315,11 +315,11 @@ export const Footer: React.FC<FooterProps> = ({
               </li>
               <li>
                 <a
-                  href="tel:+2348123456789"
+                  href="tel:+2347087531198"
                   className="hover:text-white flex items-center gap-1.5 transition-colors py-0.5"
                 >
                   <Phone className="w-3.5 h-3.5 text-bbd-red flex-shrink-0" />
-                  <span>+234 812 345 6789</span>
+                  <span>+234 708 753 1198</span>
                 </a>
               </li>
               <li>

@@ -198,7 +198,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({ type, onClose, onBookNow }
 
               <div className="space-y-3">
                 <a
-                  href="tel:+2348123456789"
+                  href="tel:+2347087531198"
                   className="flex items-center space-x-3 p-3.5 rounded-xl bg-slate-50 hover:bg-red-50/40 border border-slate-100 transition-colors"
                 >
                   <div className="w-10 h-10 rounded-full bg-red-100 text-bbd-red flex items-center justify-center">
@@ -206,7 +206,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({ type, onClose, onBookNow }
                   </div>
                   <div>
                     <span className="text-xs text-slate-500 block">Dispatch Helpline</span>
-                    <span className="text-sm font-bold text-bbd-navy">+234 812 345 6789</span>
+                    <span className="text-sm font-bold text-bbd-navy">+234 708 753 1198</span>
                   </div>
                 </a>
 

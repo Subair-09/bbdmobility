@@ -75,7 +75,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({
         'mainEntity': {
           '@type': ['DeliveryService', 'LocalBusiness'],
           'name': 'BBD Mobility',
-          'telephone': '+2348123456789',
+          'telephone': '+2347087531198',
           'email': 'Info@bbdautosng.com',
           'address': {
             '@type': 'PostalAddress',
@@ -168,7 +168,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({
     <div className="bg-white text-bbd-navy font-sans">
       <SEO
         title="Contact Us — BBD Mobility Courier Dispatch Lagos"
-        description="Contact BBD Mobility for courier bookings and dispatch support in Lagos. Visit us at 20 Babayanju St, Shogunle, call +234 812 345 6789, or message us online."
+        description="Contact BBD Mobility for courier bookings and dispatch support in Lagos. Visit us at 20 Babayanju St, Shogunle, call +234 708 753 1198, or message us online."
         canonicalPath="/contact"
         keywords="contact BBD Mobility, courier phone number Lagos, dispatch service Ikeja, courier office Shogunle Lagos"
         schema={contactSchema}
@@ -246,10 +246,10 @@ export const ContactPage: React.FC<ContactPageProps> = ({
               <p className="text-[11px] text-slate-500">Call us for immediate assistance.</p>
               <div className="pt-1">
                 <a
-                  href="tel:+2348123456789"
+                  href="tel:+2347087531198"
                   className="block font-bold text-xs sm:text-sm text-[#092957] hover:text-[#E30620] transition-colors"
                 >
-                  +234 812 345 6789
+                  +234 708 753 1198
                 </a>
                 <span className="text-[10px] text-slate-400 block mt-0.5">(Mon – Sat, 8AM – 8PM)</span>
               </div>
@@ -295,10 +295,10 @@ export const ContactPage: React.FC<ContactPageProps> = ({
               <p className="text-[11px] text-slate-500">We're always here to help.</p>
               <div className="pt-1">
                 <a
-                  href="tel:+2348123456789"
+                  href="tel:+2347087531198"
                   className="block font-bold text-xs sm:text-sm text-[#092957] hover:text-[#E30620] transition-colors"
                 >
-                  +234 812 345 6789
+                  +234 708 753 1198
                 </a>
                 <span className="text-[10px] text-slate-400 block mt-0.5">(Emergency &amp; urgent enquiries)</span>
               </div>
@@ -615,21 +615,21 @@ export const ContactPage: React.FC<ContactPageProps> = ({
           <div className="flex flex-wrap items-center justify-center gap-3">
             {/* Phone Button */}
             <a
-              href="tel:+2348123456789"
+              href="tel:+2347087531198"
               className="px-4 py-2.5 rounded-full bg-white text-[#092957] text-xs font-bold shadow-md hover:bg-slate-100 transition-all flex items-center gap-2"
             >
               <div className="w-6 h-6 rounded-full bg-[#092957] text-white flex items-center justify-center">
                 <Phone className="w-3 h-3 text-white" />
               </div>
               <div className="text-left">
-                <div className="text-[11px] leading-tight font-extrabold">+234 812 345 6789</div>
+                <div className="text-[11px] leading-tight font-extrabold">+234 708 753 1198</div>
                 <div className="text-[9px] text-slate-500 font-medium">Call us now</div>
               </div>
             </a>
 
             {/* WhatsApp Button */}
             <a
-              href="https://wa.me/2348123456789"
+              href="https://wa.me/2347087531198"
               target="_blank"
               rel="noopener noreferrer"
               className="px-5 py-2.5 rounded-full bg-[#E30620] hover:bg-red-700 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2"
