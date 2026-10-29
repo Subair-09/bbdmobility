@@ -289,7 +289,7 @@ export const portalApi = {
       const res = await fetch(`${BASE_URL}/riders`);
       if (res.ok) {
         const data = await res.json();
-        if (data.riders?.length) {
+        if (Array.isArray(data.riders)) {
           const normalized = data.riders.map(normalizeRider);
           setStoredData('riders', normalized);
           return normalized;
@@ -390,7 +390,7 @@ export const portalApi = {
       const res = await fetch(`${BASE_URL}/customers`);
       if (res.ok) {
         const data = await res.json();
-        if (data.customers?.length) {
+        if (Array.isArray(data.customers)) {
           const normalized = data.customers.map(normalizeCustomer);
           setStoredData('customers', normalized);
           return normalized;
@@ -444,7 +444,7 @@ export const portalApi = {
       const res = await fetch(`${BASE_URL}/users`);
       if (res.ok) {
         const data = await res.json();
-        if (data.users?.length) {
+        if (Array.isArray(data.users)) {
           const normalized = data.users.map(normalizeUser);
           setStoredData('users', normalized);
           return normalized;
@@ -538,7 +538,7 @@ export const portalApi = {
       const res = await fetch(`${BASE_URL}/payments`);
       if (res.ok) {
         const data = await res.json();
-        if (data.payments?.length) {
+        if (Array.isArray(data.payments)) {
           const normalized = data.payments.map(normalizePayment);
           setStoredData('payments', normalized);
           return normalized;

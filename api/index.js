@@ -298,16 +298,26 @@ var INITIAL_SETTINGS = {
   sessionTimeout: "8 hours"
 };
 var STORAGE_PREFIX = "bbd_portal_";
-var DATA_VERSION = "v5_zero_mock_data";
+var DATA_VERSION = "v7_clean_zero_mock_handover";
 try {
-  if (typeof window !== "undefined" && localStorage.getItem("bbd_data_version") !== DATA_VERSION) {
-    localStorage.removeItem(STORAGE_PREFIX + "bookings");
-    localStorage.removeItem(STORAGE_PREFIX + "riders");
-    localStorage.removeItem(STORAGE_PREFIX + "customers");
-    localStorage.removeItem(STORAGE_PREFIX + "users");
-    localStorage.removeItem(STORAGE_PREFIX + "payments");
-    localStorage.removeItem(STORAGE_PREFIX + "notifications");
-    localStorage.setItem("bbd_data_version", DATA_VERSION);
+  if (typeof window !== "undefined") {
+    if (localStorage.getItem("bbd_data_version") !== DATA_VERSION) {
+      localStorage.removeItem(STORAGE_PREFIX + "bookings");
+      localStorage.removeItem(STORAGE_PREFIX + "riders");
+      localStorage.removeItem(STORAGE_PREFIX + "customers");
+      localStorage.removeItem(STORAGE_PREFIX + "users");
+      localStorage.removeItem(STORAGE_PREFIX + "payments");
+      localStorage.removeItem(STORAGE_PREFIX + "notifications");
+      localStorage.setItem("bbd_data_version", DATA_VERSION);
+    }
+    const rawPayments = localStorage.getItem(STORAGE_PREFIX + "payments");
+    if (rawPayments && (rawPayments.includes("Test Sender") || rawPayments.includes("YZ96") || rawPayments.includes("test"))) {
+      localStorage.removeItem(STORAGE_PREFIX + "payments");
+    }
+    const rawBookings = localStorage.getItem(STORAGE_PREFIX + "bookings");
+    if (rawBookings && (rawBookings.includes("Test Sender") || rawBookings.includes("YZ96") || rawBookings.includes("test"))) {
+      localStorage.removeItem(STORAGE_PREFIX + "bookings");
+    }
   }
 } catch {
 }
