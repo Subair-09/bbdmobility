@@ -185,7 +185,7 @@ var PaymentSchema = new Schema({
   bookingRef: { type: String, required: true, index: true },
   amount: { type: Number, required: true },
   paymentMethod: { type: String, enum: ["Cash", "Bank Transfer", "POS", "Card"], default: "Cash" },
-  paymentStatus: { type: String, enum: ["Valid", "Reversed", "Adjusted"], default: "Valid", index: true },
+  paymentStatus: { type: String, enum: ["Valid", "Reversed", "Adjusted", "Pending", "Paid"], default: "Valid", index: true },
   paymentDate: { type: Date, default: Date.now },
   transactionRef: { type: String },
   notes: { type: String },
@@ -2651,6 +2651,170 @@ app.get("/api/portal/payments", async (_req, res) => {
       };
     });
     return res.json({ payments: enrichedPayments, total: enrichedPayments.length });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.patch("/api/portal/payments/:paymentId", async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const {
+      amount,
+      paymentMethod,
+      paymentStatus,
+      transactionRef,
+      notes,
+      paymentDate
+    } = req.body || {};
+    await connectToDatabase();
+    const isObjectId = mongoose2.isValidObjectId(paymentId);
+    const query = isObjectId ? { $or: [{ paymentId }, { _id: paymentId }] } : { paymentId };
+    const payment = await PaymentModel.findOne(query);
+    if (!payment) {
+      return res.status(404).json({ error: `Payment record ${paymentId} not found.` });
+    }
+    const previousAmount = payment.amount;
+    const previousStatus = payment.paymentStatus;
+    if (amount !== void 0) {
+      const numAmount = Number(amount);
+      if (isNaN(numAmount) || numAmount < 0) {
+        return res.status(400).json({ error: "Valid payment amount is required." });
+      }
+      payment.amount = numAmount;
+    }
+    if (paymentMethod) {
+      payment.paymentMethod = sanitizeString(paymentMethod);
+    }
+    if (paymentStatus) {
+      payment.paymentStatus = paymentStatus === "Paid" || paymentStatus === "Valid" ? "Valid" : paymentStatus === "Reversed" ? "Reversed" : "Pending";
+    }
+    if (transactionRef !== void 0) {
+      payment.transactionRef = sanitizeString(transactionRef);
+    }
+    if (notes !== void 0) {
+      payment.notes = sanitizeString(notes);
+    }
+    if (paymentDate) {
+      const parsedDate = new Date(paymentDate);
+      if (!isNaN(parsedDate.getTime())) {
+        payment.paymentDate = parsedDate;
+      }
+    }
+    await payment.save();
+    let updatedBooking = null;
+    if (payment.bookingRef) {
+      const booking = await BookingModel.findOne({ ref: payment.bookingRef });
+      if (booking) {
+        const allPayments = await PaymentModel.find({ bookingRef: payment.bookingRef });
+        const validPayments = allPayments.filter((p) => p.paymentStatus === "Valid");
+        const totalPaid = validPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+        if (booking.totalAmount === previousAmount || !booking.totalAmount) {
+          booking.totalAmount = payment.amount;
+          booking.deliveryFee = payment.amount;
+        }
+        const totalDue = Number(booking.totalAmount || booking.deliveryFee || totalPaid);
+        booking.totalPaid = totalPaid;
+        booking.outstandingBalance = Math.max(0, totalDue - totalPaid);
+        booking.paymentStatus = totalPaid >= totalDue && totalDue > 0 ? "Paid" : totalPaid > 0 ? "Partially Paid" : "Unpaid";
+        if (payment.paymentMethod) {
+          booking.paymentMethod = payment.paymentMethod;
+        }
+        await booking.save();
+        updatedBooking = booking;
+        if (booking.senderPhone) {
+          const delta = (payment.paymentStatus === "Valid" ? payment.amount : 0) - (previousStatus === "Valid" ? previousAmount : 0);
+          if (delta !== 0) {
+            await CustomerModel.updateOne(
+              { phone: booking.senderPhone },
+              { $inc: { totalSpent: delta } }
+            ).catch(() => {
+            });
+          }
+        }
+      }
+    }
+    await recordAuditLog({
+      actorId: req.user?.userId || "ADMIN",
+      actorName: req.user?.name || "Admin",
+      actorRole: "Admin",
+      action: "PAYMENT_UPDATED",
+      affectedEntity: "Payment",
+      entityRef: payment.paymentId,
+      metadata: { previousAmount, newAmount: payment.amount, bookingRef: payment.bookingRef },
+      ipAddress: req.ip
+    });
+    createAdminNotification({
+      title: "Payment Record Updated",
+      message: `Payment ${payment.paymentId} for booking ${payment.bookingRef} was updated (\u20A6${payment.amount.toLocaleString()}).`,
+      type: "payment",
+      entityRef: payment.paymentId
+    }).catch(() => {
+    });
+    return res.json({
+      success: true,
+      message: `Payment ${payment.paymentId} updated successfully.`,
+      payment,
+      booking: updatedBooking
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.delete("/api/portal/payments/:paymentId", async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    await connectToDatabase();
+    const isObjectId = mongoose2.isValidObjectId(paymentId);
+    const query = isObjectId ? { $or: [{ paymentId }, { _id: paymentId }] } : { paymentId };
+    const payment = await PaymentModel.findOne(query);
+    if (!payment) {
+      return res.status(404).json({ error: `Payment record ${paymentId} not found.` });
+    }
+    const { bookingRef, amount, paymentStatus: pStatus } = payment;
+    await PaymentModel.deleteOne({ _id: payment._id });
+    let updatedBooking = null;
+    if (bookingRef) {
+      const booking = await BookingModel.findOne({ ref: bookingRef });
+      if (booking) {
+        const remainingValidPayments = await PaymentModel.find({ bookingRef, paymentStatus: "Valid" });
+        const totalPaid = remainingValidPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+        const totalDue = Number(booking.totalAmount || booking.deliveryFee || 0);
+        booking.totalPaid = totalPaid;
+        booking.outstandingBalance = Math.max(0, totalDue - totalPaid);
+        booking.paymentStatus = totalPaid >= totalDue && totalDue > 0 ? "Paid" : totalPaid > 0 ? "Partially Paid" : "Unpaid";
+        await booking.save();
+        updatedBooking = booking;
+        if (booking.senderPhone && pStatus === "Valid") {
+          await CustomerModel.updateOne(
+            { phone: booking.senderPhone },
+            { $inc: { totalSpent: -amount } }
+          ).catch(() => {
+          });
+        }
+      }
+    }
+    await recordAuditLog({
+      actorId: req.user?.userId || "ADMIN",
+      actorName: req.user?.name || "Admin",
+      actorRole: "Admin",
+      action: "PAYMENT_DELETED",
+      affectedEntity: "Payment",
+      entityRef: paymentId,
+      metadata: { bookingRef, amount },
+      ipAddress: req.ip
+    });
+    createAdminNotification({
+      title: "Payment Record Deleted",
+      message: `Payment ${paymentId} (\u20A6${Number(amount || 0).toLocaleString()}) was deleted from the ledger.`,
+      type: "payment",
+      entityRef: paymentId
+    }).catch(() => {
+    });
+    return res.json({
+      success: true,
+      message: `Payment ${paymentId} deleted successfully.`,
+      booking: updatedBooking
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

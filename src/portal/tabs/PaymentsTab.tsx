@@ -7,10 +7,11 @@ import {
   Download, 
   Calendar, 
   X, 
-  MoreVertical, 
   ChevronLeft, 
   ChevronRight,
-  CreditCard
+  CreditCard,
+  Edit2,
+  Trash2
 } from 'lucide-react';
 import { PaymentRecord, PaymentMethod, Booking } from '../types';
 
@@ -18,6 +19,8 @@ interface PaymentsTabProps {
   payments: PaymentRecord[];
   bookings: Booking[];
   onRecordPayment: (payment: Partial<PaymentRecord>) => void;
+  onUpdatePayment?: (id: string, payment: Partial<PaymentRecord>) => Promise<boolean>;
+  onDeletePayment?: (id: string) => Promise<boolean>;
   onShowToast: (msg: string) => void;
 }
 
@@ -25,6 +28,8 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   payments,
   bookings,
   onRecordPayment,
+  onUpdatePayment,
+  onDeletePayment,
   onShowToast
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -45,6 +50,76 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   const [paymentTime, setPaymentTime] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   const [txRef, setTxRef] = useState('');
   const [notes, setNotes] = useState('');
+
+  // Edit payment form states
+  const [isEditPaymentOpen, setIsEditPaymentOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<PaymentRecord | null>(null);
+  const [editAmount, setEditAmount] = useState('');
+  const [editMethod, setEditMethod] = useState<PaymentMethod>('Bank Transfer');
+  const [editStatus, setEditStatus] = useState<string>('Paid');
+  const [editTxRef, setEditTxRef] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+
+  // Delete payment modal states
+  const [deleteTarget, setDeleteTarget] = useState<PaymentRecord | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const handleOpenEditPayment = (p: PaymentRecord) => {
+    setEditingPayment(p);
+    setEditAmount(p.amount ? String(p.amount) : '');
+    setEditMethod(p.paymentMethod || 'Bank Transfer');
+    setEditStatus(p.paymentStatus || 'Paid');
+    setEditTxRef(p.transactionRef || '');
+    setEditNotes(p.notes || '');
+    setIsEditPaymentOpen(true);
+  };
+
+  const handleSaveEditPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPayment) return;
+    const numAmt = Number(editAmount);
+    if (isNaN(numAmt) || numAmt <= 0) {
+      onShowToast('Please enter a valid payment amount greater than zero.');
+      return;
+    }
+    setEditLoading(true);
+    const targetId = editingPayment.id || editingPayment.paymentId || (editingPayment as any)._id;
+    const success = onUpdatePayment 
+      ? await onUpdatePayment(targetId, {
+          amount: numAmt,
+          paymentMethod: editMethod,
+          paymentStatus: editStatus as any,
+          transactionRef: editTxRef,
+          notes: editNotes
+        })
+      : false;
+    setEditLoading(false);
+    if (success) {
+      setIsEditPaymentOpen(false);
+      setEditingPayment(null);
+    }
+  };
+
+  const handleOpenDeletePayment = (p: PaymentRecord) => {
+    setDeleteTarget(p);
+    setIsDeleteOpen(true);
+  };
+
+  const handleConfirmDeletePayment = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    const targetId = deleteTarget.id || deleteTarget.paymentId || (deleteTarget as any)._id;
+    const success = onDeletePayment 
+      ? await onDeletePayment(targetId)
+      : false;
+    setDeleteLoading(false);
+    if (success) {
+      setIsDeleteOpen(false);
+      setDeleteTarget(null);
+    }
+  };
 
   const selectedBookingObj = bookings.find(b => b.ref === targetRef);
 
@@ -122,16 +197,6 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
     });
 
     setIsAddPaymentOpen(false);
-  };
-
-  const handleOpenAddForBooking = (p: PaymentRecord) => {
-    setTargetRef(p.bookingRef);
-    setCustomerName(p.customerName);
-    setCustomerPhone(p.customerPhone);
-    setAmount(p.amount ? p.amount.toString() : '');
-    setPaymentMethod(p.paymentMethod);
-    setPaymentStatus(p.paymentStatus);
-    setIsAddPaymentOpen(true);
   };
 
   const handleExport = () => {
@@ -345,13 +410,19 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                   <td className="py-3.5 px-3 text-center">
                     <div className="flex items-center justify-center gap-1.5">
                       <button
-                        onClick={() => handleOpenAddForBooking(p)}
-                        className="px-2.5 py-1 bg-[#0B1B3D] hover:bg-[#07132c] text-white text-[10px] font-bold rounded-lg transition-all shadow-sm"
+                        onClick={() => handleOpenEditPayment(p)}
+                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 shadow-2xs"
+                        title="Edit Payment Record"
                       >
-                        View
+                        <Edit2 className="w-3 h-3" />
+                        <span>Edit</span>
                       </button>
-                      <button className="text-gray-400 hover:text-gray-600 p-1">
-                        <MoreVertical className="w-3.5 h-3.5" />
+                      <button
+                        onClick={() => handleOpenDeletePayment(p)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shadow-2xs"
+                        title="Delete Payment Record"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </td>
@@ -598,6 +669,198 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Slide-over Edit Payment Drawer */}
+      {isEditPaymentOpen && editingPayment && (
+        <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[460px] bg-white shadow-2xl border-l border-gray-200 flex flex-col animate-slideLeft">
+          <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                <Edit2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-gray-900">Edit Payment Record</h3>
+                <p className="text-[11px] text-gray-400">Modify transaction details & sync to booking balance</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsEditPaymentOpen(false)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSaveEditPayment} className="p-6 overflow-y-auto flex-grow space-y-4 text-xs text-gray-700">
+            {/* Booking Ref Badge */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Target Booking</span>
+              <div className="flex items-center justify-between">
+                <span className="font-mono font-bold text-xs text-gray-900">{editingPayment.bookingRef}</span>
+                <span className="text-[11px] text-gray-600 font-medium">{editingPayment.customerName}</span>
+              </div>
+            </div>
+
+            {/* Amount */}
+            <div>
+              <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                Payment Amount (₦) *
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-gray-500 font-bold text-xs">₦</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  required
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                  placeholder="e.g. 5000"
+                  className="w-full pl-8 pr-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-bold text-gray-900 text-sm shadow-xs"
+                />
+              </div>
+            </div>
+
+            {/* Payment Method */}
+            <div>
+              <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                Payment Method *
+              </label>
+              <select
+                value={editMethod}
+                onChange={(e) => setEditMethod(e.target.value as PaymentMethod)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-semibold text-gray-800"
+              >
+                <option value="Bank Transfer">Bank Transfer (Admin Account)</option>
+                <option value="Cash">Direct Cash (Admin/Office)</option>
+                <option value="POS">POS Terminal</option>
+                <option value="Card">Online Card</option>
+              </select>
+            </div>
+
+            {/* Payment Status */}
+            <div>
+              <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                Payment Status *
+              </label>
+              <select
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-semibold text-gray-800"
+              >
+                <option value="Paid">Paid (Confirmed & Valid)</option>
+                <option value="Pending">Pending Verification</option>
+                <option value="Partially Paid">Partially Paid</option>
+                <option value="Reversed">Reversed</option>
+              </select>
+            </div>
+
+            {/* Transaction Reference */}
+            <div>
+              <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                Transaction Reference
+              </label>
+              <input
+                type="text"
+                value={editTxRef}
+                onChange={(e) => setEditTxRef(e.target.value)}
+                placeholder="e.g. Bank slip reference, transaction ID"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy"
+              />
+            </div>
+
+            {/* Admin Notes */}
+            <div>
+              <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                Admin Notes / Reason for Edit
+              </label>
+              <textarea
+                rows={3}
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="e.g. Adjusted price per client agreement, updated transaction ref..."
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy resize-none"
+              />
+            </div>
+
+            <div className="pt-3 space-y-2">
+              <button
+                type="submit"
+                disabled={editLoading}
+                className="w-full py-3 px-4 bg-[#0B1B3D] hover:bg-[#07132c] text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {editLoading ? (
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Edit2 className="w-4 h-4" />
+                    <span>Save Changes & Sync to Booking</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsEditPaymentOpen(false)}
+                className="w-full py-2 px-4 text-gray-500 hover:text-gray-700 text-xs font-semibold rounded-xl text-center block"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Delete Payment Confirmation Modal */}
+      {isDeleteOpen && deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 text-center space-y-4">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div>
+              <h3 className="text-base font-extrabold text-gray-900">Delete Payment Record?</h3>
+              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                Are you sure you want to delete payment <strong className="text-gray-800">{deleteTarget.id}</strong> (₦{Number(deleteTarget.amount || 0).toLocaleString()}) for booking <strong className="text-gray-800 font-mono">{deleteTarget.bookingRef}</strong>?
+              </p>
+              <div className="p-2.5 mt-2 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 text-left">
+                ⚠️ This will permanently remove the payment from the ledger and recalculate the booking's outstanding balance.
+              </div>
+            </div>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDeleteOpen(false);
+                  setDeleteTarget(null);
+                }}
+                disabled={deleteLoading}
+                className="flex-1 py-2.5 border border-gray-200 text-gray-700 font-bold text-xs rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmDeletePayment}
+                disabled={deleteLoading}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl transition-colors shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {deleteLoading ? (
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -402,6 +402,44 @@ export function AdminPortal({ onLogout, onNavigateHome, initialTab = 'dashboard'
     showToast(`Payment of ₦${Number(paymentData.amount).toLocaleString()} for ${paymentData.bookingRef} recorded successfully!`);
   };
 
+  const handleUpdatePayment = async (paymentId: string, paymentData: Partial<PaymentRecord>) => {
+    const res = await portalApi.updatePayment(paymentId, paymentData);
+    if (res.success) {
+      if (res.payment) {
+        setPayments(prev => prev.map(p => (p.id === paymentId || p.paymentId === paymentId) ? { ...p, ...res.payment } : p));
+      }
+      if (res.booking) {
+        setBookings(prev => prev.map(b => b.ref === res.booking!.ref ? res.booking! : b));
+        if (selectedBooking?.ref === res.booking.ref) {
+          setSelectedBooking(res.booking);
+        }
+      }
+      showToast(res.message || 'Payment updated successfully.');
+      return true;
+    } else {
+      showToast(res.error || 'Failed to update payment.');
+      return false;
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    const res = await portalApi.deletePayment(paymentId);
+    if (res.success) {
+      setPayments(prev => prev.filter(p => p.id !== paymentId && p.paymentId !== paymentId));
+      if (res.booking) {
+        setBookings(prev => prev.map(b => b.ref === res.booking!.ref ? res.booking! : b));
+        if (selectedBooking?.ref === res.booking.ref) {
+          setSelectedBooking(res.booking);
+        }
+      }
+      showToast(res.message || 'Payment deleted successfully.');
+      return true;
+    } else {
+      showToast(res.error || 'Failed to delete payment.');
+      return false;
+    }
+  };
+
   const handleUpdateSettings = async (settingsData: Partial<GeneralSettings>) => {
     await portalApi.updateSettings(settingsData);
     setSettings(prev => ({ ...prev, ...settingsData }));
@@ -494,6 +532,8 @@ export function AdminPortal({ onLogout, onNavigateHome, initialTab = 'dashboard'
               payments={payments}
               bookings={bookings}
               onRecordPayment={handleRecordPayment}
+              onUpdatePayment={handleUpdatePayment}
+              onDeletePayment={handleDeletePayment}
               onShowToast={showToast}
             />
           )}

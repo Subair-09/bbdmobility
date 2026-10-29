@@ -1386,7 +1386,204 @@ app.get('/api/portal/payments', async (_req: Request, res: Response) => {
   }
 });
 
-// 4. List All Customers (Persistent CustomerModel + Auto-synced from bookings)
+// 4. Update / Edit Payment Record
+app.patch('/api/portal/payments/:paymentId', async (req: Request, res: Response) => {
+  try {
+    const { paymentId } = req.params;
+    const { 
+      amount, 
+      paymentMethod, 
+      paymentStatus, 
+      transactionRef, 
+      notes, 
+      paymentDate 
+    } = req.body || {};
+
+    await connectToDatabase();
+    const isObjectId = mongoose.isValidObjectId(paymentId);
+    const query = isObjectId ? { $or: [{ paymentId }, { _id: paymentId }] } : { paymentId };
+
+    const payment = await PaymentModel.findOne(query);
+    if (!payment) {
+      return res.status(404).json({ error: `Payment record ${paymentId} not found.` });
+    }
+
+    const previousAmount = payment.amount;
+    const previousStatus = payment.paymentStatus;
+
+    if (amount !== undefined) {
+      const numAmount = Number(amount);
+      if (isNaN(numAmount) || numAmount < 0) {
+        return res.status(400).json({ error: 'Valid payment amount is required.' });
+      }
+      payment.amount = numAmount;
+    }
+
+    if (paymentMethod) {
+      payment.paymentMethod = sanitizeString(paymentMethod) as any;
+    }
+
+    if (paymentStatus) {
+      payment.paymentStatus = (paymentStatus === 'Paid' || paymentStatus === 'Valid') 
+        ? 'Valid' 
+        : (paymentStatus === 'Reversed' ? 'Reversed' : 'Pending');
+    }
+
+    if (transactionRef !== undefined) {
+      payment.transactionRef = sanitizeString(transactionRef);
+    }
+
+    if (notes !== undefined) {
+      payment.notes = sanitizeString(notes);
+    }
+
+    if (paymentDate) {
+      const parsedDate = new Date(paymentDate);
+      if (!isNaN(parsedDate.getTime())) {
+        payment.paymentDate = parsedDate;
+      }
+    }
+
+    await payment.save();
+
+    // Synchronize associated booking finances
+    let updatedBooking = null;
+    if (payment.bookingRef) {
+      const booking = await BookingModel.findOne({ ref: payment.bookingRef });
+      if (booking) {
+        const allPayments = await PaymentModel.find({ bookingRef: payment.bookingRef });
+        const validPayments = allPayments.filter(p => p.paymentStatus === 'Valid');
+        const totalPaid = validPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+        if (booking.totalAmount === previousAmount || !booking.totalAmount) {
+          booking.totalAmount = payment.amount;
+          booking.deliveryFee = payment.amount;
+        }
+
+        const totalDue = Number(booking.totalAmount || booking.deliveryFee || totalPaid);
+        booking.totalPaid = totalPaid;
+        booking.outstandingBalance = Math.max(0, totalDue - totalPaid);
+        booking.paymentStatus = totalPaid >= totalDue && totalDue > 0 ? 'Paid' : totalPaid > 0 ? 'Partially Paid' : 'Unpaid';
+        if (payment.paymentMethod) {
+          booking.paymentMethod = payment.paymentMethod;
+        }
+
+        await booking.save();
+        updatedBooking = booking;
+
+        // Sync customer totalSpent
+        if (booking.senderPhone) {
+          const delta = (payment.paymentStatus === 'Valid' ? payment.amount : 0) - 
+                        (previousStatus === 'Valid' ? previousAmount : 0);
+          if (delta !== 0) {
+            await CustomerModel.updateOne(
+              { phone: booking.senderPhone },
+              { $inc: { totalSpent: delta } }
+            ).catch(() => {});
+          }
+        }
+      }
+    }
+
+    await recordAuditLog({
+      actorId: req.user?.userId || 'ADMIN',
+      actorName: req.user?.name || 'Admin',
+      actorRole: 'Admin',
+      action: 'PAYMENT_UPDATED',
+      affectedEntity: 'Payment',
+      entityRef: payment.paymentId,
+      metadata: { previousAmount, newAmount: payment.amount, bookingRef: payment.bookingRef },
+      ipAddress: req.ip,
+    });
+
+    createAdminNotification({
+      title: 'Payment Record Updated',
+      message: `Payment ${payment.paymentId} for booking ${payment.bookingRef} was updated (₦${payment.amount.toLocaleString()}).`,
+      type: 'payment',
+      entityRef: payment.paymentId
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: `Payment ${payment.paymentId} updated successfully.`,
+      payment,
+      booking: updatedBooking
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. Delete Payment Record
+app.delete('/api/portal/payments/:paymentId', async (req: Request, res: Response) => {
+  try {
+    const { paymentId } = req.params;
+    await connectToDatabase();
+    const isObjectId = mongoose.isValidObjectId(paymentId);
+    const query = isObjectId ? { $or: [{ paymentId }, { _id: paymentId }] } : { paymentId };
+
+    const payment = await PaymentModel.findOne(query);
+    if (!payment) {
+      return res.status(404).json({ error: `Payment record ${paymentId} not found.` });
+    }
+
+    const { bookingRef, amount, paymentStatus: pStatus } = payment;
+    await PaymentModel.deleteOne({ _id: payment._id });
+
+    // Synchronize associated booking finances
+    let updatedBooking = null;
+    if (bookingRef) {
+      const booking = await BookingModel.findOne({ ref: bookingRef });
+      if (booking) {
+        const remainingValidPayments = await PaymentModel.find({ bookingRef, paymentStatus: 'Valid' });
+        const totalPaid = remainingValidPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+        const totalDue = Number(booking.totalAmount || booking.deliveryFee || 0);
+
+        booking.totalPaid = totalPaid;
+        booking.outstandingBalance = Math.max(0, totalDue - totalPaid);
+        booking.paymentStatus = totalPaid >= totalDue && totalDue > 0 ? 'Paid' : totalPaid > 0 ? 'Partially Paid' : 'Unpaid';
+        await booking.save();
+        updatedBooking = booking;
+
+        // Sync customer totalSpent
+        if (booking.senderPhone && pStatus === 'Valid') {
+          await CustomerModel.updateOne(
+            { phone: booking.senderPhone },
+            { $inc: { totalSpent: -amount } }
+          ).catch(() => {});
+        }
+      }
+    }
+
+    await recordAuditLog({
+      actorId: req.user?.userId || 'ADMIN',
+      actorName: req.user?.name || 'Admin',
+      actorRole: 'Admin',
+      action: 'PAYMENT_DELETED',
+      affectedEntity: 'Payment',
+      entityRef: paymentId,
+      metadata: { bookingRef, amount },
+      ipAddress: req.ip,
+    });
+
+    createAdminNotification({
+      title: 'Payment Record Deleted',
+      message: `Payment ${paymentId} (₦${Number(amount || 0).toLocaleString()}) was deleted from the ledger.`,
+      type: 'payment',
+      entityRef: paymentId
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: `Payment ${paymentId} deleted successfully.`,
+      booking: updatedBooking
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. List All Customers (Persistent CustomerModel + Auto-synced from bookings)
 app.get('/api/portal/customers', async (_req: Request, res: Response) => {
   try {
     await connectToDatabase();

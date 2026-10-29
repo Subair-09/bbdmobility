@@ -608,6 +608,55 @@ export const portalApi = {
     return { payment: newPayment, booking: updatedBooking };
   },
 
+  async updatePayment(id: string, payment: Partial<PaymentRecord>): Promise<{ success: boolean; payment?: PaymentRecord; booking?: Booking; message?: string; error?: string }> {
+    try {
+      const res = await fetch(`${BASE_URL}/payments/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payment),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const normPayment = data.payment ? normalizePayment(data.payment) : undefined;
+        const normBooking = data.booking ? normalizeBooking(data.booking) : undefined;
+        if (normPayment) {
+          const payments = (getStoredData<any[]>('payments', []) || []).map(normalizePayment);
+          setStoredData('payments', payments.map(p => (p.id === id || p.paymentId === id) ? { ...p, ...normPayment } : p));
+        }
+        if (normBooking) {
+          const bookings = (getStoredData<any[]>('bookings', []) || []).map(normalizeBooking);
+          setStoredData('bookings', bookings.map(b => b.ref === normBooking.ref ? normBooking : b));
+        }
+        return { success: true, payment: normPayment, booking: normBooking, message: data.message };
+      }
+      return { success: false, error: data.error || 'Failed to update payment.' };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Network error updating payment.' };
+    }
+  },
+
+  async deletePayment(id: string): Promise<{ success: boolean; booking?: Booking; message?: string; error?: string }> {
+    try {
+      const res = await fetch(`${BASE_URL}/payments/${id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const normBooking = data.booking ? normalizeBooking(data.booking) : undefined;
+        const payments = (getStoredData<any[]>('payments', []) || []).map(normalizePayment);
+        setStoredData('payments', payments.filter(p => p.id !== id && p.paymentId !== id));
+        if (normBooking) {
+          const bookings = (getStoredData<any[]>('bookings', []) || []).map(normalizeBooking);
+          setStoredData('bookings', bookings.map(b => b.ref === normBooking.ref ? normBooking : b));
+        }
+        return { success: true, booking: normBooking, message: data.message };
+      }
+      return { success: false, error: data.error || 'Failed to delete payment.' };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Network error deleting payment.' };
+    }
+  },
+
   // 7. Settings
   async getSettings(): Promise<GeneralSettings> {
     try {

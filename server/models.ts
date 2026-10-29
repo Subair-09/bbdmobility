@@ -380,7 +380,7 @@ export interface IPayment extends Document {
   bookingRef: string;
   amount: number;
   paymentMethod: PaymentMethod;
-  paymentStatus: 'Valid' | 'Reversed' | 'Adjusted';
+  paymentStatus: 'Valid' | 'Reversed' | 'Adjusted' | 'Pending' | 'Paid';
   paymentDate: Date;
   transactionRef?: string;
   notes?: string;
@@ -398,7 +398,7 @@ const PaymentSchema = new Schema<IPayment>({
   bookingRef: { type: String, required: true, index: true },
   amount: { type: Number, required: true },
   paymentMethod: { type: String, enum: ['Cash', 'Bank Transfer', 'POS', 'Card'], default: 'Cash' },
-  paymentStatus: { type: String, enum: ['Valid', 'Reversed', 'Adjusted'], default: 'Valid', index: true },
+  paymentStatus: { type: String, enum: ['Valid', 'Reversed', 'Adjusted', 'Pending', 'Paid'], default: 'Valid', index: true },
   paymentDate: { type: Date, default: Date.now },
   transactionRef: { type: String },
   notes: { type: String },

@@ -95,6 +95,7 @@ export interface PlatformUser {
 
 export interface PaymentRecord {
   id: string;
+  paymentId?: string;
   bookingRef: string;
   customerName: string;
   customerPhone: string;

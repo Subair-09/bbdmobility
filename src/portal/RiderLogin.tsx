@@ -23,8 +23,7 @@ interface RiderLoginProps {
 
 export const RiderLogin: React.FC<RiderLoginProps> = ({ 
   onLoginSuccess, 
-  onNavigateHome,
-  onSwitchToAdminLogin 
+  onNavigateHome
 }) => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -178,19 +177,6 @@ export const RiderLogin: React.FC<RiderLoginProps> = ({
           </div>
         </div>
 
-        {/* Bottom Tagline / Admin Portal Switcher */}
-        <div className="relative z-20 pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-gray-400 gap-2 border-t border-white/10">
-          <span>Need admin operations?</span>
-          {onSwitchToAdminLogin && (
-            <button
-              onClick={onSwitchToAdminLogin}
-              className="text-white hover:text-bbd-red font-semibold transition-colors flex items-center gap-1"
-            >
-              <span>Go to Admin Portal</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
       </div>
 
       {/* RIGHT COLUMN: Rider Sign In Form (Matching Screenshot 2) */}
