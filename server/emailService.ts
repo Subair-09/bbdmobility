@@ -27,6 +27,28 @@ export interface EmailDispatchResult {
   error?: string;
 }
 
+/**
+ * Safeguard: Never dispatch real emails to official admin inboxes (Sales@bbdautosng.com, Info@bbdautosng.com)
+ * or clients for any simulated, mock, or automated test bookings.
+ */
+function isTestPayload(sEmail?: string, rEmail?: string, sName?: string, bookingRef?: string): boolean {
+  const sE = (sEmail || '').toLowerCase();
+  const rE = (rEmail || '').toLowerCase();
+  const sN = (sName || '').toLowerCase();
+  const ref = (bookingRef || '').toUpperCase();
+
+  return (
+    sE.includes('example.com') ||
+    rE.includes('example.com') ||
+    sE.includes('testsender') ||
+    rE.includes('testrecipient') ||
+    sE.includes('@test.') ||
+    sN.includes('test sender') ||
+    sN.includes('test recipient') ||
+    ref.includes('TEST')
+  );
+}
+
 export const emailService = {
   /**
    * 1. Sender Booking Confirmation Email
@@ -45,6 +67,11 @@ export const emailService = {
     rEmail: string;
     instructions?: string;
   }): Promise<EmailDispatchResult> {
+    if (isTestPayload(data.sEmail, data.rEmail, data.sName, data.bookingRef)) {
+      console.log(`[TEST EMAIL SUPPRESSED] Skipping real email delivery for test booking: ${data.bookingRef}`);
+      return { success: true, messageId: 'test-suppressed' };
+    }
+
     if (!resend) {
       console.log(`[EMAIL DEV MODE] Sender Confirmation -> ${data.sEmail} for ${data.bookingRef}`);
       return { success: true, messageId: 'dev-mode' };
@@ -92,6 +119,11 @@ export const emailService = {
     rEmail: string;
     instructions?: string;
   }): Promise<EmailDispatchResult> {
+    if (isTestPayload(data.sEmail, data.rEmail, data.sName, data.bookingRef)) {
+      console.log(`[TEST EMAIL SUPPRESSED] Skipping real email delivery for test booking: ${data.bookingRef}`);
+      return { success: true, messageId: 'test-suppressed' };
+    }
+
     if (!resend) {
       console.log(`[EMAIL DEV MODE] Receiver Delivery OTP -> ${data.rEmail} | Code: ${data.otpCode} for ${data.bookingRef}`);
       return { success: true, messageId: 'dev-mode' };
@@ -138,6 +170,11 @@ export const emailService = {
     rEmail: string;
     instructions?: string;
   }): Promise<EmailDispatchResult> {
+    if (isTestPayload(data.sEmail, data.rEmail, data.sName, data.bookingRef)) {
+      console.log(`[TEST EMAIL SUPPRESSED] Skipping real email delivery for test booking: ${data.bookingRef}`);
+      return { success: true, messageId: 'test-suppressed' };
+    }
+
     if (!resend) {
       console.log(`[EMAIL DEV MODE] Admin Alert -> ${businessEmails.join(', ')} for ${data.bookingRef}`);
       return { success: true, messageId: 'dev-mode' };
@@ -201,6 +238,11 @@ export const emailService = {
     if (!targetEmail || !targetEmail.includes('@')) {
       console.warn(`[EMAIL WARNING] Rider ${data.riderName} (${data.riderId}) has no valid email address: "${targetEmail}"`);
       return { success: false, error: 'Invalid or missing rider email address' };
+    }
+
+    if (targetEmail.includes('example.com') || targetEmail.includes('@test.') || data.bookingRef?.includes('TEST')) {
+      console.log(`[TEST EMAIL SUPPRESSED] Skipping rider assignment email for test address: ${targetEmail}`);
+      return { success: true, messageId: 'test-suppressed' };
     }
 
     if (!resend) {

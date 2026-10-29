@@ -1355,11 +1355,22 @@ var resend = resendApiKey ? new Resend(resendApiKey) : null;
 var fromEmail = process.env.FROM_EMAIL || "BBD Mobility <booking@bbdmobility.com.ng>";
 var rawAdminEmails = process.env.ADMIN_EMAILS || process.env.BUSINESS_EMAILS || "Sales@bbdautosng.com,Info@bbdautosng.com";
 var businessEmails = rawAdminEmails.split(",").map((e) => e.trim()).filter((e) => e.includes("@"));
+function isTestPayload(sEmail, rEmail, sName, bookingRef) {
+  const sE = (sEmail || "").toLowerCase();
+  const rE = (rEmail || "").toLowerCase();
+  const sN = (sName || "").toLowerCase();
+  const ref = (bookingRef || "").toUpperCase();
+  return sE.includes("example.com") || rE.includes("example.com") || sE.includes("testsender") || rE.includes("testrecipient") || sE.includes("@test.") || sN.includes("test sender") || sN.includes("test recipient") || ref.includes("TEST");
+}
 var emailService = {
   /**
    * 1. Sender Booking Confirmation Email
    */
   async sendSenderConfirmation(data) {
+    if (isTestPayload(data.sEmail, data.rEmail, data.sName, data.bookingRef)) {
+      console.log(`[TEST EMAIL SUPPRESSED] Skipping real email delivery for test booking: ${data.bookingRef}`);
+      return { success: true, messageId: "test-suppressed" };
+    }
     if (!resend) {
       console.log(`[EMAIL DEV MODE] Sender Confirmation -> ${data.sEmail} for ${data.bookingRef}`);
       return { success: true, messageId: "dev-mode" };
@@ -1389,6 +1400,10 @@ var emailService = {
    * 2. Receiver Delivery Notification with 6-digit OTP
    */
   async sendReceiverDeliveryNotice(data) {
+    if (isTestPayload(data.sEmail, data.rEmail, data.sName, data.bookingRef)) {
+      console.log(`[TEST EMAIL SUPPRESSED] Skipping real email delivery for test booking: ${data.bookingRef}`);
+      return { success: true, messageId: "test-suppressed" };
+    }
     if (!resend) {
       console.log(`[EMAIL DEV MODE] Receiver Delivery OTP -> ${data.rEmail} | Code: ${data.otpCode} for ${data.bookingRef}`);
       return { success: true, messageId: "dev-mode" };
@@ -1418,6 +1433,10 @@ var emailService = {
    * 3. Admin New Booking Alert
    */
   async sendAdminAlert(data) {
+    if (isTestPayload(data.sEmail, data.rEmail, data.sName, data.bookingRef)) {
+      console.log(`[TEST EMAIL SUPPRESSED] Skipping real email delivery for test booking: ${data.bookingRef}`);
+      return { success: true, messageId: "test-suppressed" };
+    }
     if (!resend) {
       console.log(`[EMAIL DEV MODE] Admin Alert -> ${businessEmails.join(", ")} for ${data.bookingRef}`);
       return { success: true, messageId: "dev-mode" };
@@ -1468,6 +1487,10 @@ var emailService = {
     if (!targetEmail || !targetEmail.includes("@")) {
       console.warn(`[EMAIL WARNING] Rider ${data.riderName} (${data.riderId}) has no valid email address: "${targetEmail}"`);
       return { success: false, error: "Invalid or missing rider email address" };
+    }
+    if (targetEmail.includes("example.com") || targetEmail.includes("@test.") || data.bookingRef?.includes("TEST")) {
+      console.log(`[TEST EMAIL SUPPRESSED] Skipping rider assignment email for test address: ${targetEmail}`);
+      return { success: true, messageId: "test-suppressed" };
     }
     if (!resend) {
       console.log(`[EMAIL DEV MODE] Rider Assignment Alert -> ${targetEmail} (${data.riderName}) for order ${data.bookingRef}`);
