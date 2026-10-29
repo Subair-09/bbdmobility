@@ -64,7 +64,7 @@ export const FaqsPage: React.FC<FaqsPageProps> = ({
       category: 'booking',
       question: 'Can I edit or cancel my delivery after booking?',
       answer:
-        'Yes, you can modify or cancel your booking as long as a rider has not yet been dispatched. Please contact our support team immediately via phone or WhatsApp at +234 708 753 1198 with your booking reference.',
+        'Yes, you can modify or cancel your booking as long as a rider has not yet been dispatched. Please contact our support team immediately via phone or WhatsApp at +234 708 753 1148 with your booking reference.',
     },
     {
       id: 'b-3',
@@ -170,7 +170,7 @@ export const FaqsPage: React.FC<FaqsPageProps> = ({
       category: 'support',
       question: 'How can I speak directly with customer care?',
       answer:
-        'You can call our dedicated support hotline at +234 708 753 1198, email Info@bbdautosng.com, or use our Contact Us page. Our representatives are available to help with your delivery inquiries.',
+        'You can call our dedicated support hotline at +234 708 753 1148, email Info@bbdautosng.com, or use our Contact Us page. Our representatives are available to help with your delivery inquiries.',
     },
   ];
 
@@ -379,7 +379,7 @@ export const FaqsPage: React.FC<FaqsPageProps> = ({
                 <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-300">
                   <span className="flex items-center">
                     <Phone className="w-3.5 h-3.5 mr-1 text-[#E30620]" />
-                    +234 708 753 1198
+                    +234 708 753 1148
                   </span>
                   <span className="flex items-center">
                     <MessageSquare className="w-3.5 h-3.5 mr-1 text-[#E30620]" />

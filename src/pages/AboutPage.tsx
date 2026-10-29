@@ -61,7 +61,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({
           'name': 'BBD Mobility',
           'url': 'https://www.bbdmobility.com.ng',
           'slogan': 'Move What Matters.',
-          'telephone': '+2347087531198',
+          'telephone': '+2347087531148',
           'email': 'Info@bbdautosng.com',
           'address': {
             '@type': 'PostalAddress',
@@ -459,8 +459,8 @@ export const AboutPage: React.FC<AboutPageProps> = ({
               </h4>
               <p className="text-[11px] text-slate-300 mt-0.5">
                 Our team is ready to assist you. Call us at{' '}
-                <a href="tel:+2347087531198" className="text-white font-semibold underline decoration-slate-400">
-                  +234 708 753 1198
+                <a href="tel:+2347087531148" className="text-white font-semibold underline decoration-slate-400">
+                  +234 708 753 1148
                 </a>{' '}
                 or send us an email at{' '}
                 <a href="mailto:info@bbdautosng.com" className="text-white font-semibold underline decoration-slate-400">

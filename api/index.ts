@@ -1,16 +1,3 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import app from '../server/index.ts';
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  return res.status(200).json({
-    status: 'ok',
-    service: 'BBD Mobility API Serverless',
-    timestamp: new Date().toISOString(),
-  });
-}
+export default app;

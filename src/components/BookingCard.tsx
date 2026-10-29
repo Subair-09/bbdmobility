@@ -140,6 +140,14 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
         throw new Error(data.error || 'Booking request failed.');
       }
 
+      // Signal low-latency cross-tab event to open Admin & Rider portals
+      try {
+        localStorage.setItem('bbd_latest_booking', JSON.stringify({
+          ref: data.bookingReference,
+          timestamp: Date.now()
+        }));
+      } catch {}
+
       setConfirmedRef(data.bookingReference);
       setStep(4);
     } catch (err: any) {
@@ -648,7 +656,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
 
             <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
               <a
-                href="tel:+2347087531198"
+                href="tel:+2347087531148"
                 className="flex-1 py-2.5 px-4 bg-bbd-navy hover:bg-bbd-navy-light text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors"
               >
                 <Phone className="w-3.5 h-3.5" />

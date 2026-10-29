@@ -13,7 +13,9 @@ interface NavbarProps {
   onNavigateServices: () => void;
   onNavigateHowItWorks: () => void;
   onNavigateFaqs: () => void;
-  currentView: 'home' | 'about' | 'contact' | 'services' | 'how-it-works' | 'faqs';
+  onNavigateAdmin?: () => void;
+  onNavigateRider?: () => void;
+  currentView: 'home' | 'about' | 'contact' | 'services' | 'how-it-works' | 'faqs' | 'admin' | 'rider';
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -127,15 +129,15 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Right: Phone & Book Now CTA */}
-          <div className="hidden sm:flex items-center space-x-3 md:space-x-4">
+          <div className="hidden sm:flex items-center space-x-2 md:space-x-3">
             <a
-              href="tel:+2347087531198"
+              href="tel:+2347087531148"
               className="flex items-center space-x-2 text-xs md:text-sm font-semibold text-bbd-navy hover:text-bbd-red transition-colors px-2.5 py-1.5 rounded-lg hover:bg-slate-50"
             >
               <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 group-hover:bg-red-50">
                 <Phone className="w-4 h-4 text-bbd-red" />
               </div>
-              <span className="hidden xl:inline">+234 708 753 1198</span>
+              <span className="hidden xl:inline">+234 708 753 1148</span>
             </a>
 
             <motion.button
@@ -206,13 +208,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               })}
             </div>
 
-            <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col space-y-3">
+            <div className="mt-4 pt-3 border-t border-gray-100 flex flex-col space-y-3">
               <a
-                href="tel:+2347087531198"
+                href="tel:+2347087531148"
                 className="flex items-center justify-center py-3 px-4 bg-slate-100 hover:bg-slate-200 text-bbd-navy text-xs font-bold rounded-xl transition-colors gap-2"
               >
                 <Phone className="w-4 h-4 text-bbd-red" />
-                <span>Call Hotline: +234 708 753 1198</span>
+                <span>Call Hotline: +234 708 753 1148</span>
               </a>
 
               <button

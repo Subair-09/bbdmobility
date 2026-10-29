@@ -1,0 +1,555 @@
+import mongoose, { Schema, Document } from 'mongoose';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+// Global Mongoose connection caching for serverless environments (Vercel)
+interface MongooseCache {
+  conn: mongoose.Connection | null;
+  promise: Promise<mongoose.Connection> | null;
+}
+
+let cached: MongooseCache = (global as any).mongooseConnection;
+
+if (!cached) {
+  cached = (global as any).mongooseConnection = { conn: null, promise: null };
+}
+
+export async function connectToDatabase(): Promise<mongoose.Connection | null> {
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
+  }
+
+  const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/bbdmobility';
+
+  if (!cached.promise) {
+    cached.promise = mongoose.connect(uri, {
+      bufferCommands: false,
+      serverSelectionTimeoutMS: 10000,
+    }).then((m) => {
+      console.log(`[MongoDB] Connected to database: ${m.connection.name}`);
+      return m.connection;
+    });
+  }
+
+  try {
+    cached.conn = await cached.promise;
+    return cached.conn;
+  } catch (error) {
+    cached.promise = null;
+    cached.conn = null;
+    console.warn('[MongoDB] Connection unavailable (fallback mode active):', (error as Error).message);
+    return null;
+  }
+}
+
+/* ==========================================================================
+   1. BOOKING MODEL
+   ========================================================================== */
+export type DeliveryStatus = 
+  | 'New Booking'
+  | 'Awaiting Assignment'
+  | 'Assigned'
+  | 'Arriving for Pickup'
+  | 'Picked Up'
+  | 'In Transit'
+  | 'Delivered'
+  | 'Pickup Failed'
+  | 'Delivery Attempt Failed'
+  | 'On Hold'
+  | 'Cancelled'
+  | 'Returned to Sender';
+
+export type PaymentStatus = 'Unpaid' | 'Partially Paid' | 'Paid' | 'Overpaid' | 'Refunded';
+export type PaymentMethod = 'Cash' | 'Bank Transfer' | 'POS' | 'Card';
+
+export interface IInternalNote {
+  id: string;
+  note: string;
+  author: string;
+  authorRole: string;
+  createdAt: Date;
+}
+
+export interface IIncident {
+  id: string;
+  type: string;
+  description: string;
+  reportedBy: string;
+  reportedByRole: string;
+  createdAt: Date;
+}
+
+export interface IStatusHistory {
+  fromStatus: string;
+  toStatus: string;
+  changedBy: string;
+  role: string;
+  reason?: string;
+  timestamp: Date;
+}
+
+export interface IAssignmentHistory {
+  previousRiderId?: string;
+  previousRiderName?: string;
+  newRiderId: string;
+  newRiderName: string;
+  assignedBy: string;
+  note?: string;
+  timestamp: Date;
+}
+
+export interface INotificationLog {
+  recipientType: 'sender' | 'receiver' | 'rider' | 'admin';
+  recipientEmail: string;
+  subject: string;
+  status: 'sent' | 'failed';
+  error?: string;
+  sentAt: Date;
+}
+
+export interface IBooking extends Document {
+  ref: string;
+  senderName: string;
+  senderPhone: string;
+  senderEmail: string;
+  pickupAddress: string;
+  pickupArea?: string;
+  pickupInstructions?: string;
+
+  receiverName: string;
+  receiverPhone: string;
+  receiverEmail: string;
+  deliveryAddress: string;
+  deliveryArea?: string;
+  deliveryInstructions?: string;
+
+  serviceType: string;
+  packageDescription: string;
+  packageCategory?: string;
+  packageWeight: string;
+  quantity?: number;
+  specialInstructions?: string;
+  preferredPickupTime?: string;
+
+  deliveryFee: number;
+  additionalCharges: number;
+  totalAmount: number;
+  totalPaid: number;
+  outstandingBalance: number;
+  paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethod;
+  status: DeliveryStatus;
+
+  assignedRiderId?: string;
+  assignedRiderName?: string;
+  assignedRiderPhone?: string;
+  assignedRiderEmail?: string;
+  assignedAt?: Date;
+  assignedBy?: string;
+
+  // Secure OTP storage (hashed)
+  otpHash: string;
+  otpExpiresAt: Date;
+  otpAttempts: number;
+  maxOtpAttempts: number;
+  isOtpUsed: boolean;
+  otpVerifiedAt?: Date;
+  otpVerifiedByRiderId?: string;
+
+  cancellationReason?: string;
+  internalNotes: IInternalNote[];
+  incidents: IIncident[];
+  statusHistory: IStatusHistory[];
+  assignmentHistory: IAssignmentHistory[];
+  notificationLogs: INotificationLog[];
+
+  timeline: {
+    booked?: string;
+    assigned?: string;
+    arrivingForPickup?: string;
+    pickedUp?: string;
+    inTransit?: string;
+    delivered?: string;
+  };
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const BookingSchema = new Schema<IBooking>({
+  ref: { type: String, required: true, unique: true, index: true },
+  senderName: { type: String, required: true },
+  senderPhone: { type: String, required: true },
+  senderEmail: { type: String, required: true },
+  pickupAddress: { type: String, required: true },
+  pickupArea: { type: String },
+  pickupInstructions: { type: String },
+
+  receiverName: { type: String, required: true },
+  receiverPhone: { type: String, required: true },
+  receiverEmail: { type: String, required: true },
+  deliveryAddress: { type: String, required: true },
+  deliveryArea: { type: String },
+  deliveryInstructions: { type: String },
+
+  serviceType: { type: String, default: 'Standard Delivery' },
+  packageDescription: { type: String, required: true },
+  packageCategory: { type: String, default: 'General Parcel' },
+  packageWeight: { type: String, default: '1.0 kg' },
+  quantity: { type: Number, default: 1 },
+  specialInstructions: { type: String },
+  preferredPickupTime: { type: String },
+
+  deliveryFee: { type: Number, required: true, default: 5000 },
+  additionalCharges: { type: Number, default: 0 },
+  totalAmount: { type: Number, required: true, default: 5000 },
+  totalPaid: { type: Number, default: 0 },
+  outstandingBalance: { type: Number, required: true, default: 5000 },
+  paymentStatus: { 
+    type: String, 
+    enum: ['Unpaid', 'Partially Paid', 'Paid', 'Overpaid', 'Refunded'], 
+    default: 'Unpaid',
+    index: true 
+  },
+  paymentMethod: { type: String, default: 'Cash' },
+  status: { 
+    type: String, 
+    enum: [
+      'New Booking',
+      'Awaiting Assignment',
+      'Assigned',
+      'Arriving for Pickup',
+      'Picked Up',
+      'In Transit',
+      'Delivered',
+      'Pickup Failed',
+      'Delivery Attempt Failed',
+      'On Hold',
+      'Cancelled',
+      'Returned to Sender'
+    ], 
+    default: 'New Booking',
+    index: true 
+  },
+
+  assignedRiderId: { type: String, index: true },
+  assignedRiderName: { type: String },
+  assignedRiderPhone: { type: String },
+  assignedRiderEmail: { type: String },
+  assignedAt: { type: Date },
+  assignedBy: { type: String },
+
+  otpHash: { type: String, required: true },
+  otpExpiresAt: { type: Date, required: true },
+  otpAttempts: { type: Number, default: 0 },
+  maxOtpAttempts: { type: Number, default: 5 },
+  isOtpUsed: { type: Boolean, default: false, index: true },
+  otpVerifiedAt: { type: Date },
+  otpVerifiedByRiderId: { type: String },
+
+  cancellationReason: { type: String },
+  internalNotes: [{
+    id: String,
+    note: String,
+    author: String,
+    authorRole: String,
+    createdAt: { type: Date, default: Date.now }
+  }],
+  incidents: [{
+    id: String,
+    type: String,
+    description: String,
+    reportedBy: String,
+    reportedByRole: String,
+    createdAt: { type: Date, default: Date.now }
+  }],
+  statusHistory: [{
+    fromStatus: String,
+    toStatus: String,
+    changedBy: String,
+    role: String,
+    reason: String,
+    timestamp: { type: Date, default: Date.now }
+  }],
+  assignmentHistory: [{
+    previousRiderId: String,
+    previousRiderName: String,
+    newRiderId: String,
+    newRiderName: String,
+    assignedBy: String,
+    note: String,
+    timestamp: { type: Date, default: Date.now }
+  }],
+  notificationLogs: [{
+    recipientType: String,
+    recipientEmail: String,
+    subject: String,
+    status: String,
+    error: String,
+    sentAt: { type: Date, default: Date.now }
+  }],
+
+  timeline: {
+    booked: String,
+    assigned: String,
+    arrivingForPickup: String,
+    pickedUp: String,
+    inTransit: String,
+    delivered: String
+  }
+}, { timestamps: true });
+
+/* ==========================================================================
+   2. RIDER MODEL
+   ========================================================================== */
+export interface IRider extends Document {
+  riderId: string;
+  name: string;
+  phone: string;
+  email: string;
+  passwordHash: string;
+  status: 'Active' | 'On Leave' | 'Suspended';
+  isOnline: boolean;
+  assignedDeliveries: number;
+  completedDeliveries: number;
+  totalEarnings: number;
+  joinedDate: string;
+  vehicleType: string;
+  plateNumber?: string;
+  bikeBrand?: string;
+  bikeColor?: string;
+  rating?: number;
+  currentLocation?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const RiderSchema = new Schema<IRider>({
+  riderId: { type: String, required: true, unique: true, index: true },
+  name: { type: String, required: true },
+  phone: { type: String, required: true, index: true },
+  email: { type: String, required: true, index: true },
+  passwordHash: { type: String, required: true },
+  status: { type: String, enum: ['Active', 'On Leave', 'Suspended'], default: 'Active', index: true },
+  isOnline: { type: Boolean, default: true, index: true },
+  assignedDeliveries: { type: Number, default: 0 },
+  completedDeliveries: { type: Number, default: 0 },
+  totalEarnings: { type: Number, default: 0 },
+  joinedDate: { type: String, required: true },
+  vehicleType: { type: String, default: 'Motorcycle' },
+  plateNumber: { type: String, default: 'LSD 123 XY' },
+  bikeBrand: { type: String, default: 'Honda' },
+  bikeColor: { type: String, default: 'Red' },
+  rating: { type: Number, default: 4.9 },
+  currentLocation: { type: String, default: 'Lagos, Nigeria' }
+}, { timestamps: true });
+
+/* ==========================================================================
+   3. PLATFORM USER (ADMIN, SUPPORT, FINANCE)
+   ========================================================================== */
+export interface IPlatformUser extends Document {
+  userId: string;
+  name: string;
+  email: string;
+  phone: string;
+  passwordHash: string;
+  role: 'Admin' | 'Support' | 'Finance' | 'Customer';
+  status: 'Active' | 'Suspended' | 'Inactive';
+  lastLogin?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const UserSchema = new Schema<IPlatformUser>({
+  userId: { type: String, required: true, unique: true, index: true },
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true, index: true },
+  phone: { type: String, required: true },
+  passwordHash: { type: String, required: true },
+  role: { type: String, enum: ['Admin', 'Support', 'Finance', 'Customer'], default: 'Support', index: true },
+  status: { type: String, enum: ['Active', 'Suspended', 'Inactive'], default: 'Active' },
+  lastLogin: { type: Date }
+}, { timestamps: true });
+
+/* ==========================================================================
+   4. PAYMENT RECORD (APPEND-ONLY FINANCIAL LEDGER)
+   ========================================================================== */
+export interface IPayment extends Document {
+  paymentId: string;
+  bookingRef: string;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  paymentStatus: 'Valid' | 'Reversed' | 'Adjusted';
+  paymentDate: Date;
+  transactionRef?: string;
+  notes?: string;
+  recordedBy: string;
+  receivedBy?: string;
+  reversalReason?: string;
+  reversedBy?: string;
+  reversedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const PaymentSchema = new Schema<IPayment>({
+  paymentId: { type: String, required: true, unique: true, index: true },
+  bookingRef: { type: String, required: true, index: true },
+  amount: { type: Number, required: true },
+  paymentMethod: { type: String, enum: ['Cash', 'Bank Transfer', 'POS', 'Card'], default: 'Cash' },
+  paymentStatus: { type: String, enum: ['Valid', 'Reversed', 'Adjusted'], default: 'Valid', index: true },
+  paymentDate: { type: Date, default: Date.now },
+  transactionRef: { type: String },
+  notes: { type: String },
+  recordedBy: { type: String, required: true },
+  receivedBy: { type: String },
+  reversalReason: { type: String },
+  reversedBy: { type: String },
+  reversedAt: { type: Date }
+}, { timestamps: true });
+
+/* ==========================================================================
+   5. AUDIT LOG (IMMUTABLE APPEND-ONLY TRAIL)
+   ========================================================================== */
+export interface IAuditLog extends Document {
+  actorId: string;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  affectedEntity: string;
+  entityRef: string;
+  metadata?: any;
+  ipAddress?: string;
+  timestamp: Date;
+}
+
+const AuditLogSchema = new Schema<IAuditLog>({
+  actorId: { type: String, required: true, index: true },
+  actorName: { type: String, required: true },
+  actorRole: { type: String, required: true },
+  action: { type: String, required: true, index: true },
+  affectedEntity: { type: String, required: true },
+  entityRef: { type: String, required: true, index: true },
+  metadata: { type: Schema.Types.Mixed },
+  ipAddress: { type: String },
+  timestamp: { type: Date, default: Date.now, index: true }
+}, { timestamps: true });
+
+/* ==========================================================================
+   6. SETTINGS MODEL
+   ========================================================================== */
+export interface ISettings extends Document {
+  businessName: string;
+  phone: string;
+  email: string;
+  operatingCities: string;
+  address: string;
+  description: string;
+  defaultPickupLocation: string;
+  serviceArea: string;
+  deliveryRadiusKm: number;
+  maxDeliveryTimeMinutes: number;
+  defaultServiceType: string;
+  notifications: {
+    newBookings: boolean;
+    payments: boolean;
+    riderUpdates: boolean;
+    systemAlerts: boolean;
+  };
+  twoFactorAuth: boolean;
+  sessionTimeout: string;
+}
+
+const SettingsSchema = new Schema<ISettings>({
+  businessName: { type: String, default: 'BBD Mobility' },
+  phone: { type: String, default: '+234 708 753 1148' },
+  email: { type: String, default: 'info@bbdmobility.com.ng' },
+  operatingCities: { type: String, default: 'Lagos, Nigeria' },
+  address: { type: String, default: 'Lagos, Nigeria' },
+  description: { type: String, default: 'Fast and reliable delivery services across Lagos and beyond.' },
+  defaultPickupLocation: { type: String, default: 'Lagos, Nigeria' },
+  serviceArea: { type: String, default: 'Lagos (All Areas)' },
+  deliveryRadiusKm: { type: Number, default: 50 },
+  maxDeliveryTimeMinutes: { type: Number, default: 180 },
+  defaultServiceType: { type: String, default: 'Standard Delivery' },
+  notifications: {
+    newBookings: { type: Boolean, default: true },
+    payments: { type: Boolean, default: true },
+    riderUpdates: { type: Boolean, default: true },
+    systemAlerts: { type: Boolean, default: true }
+  },
+  twoFactorAuth: { type: Boolean, default: false },
+  sessionTimeout: { type: String, default: '8 hours' }
+}, { timestamps: true });
+
+export const BookingModel = mongoose.models.Booking || mongoose.model<IBooking>('Booking', BookingSchema);
+export const RiderModel = mongoose.models.Rider || mongoose.model<IRider>('Rider', RiderSchema);
+export const UserModel = mongoose.models.User || mongoose.model<IPlatformUser>('User', UserSchema);
+export const PaymentModel = mongoose.models.Payment || mongoose.model<IPayment>('Payment', PaymentSchema);
+export const AuditLogModel = mongoose.models.AuditLog || mongoose.model<IAuditLog>('AuditLog', AuditLogSchema);
+export const SettingsModel = mongoose.models.Settings || mongoose.model<ISettings>('Settings', SettingsSchema);
+
+/* ==========================================================================
+   7. CUSTOMER MODEL (NDPR COMPLIANT AUDIT PERSISTENCE)
+   ========================================================================== */
+export interface ICustomer extends Document {
+  customerId: string;
+  name: string;
+  phone: string;
+  email: string;
+  status: 'Active' | 'Inactive' | 'Blacklisted';
+  totalBookings: number;
+  totalSpent: number;
+  location: string;
+  notes?: string;
+  joinedDate: string;
+  lastBookingRef?: string;
+  lastBookingDate?: string;
+  isAnonymized?: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const CustomerSchema = new Schema<ICustomer>({
+  customerId: { type: String, required: true, unique: true, index: true },
+  name: { type: String, required: true },
+  phone: { type: String, required: true, index: true },
+  email: { type: String, index: true },
+  status: { type: String, enum: ['Active', 'Inactive', 'Blacklisted'], default: 'Active', index: true },
+  totalBookings: { type: Number, default: 0 },
+  totalSpent: { type: Number, default: 0 },
+  location: { type: String, default: 'Lagos, Nigeria' },
+  notes: { type: String },
+  joinedDate: { type: String },
+  lastBookingRef: { type: String },
+  lastBookingDate: { type: String },
+  isAnonymized: { type: Boolean, default: false }
+}, { timestamps: true });
+
+export const CustomerModel = mongoose.models.Customer || mongoose.model<ICustomer>('Customer', CustomerSchema);
+
+/* ==========================================================================
+   8. NOTIFICATION MODEL (ADMIN REAL-TIME NOTIFICATIONS)
+   ========================================================================== */
+export interface INotification extends Document {
+  notificationId: string;
+  title: string;
+  message: string;
+  type: 'booking' | 'payment' | 'rider' | 'system';
+  read: boolean;
+  entityRef?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const NotificationSchema = new Schema<INotification>({
+  notificationId: { type: String, required: true, unique: true, index: true },
+  title: { type: String, required: true },
+  message: { type: String, required: true },
+  type: { type: String, enum: ['booking', 'payment', 'rider', 'system'], default: 'system', index: true },
+  read: { type: Boolean, default: false, index: true },
+  entityRef: { type: String, index: true },
+}, { timestamps: true });
+
+export const NotificationModel = mongoose.models.Notification || mongoose.model<INotification>('Notification', NotificationSchema);

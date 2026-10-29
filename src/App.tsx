@@ -17,9 +17,15 @@ import { ServicesPage } from './pages/ServicesPage';
 import { HowItWorksPage } from './pages/HowItWorksPage';
 import { FaqsPage } from './pages/FaqsPage';
 import { SEO } from './components/SEO';
+import { AdminPortal } from './portal/AdminPortal';
+import { AdminLogin } from './portal/AdminLogin';
+import { RiderPortal } from './portal/RiderPortal';
+import { RiderLogin } from './portal/RiderLogin';
 
 export function App() {
-  const [currentView, setCurrentView] = useState<'home' | 'about' | 'contact' | 'services' | 'how-it-works' | 'faqs'>('home');
+  const [currentView, setCurrentView] = useState<
+    'home' | 'about' | 'contact' | 'services' | 'how-it-works' | 'faqs' | 'admin' | 'rider'
+  >('home');
   const [activeNav, setActiveNav] = useState('Home');
   const [selectedService, setSelectedService] = useState('Documents & Files');
   const [allServicesOpen, setAllServicesOpen] = useState(false);
@@ -27,13 +33,44 @@ export function App() {
   const [infoModalType, setInfoModalType] = useState<ModalType | null>(null);
   const [showMobileStickyBar, setShowMobileStickyBar] = useState(false);
 
+  // Portal authentication states
+  const [adminLoggedIn, setAdminLoggedIn] = useState<boolean>(() => {
+    return Boolean(localStorage.getItem('bbd_admin_token') || sessionStorage.getItem('bbd_admin_token'));
+  });
+  const [riderLoggedIn, setRiderLoggedIn] = useState<boolean>(() => {
+    return Boolean(localStorage.getItem('bbd_rider_token') || sessionStorage.getItem('bbd_rider_token'));
+  });
+  const [riderUser, setRiderUser] = useState<{
+    riderId: string;
+    name: string;
+    phone: string;
+    email?: string;
+  }>(() => {
+    try {
+      const saved = localStorage.getItem('bbd_rider_user');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      riderId: 'RID-2026-007',
+      name: 'Tunde Adeleke',
+      phone: '+234 802 345 6789',
+      email: 'tunde.adeleke@bbdmobility.com.ng',
+    };
+  });
+
   // Sync route from URL / hash
   useEffect(() => {
     const syncRoute = () => {
       const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
 
-      if (path === '/contact' || hash === '#/contact' || hash === '#contact-page') {
+      if (path === '/admin' || path === '/admin/login' || hash === '#/admin' || hash === '#admin') {
+        setCurrentView('admin');
+        setActiveNav('Admin');
+      } else if (path === '/rider' || path === '/rider/login' || hash === '#/rider' || hash === '#rider') {
+        setCurrentView('rider');
+        setActiveNav('Rider');
+      } else if (path === '/contact' || hash === '#/contact' || hash === '#contact-page') {
         setCurrentView('contact');
         setActiveNav('Contact');
       } else if (path === '/about' || hash === '#/about' || hash === '#about-page') {
@@ -131,6 +168,24 @@ export function App() {
     }
   };
 
+  const navigateToAdmin = () => {
+    setCurrentView('admin');
+    setActiveNav('Admin');
+    if (window.location.pathname !== '/admin') {
+      window.history.pushState(null, '', '/admin');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToRider = () => {
+    setCurrentView('rider');
+    setActiveNav('Rider');
+    if (window.location.pathname !== '/rider') {
+      window.history.pushState(null, '', '/rider');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   useEffect(() => {
     const handleScroll = () => {
       setShowMobileStickyBar(window.scrollY > 350);
@@ -169,6 +224,56 @@ export function App() {
     handleBookNowClick();
   };
 
+  // Dedicated Full-Screen Admin & Rider Portals
+  if (currentView === 'admin') {
+    return adminLoggedIn ? (
+      <AdminPortal
+        onLogout={() => {
+          localStorage.removeItem('bbd_admin_token');
+          sessionStorage.removeItem('bbd_admin_token');
+          setAdminLoggedIn(false);
+        }}
+        onNavigateHome={navigateToHome}
+      />
+    ) : (
+      <AdminLogin
+        onLoginSuccess={() => {
+          localStorage.setItem('bbd_admin_token', 'admin-session-active');
+          setAdminLoggedIn(true);
+        }}
+        onNavigateHome={navigateToHome}
+        onSwitchToRiderLogin={navigateToRider}
+      />
+    );
+  }
+
+  if (currentView === 'rider') {
+    return riderLoggedIn ? (
+      <RiderPortal
+        riderData={riderUser}
+        onLogout={() => {
+          localStorage.removeItem('bbd_rider_token');
+          sessionStorage.removeItem('bbd_rider_token');
+          setRiderLoggedIn(false);
+        }}
+        onNavigateHome={navigateToHome}
+      />
+    ) : (
+      <RiderLogin
+        onLoginSuccess={(rData) => {
+          if (rData) {
+            setRiderUser(rData);
+            localStorage.setItem('bbd_rider_user', JSON.stringify(rData));
+          }
+          localStorage.setItem('bbd_rider_token', 'rider-session-active');
+          setRiderLoggedIn(true);
+        }}
+        onNavigateHome={navigateToHome}
+        onSwitchToAdminLogin={navigateToAdmin}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-white text-bbd-text-navy font-sans flex flex-col selection:bg-bbd-red selection:text-white relative">
       {/* 1. Header & Navigation */}
@@ -183,6 +288,8 @@ export function App() {
         onNavigateServices={navigateToServices}
         onNavigateHowItWorks={navigateToHowItWorks}
         onNavigateFaqs={navigateToFaqs}
+        onNavigateAdmin={navigateToAdmin}
+        onNavigateRider={navigateToRider}
         currentView={currentView}
       />
 
@@ -284,6 +391,8 @@ export function App() {
         onNavigateServices={navigateToServices}
         onNavigateHowItWorks={navigateToHowItWorks}
         onNavigateFaqs={navigateToFaqs}
+        onNavigateAdmin={navigateToAdmin}
+        onNavigateRider={navigateToRider}
         currentView={currentView}
       />
 
@@ -298,7 +407,7 @@ export function App() {
             className="fixed bottom-3 inset-x-3 z-30 md:hidden bg-white/95 backdrop-blur-md rounded-2xl p-2.5 shadow-2xl border border-gray-200/80 flex items-center gap-2"
           >
             <a
-              href="tel:+2347087531198"
+              href="tel:+2347087531148"
               className="p-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-bbd-navy transition-colors flex items-center justify-center flex-shrink-0"
               aria-label="Call Dispatch"
             >
