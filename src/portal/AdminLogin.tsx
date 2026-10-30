@@ -14,6 +14,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { portalApi } from './api';
+import { useNigerianGreeting } from './timeGreeting';
 
 interface AdminLoginProps {
   onLoginSuccess: () => void;
@@ -26,6 +27,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
   onNavigateHome,
   onSwitchToRiderLogin
 }) => {
+  const { greeting, timeFormatted } = useNigerianGreeting();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -102,6 +104,10 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
 
         {/* Middle Feature Highlights */}
         <div className="relative z-20 my-auto py-10 max-w-lg">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm border border-white/15 text-xs text-blue-200 font-semibold mb-3">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>{greeting} • Nigerian Time (WAT)</span>
+          </div>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white mb-3">
             Admin Portal
           </h1>
@@ -185,11 +191,14 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
         {/* Center Form Card */}
         <div className="w-full max-w-md mx-auto my-auto py-8">
           <div className="mb-8">
+            <span className="text-xs font-black tracking-widest text-bbd-red uppercase block mb-1">
+              ADMIN ACCESS
+            </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0B1B3D] tracking-tight">
-              Welcome Back
+              {greeting}, Admin
             </h2>
             <p className="text-sm text-gray-500 mt-1.5 font-normal">
-              Sign in to your BBD Mobility admin account
+              Sign in to your BBD Mobility admin dashboard ({timeFormatted} WAT)
             </p>
           </div>
 

@@ -1676,6 +1676,25 @@ async function createAdminNotification(data) {
     return null;
   }
 }
+function getNigerianGreeting() {
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Africa/Lagos",
+      hour: "numeric",
+      hour12: false
+    });
+    const parsed = parseInt(formatter.format(/* @__PURE__ */ new Date()), 10);
+    const hour = isNaN(parsed) ? ((/* @__PURE__ */ new Date()).getUTCHours() + 1) % 24 : parsed % 24;
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  } catch {
+    const hour = ((/* @__PURE__ */ new Date()).getUTCHours() + 1) % 24;
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  }
+}
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body || {};
@@ -1718,9 +1737,12 @@ app.post("/api/auth/login", async (req, res) => {
       entityRef: user.userId,
       ipAddress: req.ip
     });
+    const greeting = getNigerianGreeting();
     return res.json({
       success: true,
       token,
+      greeting,
+      message: `${greeting}, ${user.name}! Login successful.`,
       user: {
         userId: user.userId,
         name: user.name,
@@ -1773,9 +1795,12 @@ app.post("/api/auth/rider-login", async (req, res) => {
       entityRef: rider.riderId,
       ipAddress: req.ip
     });
+    const greeting = getNigerianGreeting();
     return res.json({
       success: true,
       token,
+      greeting,
+      message: `${greeting}, ${rider.name.split(" ")[0]}! Login successful.`,
       rider: {
         riderId: rider.riderId,
         name: rider.name,

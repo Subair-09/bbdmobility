@@ -21,6 +21,7 @@ import {
 } from './types';
 import { portalApi } from './api';
 import { INITIAL_SETTINGS } from './mockData';
+import { getNigerianGreeting } from './timeGreeting';
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -175,6 +176,13 @@ export function AdminPortal({ onLogout, onNavigateHome, initialTab = 'dashboard'
       }
     }
     loadData();
+
+    // Welcome greeting on login
+    const justLoggedIn = sessionStorage.getItem('bbd_admin_just_logged_in');
+    if (justLoggedIn) {
+      sessionStorage.removeItem('bbd_admin_just_logged_in');
+      showToast(`${getNigerianGreeting()}, Admin! Welcome to BBD Mobility operations.`);
+    }
   }, []);
 
   // Low-latency live polling every 3.5 seconds so new orders appear immediately

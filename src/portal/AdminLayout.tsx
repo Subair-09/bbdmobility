@@ -19,6 +19,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { PortalTab, AdminNotification } from './types';
+import { useNigerianGreeting } from './timeGreeting';
 
 interface AdminLayoutProps {
   currentTab: PortalTab;
@@ -45,6 +46,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   isRefreshing = false,
   children
 }) => {
+  const { greeting, timeFormatted } = useNigerianGreeting();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -238,8 +240,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               </div>
             </div>
 
-            {/* Right Refresh, Notifications & Profile */}
+            {/* Right Refresh, Greeting, Notifications & Profile */}
             <div className="flex items-center gap-2.5 sm:gap-3">
+              {/* Live Nigerian Time Greeting Pill */}
+              <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-gray-200/80 rounded-xl text-xs text-gray-700 font-semibold shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>{greeting}, Admin</span>
+                <span className="text-[10px] text-gray-400 font-normal">({timeFormatted} WAT)</span>
+              </div>
+
               {/* Live Instant Refresh Button */}
               {onRefresh && (
                 <button
@@ -377,7 +386,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                   </div>
                   <div className="text-left hidden sm:block">
                     <span className="font-bold text-xs text-gray-900 block leading-tight">Admin</span>
-                    <span className="text-[10px] text-gray-400 font-medium">Administrator</span>
+                    <span className="text-[10px] text-gray-400 font-medium">{greeting}</span>
                   </div>
                   <ChevronDown className="w-3.5 h-3.5 text-gray-400 hidden sm:block ml-1" />
                 </button>

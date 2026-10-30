@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Booking } from './types';
 import { portalApi, normalizeBooking } from './api';
+import { useNigerianGreeting } from './timeGreeting';
 
 interface RiderPortalProps {
   riderData: {
@@ -66,10 +67,22 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
 
+  // Dynamic Nigerian Time greeting (WAT, UTC+1)
+  const { greeting, timeFormatted } = useNigerianGreeting();
+
   const showToast = (text: string) => {
     setToastMessage(text);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  // Welcome greeting on login
+  useEffect(() => {
+    const justLoggedIn = sessionStorage.getItem('bbd_rider_just_logged_in');
+    if (justLoggedIn) {
+      sessionStorage.removeItem('bbd_rider_just_logged_in');
+      showToast(`${greeting}, ${riderName.split(' ')[0]}! Welcome to your delivery dashboard.`);
+    }
+  }, [greeting, riderName]);
 
   const loadDeliveries = async (silent: boolean = false) => {
     if (!silent) setLoading(true);
@@ -322,10 +335,10 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
           <header className="bg-white border-b border-gray-200/80 sticky top-0 z-30 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 shadow-sm">
             <div>
               <h2 className="text-base sm:text-lg font-extrabold text-gray-900 leading-tight">
-                {currentTab === 'profile' ? `Welcome back, ${riderName.split(' ')[0]}!` : `Good morning, ${riderName.split(' ')[0]}!`}
+                {currentTab === 'profile' ? `Welcome back, ${riderName.split(' ')[0]}!` : `${greeting}, ${riderName.split(' ')[0]}!`}
               </h2>
               <p className="text-xs text-gray-500 font-normal">
-                {currentTab === 'profile' ? "Here's your profile information and account settings." : "Here's your delivery overview for today."}
+                {currentTab === 'profile' ? "Here's your profile information and account settings." : `Here's your delivery overview for today (${timeFormatted} WAT).`}
               </p>
             </div>
 

@@ -158,6 +158,30 @@ async function createAdminNotification(data: {
   }
 }
 
+/**
+ * Returns dynamic Nigerian greeting ("Good morning", "Good afternoon", "Good evening")
+ * strictly using Nigerian Time (Africa/Lagos, West Africa Time UTC+1).
+ */
+function getNigerianGreeting(): 'Good morning' | 'Good afternoon' | 'Good evening' {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Africa/Lagos',
+      hour: 'numeric',
+      hour12: false,
+    });
+    const parsed = parseInt(formatter.format(new Date()), 10);
+    const hour = isNaN(parsed) ? (new Date().getUTCHours() + 1) % 24 : parsed % 24;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  } catch {
+    const hour = (new Date().getUTCHours() + 1) % 24;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+}
+
 /* ==========================================================================
    AUTHENTICATION ENDPOINTS
    ========================================================================== */
@@ -215,9 +239,13 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       ipAddress: req.ip,
     });
 
+    const greeting = getNigerianGreeting();
+
     return res.json({
       success: true,
       token,
+      greeting,
+      message: `${greeting}, ${user.name}! Login successful.`,
       user: {
         userId: user.userId,
         name: user.name,
@@ -279,9 +307,13 @@ app.post('/api/auth/rider-login', async (req: Request, res: Response) => {
       ipAddress: req.ip,
     });
 
+    const greeting = getNigerianGreeting();
+
     return res.json({
       success: true,
       token,
+      greeting,
+      message: `${greeting}, ${rider.name.split(' ')[0]}! Login successful.`,
       rider: {
         riderId: rider.riderId,
         name: rider.name,

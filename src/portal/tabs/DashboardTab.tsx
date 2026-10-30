@@ -22,6 +22,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { Booking, PortalTab, Rider } from '../types';
+import { useNigerianGreeting } from '../timeGreeting';
 
 interface DashboardTabProps {
   bookings: Booking[];
@@ -40,6 +41,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   onCreateUser,
   onShowToast
 }) => {
+  const { greeting, timeFormatted } = useNigerianGreeting();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All Status');
   const [dateRange] = useState('Oct 28, 2026 - Nov 28, 2026');
@@ -219,7 +221,15 @@ Dispatch Support Hotline: 0708 753 1148`;
       {/* Top Header & Date Filter (Screenshot 3) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Dashboard</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-black text-gray-900 tracking-tight">
+              {greeting}, Admin
+            </h1>
+            <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-100 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              {timeFormatted} WAT
+            </span>
+          </div>
           <p className="text-xs text-gray-500 font-medium">Overview of your deliveries and operations</p>
         </div>
 

@@ -239,6 +239,7 @@ export function App() {
       <AdminLogin
         onLoginSuccess={() => {
           localStorage.setItem('bbd_admin_token', 'admin-session-active');
+          sessionStorage.setItem('bbd_admin_just_logged_in', 'true');
           setAdminLoggedIn(true);
         }}
         onNavigateHome={navigateToHome}
@@ -266,6 +267,7 @@ export function App() {
             localStorage.setItem('bbd_rider_user', JSON.stringify(rData));
           }
           localStorage.setItem('bbd_rider_token', 'rider-session-active');
+          sessionStorage.setItem('bbd_rider_just_logged_in', 'true');
           setRiderLoggedIn(true);
         }}
         onNavigateHome={navigateToHome}

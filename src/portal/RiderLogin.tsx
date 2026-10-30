@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   AlertCircle
 } from 'lucide-react';
+import { useNigerianGreeting } from './timeGreeting';
 
 interface RiderLoginProps {
   onLoginSuccess: (riderData?: { name: string; phone: string; riderId: string; email?: string }) => void;
@@ -25,6 +26,7 @@ export const RiderLogin: React.FC<RiderLoginProps> = ({
   onLoginSuccess, 
   onNavigateHome
 }) => {
+  const { greeting, timeFormatted } = useNigerianGreeting();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -116,8 +118,12 @@ export const RiderLogin: React.FC<RiderLoginProps> = ({
 
         {/* Middle Feature Highlights */}
         <div className="relative z-20 my-auto py-8 max-w-lg">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm border border-white/15 text-xs text-blue-200 font-semibold mb-3">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>{greeting} • Nigerian Time (WAT)</span>
+          </div>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white mb-3">
-            Welcome Rider!
+            {greeting}, Rider!
           </h1>
           <p className="text-base text-gray-300 mb-8 font-normal leading-relaxed">
             Log in to your BBD Mobility account and start your next delivery.
@@ -198,10 +204,10 @@ export const RiderLogin: React.FC<RiderLoginProps> = ({
               RIDER LOGIN
             </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0B1B3D] tracking-tight">
-              Welcome Back, Rider
+              {greeting}, Rider
             </h2>
             <p className="text-sm text-gray-500 mt-1 font-normal">
-              Enter your details to access your account.
+              Enter your details to access your account ({timeFormatted} WAT).
             </p>
           </div>
 
