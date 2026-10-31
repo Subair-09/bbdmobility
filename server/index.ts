@@ -102,15 +102,17 @@ function rateLimiter(req: Request, res: Response, next: express.NextFunction) {
 
 app.use(rateLimiter);
 
-// Input Sanitizer
+// Input Sanitizer: Strips potential XSS script tags while preserving natural characters (&, quotes)
 function sanitize(str: unknown): string {
   if (typeof str !== 'string') return '';
   return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
+    .replace(/<[^>]*>/g, '')
+    .replace(/[<>]/g, '')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#039;|&apos;/gi, "'")
     .trim();
 }
 

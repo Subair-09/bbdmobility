@@ -1568,10 +1568,46 @@ var emailService = {
 // server/kudiSmsService.ts
 import dotenv2 from "dotenv";
 dotenv2.config();
-function truncateText(str, max) {
+function cleanSmsText(str) {
   if (!str) return "";
-  const trimmed = str.trim();
-  return trimmed.length > max ? trimmed.slice(0, max - 1) + "\u2026" : trimmed;
+  let cleaned = String(str).trim();
+  let prev = "";
+  while (cleaned !== prev && /&[a-z0-9#]+;/i.test(cleaned)) {
+    prev = cleaned;
+    cleaned = cleaned.replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#039;|&apos;/gi, "'");
+  }
+  return cleaned.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").replace(/\.{2,}/g, "").trim();
+}
+function formatAddress(addr, max = 28) {
+  let clean = cleanSmsText(addr);
+  if (!clean) return "";
+  clean = clean.replace(/\bStreet\b/gi, "St").replace(/\bRoad\b/gi, "Rd").replace(/\bAvenue\b/gi, "Ave").replace(/\bClose\b/gi, "Cl").replace(/\bCrescent\b/gi, "Cres").replace(/\bExpressway\b/gi, "Exp").replace(/,\s*Lagos(\s*State)?/gi, "").replace(/\s+Lagos$/gi, "").trim();
+  if (clean.length <= max) return clean;
+  const slice = clean.slice(0, max);
+  const lastSpace = slice.lastIndexOf(" ");
+  return (lastSpace > 8 ? slice.slice(0, lastSpace) : slice).trim();
+}
+function formatItem(item, max = 24) {
+  const clean = cleanSmsText(item);
+  if (!clean) return "Parcel";
+  if (clean.length <= max) return clean;
+  const slice = clean.slice(0, max);
+  const lastSpace = slice.lastIndexOf(" ");
+  return (lastSpace > 6 ? slice.slice(0, lastSpace) : slice).trim();
+}
+function formatName(name, preferFirst = false) {
+  const clean = cleanSmsText(name);
+  if (!clean) return "Customer";
+  if (preferFirst) {
+    return clean.split(" ")[0];
+  }
+  if (clean.length > 20) {
+    const parts = clean.split(" ");
+    if (parts.length > 1) {
+      return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+    }
+  }
+  return clean;
 }
 function formatNigerianPhone(phone) {
   if (!phone) return "";
@@ -1703,14 +1739,17 @@ var kudiSmsService = {
    * Informs sender that booking has been registered, confirms route and recipient details.
    */
   async sendBookingSenderSms(data) {
-    const shortPickup = truncateText(data.pickupAddress, 32);
-    const shortDropoff = truncateText(data.deliveryAddress, 32);
-    const shortItem = truncateText(data.packageDescription, 24);
-    const message = `BBD Mobility: Hello ${data.senderName || "Customer"}, your delivery ${data.bookingRef} is confirmed.
-Route: ${shortPickup} -> ${shortDropoff}.
-Recipient: ${data.receiverName} (${data.receiverPhone}).
-Item: ${shortItem}.
-Track: https://bbdmobility.com.ng. Tel: 07087531148`;
+    const sender = formatName(data.senderName, true);
+    const pickup = formatAddress(data.pickupAddress, 26);
+    const dropoff = formatAddress(data.deliveryAddress, 26);
+    const recipient = cleanSmsText(data.receiverName);
+    const recvPhone = cleanSmsText(data.receiverPhone);
+    const item = formatItem(data.packageDescription, 24);
+    const message = `Hello ${sender}, your delivery ${data.bookingRef} is confirmed.
+Route: ${pickup} -> ${dropoff}
+Recipient: ${recipient} (${recvPhone})
+Item: ${item}
+Track: bbdmobility.com.ng | Tel: 07087531148`;
     return sendKudiSms({
       recipients: data.senderPhone,
       message,
@@ -1724,9 +1763,12 @@ Track: https://bbdmobility.com.ng. Tel: 07087531148`;
    * Note: Uses "Delivery Passkey" instead of "OTP" or "Code" to comply with Nigerian NCC/telco anti-fraud filters.
    */
   async sendBookingReceiverSms(data) {
-    const shortDropoff = truncateText(data.deliveryAddress, 32);
-    const shortItem = truncateText(data.packageDescription, 24);
-    const message = `BBD Mobility: Hello ${data.receiverName || "Recipient"}, a parcel (${shortItem}) from ${data.senderName} (${data.senderPhone}) is heading to you at ${shortDropoff}.
+    const receiver = cleanSmsText(data.receiverName) || "Recipient";
+    const sender = cleanSmsText(data.senderName) || "Sender";
+    const senderPhone = cleanSmsText(data.senderPhone);
+    const dropoff = formatAddress(data.deliveryAddress, 28);
+    const item = formatItem(data.packageDescription, 24);
+    const message = `Hello ${receiver}, a parcel (${item}) from ${sender} (${senderPhone}) is heading to you at ${dropoff}.
 Ref: ${data.bookingRef}
 Delivery Passkey: ${data.otpCode}
 Present this passkey to the rider upon delivery.`;
@@ -1742,17 +1784,19 @@ Present this passkey to the rider upon delivery.`;
    * Dispatches complete ride manifest to rider when admin assigns them an order.
    */
   async sendRiderAssignmentSms(data) {
-    const shortPickup = truncateText(data.pickupAddress, 30);
-    const shortDropoff = truncateText(data.deliveryAddress, 30);
-    const shortItem = truncateText(data.packageDescription, 22);
-    const shortNote = data.dispatchNote ? `Note: ${truncateText(data.dispatchNote, 25)}
+    const rider = formatName(data.riderName, true);
+    const pickup = formatAddress(data.pickupAddress, 26);
+    const dropoff = formatAddress(data.deliveryAddress, 26);
+    const sender = cleanSmsText(data.senderName);
+    const receiver = cleanSmsText(data.receiverName);
+    const item = formatItem(data.packageDescription, 20);
+    const shortNote = data.dispatchNote ? `Note: ${formatItem(data.dispatchNote, 24)}
 ` : "";
-    const portalUrl = data.portalUrl || `${process.env.APP_URL || "https://bbdmobility.com.ng"}/rider`;
-    const message = `BBD Mobility: Hi ${data.riderName}, new delivery assigned: ${data.bookingRef}.
-Pickup: ${shortPickup} (Sender: ${data.senderName}, ${data.senderPhone})
-Drop-off: ${shortDropoff} (Receiver: ${data.receiverName}, ${data.receiverPhone})
-Item: ${shortItem}
-` + shortNote + `Accept delivery on portal: ${portalUrl}`;
+    const message = `Hi ${rider}, new delivery assigned: ${data.bookingRef}
+Pickup: ${pickup} (${sender}: ${data.senderPhone})
+Drop-off: ${dropoff} (${receiver}: ${data.receiverPhone})
+Item: ${item}
+` + shortNote + `Accept on portal: bbdmobility.com.ng/rider`;
     return sendKudiSms({
       recipients: data.riderPhone,
       message,
@@ -1765,8 +1809,9 @@ Item: ${shortItem}
    * Notifies sender and receiver that a courier rider has been assigned and is en route.
    */
   async sendRiderAssignedToCustomerSms(data) {
-    const senderMessage = `BBD Mobility: Rider ${data.riderName} (${data.riderPhone}) has been assigned to your order ${data.bookingRef}. Pickup is being initiated. Tel: 07087531148`;
-    const receiverMessage = `BBD Mobility: Rider ${data.riderName} (${data.riderPhone}) has been assigned to deliver parcel ${data.bookingRef} from ${data.senderName}. Have your Delivery Passkey ready for arrival.`;
+    const rider = formatName(data.riderName);
+    const senderMessage = `Rider ${rider} (${data.riderPhone}) has been assigned to your order ${data.bookingRef}. Pickup is underway. Tel: 07087531148`;
+    const receiverMessage = `Rider ${rider} (${data.riderPhone}) has been assigned to deliver order ${data.bookingRef} from ${data.senderName}. Have your Delivery Passkey ready for arrival.`;
     const [senderResult, receiverResult] = await Promise.all([
       sendKudiSms({
         recipients: data.senderPhone,
@@ -1788,7 +1833,8 @@ Item: ${shortItem}
    * Triggered when admin regenerates delivery verification passkey.
    */
   async sendReceiverResendOtpSms(data) {
-    const message = `BBD Mobility: Hello ${data.receiverName || "Recipient"}, your new Delivery Passkey for parcel ${data.bookingRef} is: ${data.otpCode}.
+    const receiver = cleanSmsText(data.receiverName) || "Recipient";
+    const message = `Hello ${receiver}, your new Delivery Passkey for parcel ${data.bookingRef} is: ${data.otpCode}.
 Present this passkey to your rider upon arrival to complete delivery.`;
     return sendKudiSms({
       recipients: data.receiverPhone,
@@ -1802,9 +1848,11 @@ Present this passkey to your rider upon arrival to complete delivery.`;
    * Dispatches updates when rider picks up item from sender and begins transit to receiver.
    */
   async sendPickupCustomerSms(data) {
-    const shortDropoff = truncateText(data.deliveryAddress, 30);
-    const senderMessage = `BBD Mobility: Order ${data.bookingRef} has been picked up by rider ${data.riderName} and is en route to ${data.receiverName}. Track at bbdmobility.com.ng`;
-    const receiverMessage = `BBD Mobility: Hello ${data.receiverName}, your parcel ${data.bookingRef} from ${data.senderName} has been picked up by rider ${data.riderName} (${data.riderPhone}) and is heading to ${shortDropoff}. Have your Delivery Passkey ready.`;
+    const rider = formatName(data.riderName);
+    const dropoff = formatAddress(data.deliveryAddress, 26);
+    const receiver = cleanSmsText(data.receiverName);
+    const senderMessage = `Order ${data.bookingRef} has been picked up by rider ${rider} and is en route to ${data.receiverName}. Track at bbdmobility.com.ng`;
+    const receiverMessage = `Hello ${receiver}, your parcel ${data.bookingRef} from ${data.senderName} has been picked up by rider ${rider} (${data.riderPhone}) heading to ${dropoff}. Have your Delivery Passkey ready.`;
     const [senderResult, receiverResult] = await Promise.all([
       sendKudiSms({
         recipients: data.senderPhone,
@@ -1826,8 +1874,8 @@ Present this passkey to your rider upon arrival to complete delivery.`;
    * Dispatches confirmation when delivery is verified and completed.
    */
   async sendDeliveryCompletedCustomerSms(data) {
-    const senderMessage = `BBD Mobility: Order ${data.bookingRef} has been safely delivered to ${data.receiverName}. Thank you for choosing BBD Mobility!`;
-    const receiverMessage = `BBD Mobility: Hello ${data.receiverName}, your parcel ${data.bookingRef} from ${data.senderName} has been delivered. Thank you for choosing BBD Mobility!`;
+    const senderMessage = `Order ${data.bookingRef} has been safely delivered to ${data.receiverName}. Thank you for choosing BBD Mobility!`;
+    const receiverMessage = `Hello ${data.receiverName}, your parcel ${data.bookingRef} from ${data.senderName} has been delivered. Thank you for choosing BBD Mobility!`;
     const [senderResult, receiverResult] = await Promise.all([
       sendKudiSms({
         recipients: data.senderPhone,
@@ -2058,7 +2106,7 @@ function rateLimiter(req, res, next) {
 app.use(rateLimiter);
 function sanitize(str) {
   if (typeof str !== "string") return "";
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;").trim();
+  return str.replace(/<[^>]*>/g, "").replace(/[<>]/g, "").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#039;|&apos;/gi, "'").trim();
 }
 function generateBookingReference() {
   const dateStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
