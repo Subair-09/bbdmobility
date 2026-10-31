@@ -26,6 +26,10 @@ export function sanitizeObject<T>(obj: T, depth = 0): T {
   if (obj === null || obj === undefined) return obj;
 
   if (typeof obj === 'string') {
+    // Preserve base64 image data-URIs and CDN URLs from truncation
+    if (obj.startsWith('data:image/') || obj.startsWith('https://res.cloudinary.com')) {
+      return obj as unknown as T;
+    }
     return sanitizeString(obj) as unknown as T;
   }
 

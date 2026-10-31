@@ -60,6 +60,12 @@ export function normalizeBooking(b: any, index: number = 0): Booking {
     riderPhone: b.riderPhone || b.assignedRiderPhone || '',
     riderEmail: b.riderEmail || b.assignedRiderEmail || '',
     riderVehicle: b.riderVehicle || 'Motorcycle',
+    riderAccepted: Boolean(b.riderAccepted),
+    riderAcceptedAt: b.riderAcceptedAt ? String(b.riderAcceptedAt) : undefined,
+    pickupPhoto: b.pickupPhoto || undefined,
+    pickupPhotoUploadedAt: b.pickupPhotoUploadedAt ? String(b.pickupPhotoUploadedAt) : undefined,
+    deliveryPhoto: b.deliveryPhoto || undefined,
+    deliveryPhotoUploadedAt: b.deliveryPhotoUploadedAt ? String(b.deliveryPhotoUploadedAt) : undefined,
     packageDescription: b.packageDescription || 'General Parcel',
     packageWeight: b.packageWeight || '1.0 kg',
     verificationOtp: b.verificationOtp || '••••••',
@@ -67,6 +73,7 @@ export function normalizeBooking(b: any, index: number = 0): Booking {
     time: timeStr,
     timeline: b.timeline || {
       booked: `${dateStr} ${timeStr}`,
+      accepted: b.timeline?.accepted,
       pickedUp: b.timeline?.pickedUp,
       delivered: b.timeline?.delivered
     }
@@ -283,6 +290,63 @@ export const portalApi = {
     return { success: true, message: 'Delivery successfully verified!' };
   },
 
+  async acceptAssignment(ref: string, riderId?: string): Promise<{ success: boolean; message?: string; booking?: Booking; error?: string }> {
+    try {
+      const res = await fetch(`${BASE_URL}/bookings/${ref}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ riderId }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || 'Failed to accept delivery.' };
+      const normalized = normalizeBooking(data.booking);
+      const bookings = (getStoredData<any[]>('bookings', []) || []).map(normalizeBooking);
+      const updated = bookings.map(b => b.ref === ref ? normalized : b);
+      setStoredData('bookings', updated);
+      return { success: true, message: data.message, booking: normalized };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error accepting delivery.' };
+    }
+  },
+
+  async uploadProofOfPickup(ref: string, photo: string, riderId?: string): Promise<{ success: boolean; url?: string; booking?: Booking; error?: string }> {
+    try {
+      const res = await fetch(`${BASE_URL}/bookings/${ref}/proof-of-pickup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photo, riderId }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || 'Failed to upload pickup photo.' };
+      const normalized = normalizeBooking(data.booking);
+      const bookings = (getStoredData<any[]>('bookings', []) || []).map(normalizeBooking);
+      const updated = bookings.map(b => b.ref === ref ? normalized : b);
+      setStoredData('bookings', updated);
+      return { success: true, url: data.url, booking: normalized };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error uploading pickup photo.' };
+    }
+  },
+
+  async uploadProofOfDelivery(ref: string, photo: string, riderId?: string): Promise<{ success: boolean; url?: string; booking?: Booking; error?: string }> {
+    try {
+      const res = await fetch(`${BASE_URL}/bookings/${ref}/proof-of-delivery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photo, riderId }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || 'Failed to upload delivery photo.' };
+      const normalized = normalizeBooking(data.booking);
+      const bookings = (getStoredData<any[]>('bookings', []) || []).map(normalizeBooking);
+      const updated = bookings.map(b => b.ref === ref ? normalized : b);
+      setStoredData('bookings', updated);
+      return { success: true, url: data.url, booking: normalized };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error uploading delivery photo.' };
+    }
+  },
+
   // 3. Riders
   async getRiders(): Promise<Rider[]> {
     try {
@@ -300,7 +364,7 @@ export const portalApi = {
     return cached.map(normalizeRider);
   },
 
-  async createRider(rider: Partial<Rider> & { password?: string; plateNumber?: string }): Promise<{ success: boolean; rider: Rider; credentials?: any; error?: string }> {
+  async createRider(rider: Partial<Rider> & { pin?: string; password?: string; plateNumber?: string }): Promise<{ success: boolean; rider: Rider; credentials?: any; error?: string }> {
     try {
       const res = await fetch(`${BASE_URL}/riders`, {
         method: 'POST',
@@ -369,18 +433,37 @@ export const portalApi = {
     }
   },
 
-  async changeRiderPassword(id: string, password: string): Promise<{ success: boolean; message?: string; error?: string; password?: string }> {
+  async changeRiderPassword(id: string, pinOrPassword: string): Promise<{ success: boolean; message?: string; error?: string; password?: string; pin?: string }> {
     try {
-      const res = await fetch(`${BASE_URL}/riders/${id}/change-password`, {
+      const res = await fetch(`${BASE_URL}/riders/${id}/change-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ pin: pinOrPassword, password: pinOrPassword }),
       });
       const data = await res.json();
-      if (!res.ok) return { success: false, error: data.error || 'Failed to change password.' };
-      return { success: true, message: data.message, password: data.password };
+      if (!res.ok) return { success: false, error: data.error || 'Failed to update 4-digit PIN.' };
+      return { success: true, message: data.message, password: data.pin || data.password, pin: data.pin };
     } catch (err: any) {
-      return { success: false, error: err.message || 'Network error changing password.' };
+      return { success: false, error: err.message || 'Network error updating PIN.' };
+    }
+  },
+
+  async changeRiderPin(id: string, pin: string): Promise<{ success: boolean; message?: string; error?: string; pin?: string }> {
+    return this.changeRiderPassword(id, pin);
+  },
+
+  async riderChangePin(riderId: string, newPin: string, currentPin?: string): Promise<{ success: boolean; message?: string; error?: string; rider?: any }> {
+    try {
+      const res = await fetch('/api/auth/rider-change-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ riderId, newPin, currentPin }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || 'Failed to set 4-digit PIN.' };
+      return { success: true, message: data.message, rider: data.rider };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error changing PIN.' };
     }
   },
 

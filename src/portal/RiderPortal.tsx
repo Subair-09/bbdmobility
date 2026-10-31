@@ -14,6 +14,7 @@ import {
   Phone,
   ShieldCheck,
   CheckCircle,
+  CheckCircle2,
   Clock,
   AlertTriangle,
   Camera,
@@ -21,7 +22,9 @@ import {
   Lock,
   Headphones,
   Check,
-  AlertCircle
+  AlertCircle,
+  UploadCloud,
+  Maximize2
 } from 'lucide-react';
 import { Booking } from './types';
 import { portalApi, normalizeBooking } from './api';
@@ -55,6 +58,14 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(1);
+
+  // Assignment Acceptance & Proof Photos (Cloudinary)
+  const [isAccepting, setIsAccepting] = useState<string | null>(null);
+  const [pickupPhotoPreview, setPickupPhotoPreview] = useState<string | null>(null);
+  const [deliveryPhotoPreview, setDeliveryPhotoPreview] = useState<string | null>(null);
+  const [isUploadingPickup, setIsUploadingPickup] = useState(false);
+  const [isUploadingDelivery, setIsUploadingDelivery] = useState(false);
+  const [viewingPhoto, setViewingPhoto] = useState<{ url: string; title: string } | null>(null);
 
   // Profile edit states
   const [riderName] = useState(riderData.name || 'Rider');
@@ -169,6 +180,112 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
   const pendingPaymentPct = totalCount > 0 ? Math.round((pendingPaymentCount / totalCount) * 100) : 0;
   const notPaidPct = totalCount > 0 ? Math.max(0, 100 - paidPct - pendingPaymentPct) : 0;
 
+  // Accept Delivery Assignment
+  const handleAcceptAssignment = async (bookingRef: string) => {
+    setIsAccepting(bookingRef);
+    try {
+      const res = await portalApi.acceptAssignment(bookingRef, riderData.riderId);
+      if (res.success) {
+        showToast(`Assignment ${bookingRef} accepted! Proceed to pickup.`);
+        setDeliveries(prev => prev.map(d => d.ref === bookingRef ? {
+          ...d,
+          riderAccepted: true,
+          status: 'Accepted' as any,
+          timeline: { ...d.timeline, accepted: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+        } : d));
+        if (activeBooking && activeBooking.ref === bookingRef) {
+          setActiveBooking(prev => prev ? {
+            ...prev,
+            riderAccepted: true,
+            status: 'Accepted' as any,
+            timeline: { ...prev.timeline, accepted: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+          } : null);
+        }
+      } else {
+        showToast(res.error || 'Failed to accept assignment.');
+      }
+    } catch {
+      showToast('Network error accepting delivery assignment.');
+    } finally {
+      setIsAccepting(null);
+    }
+  };
+
+  // Convert image file to base64 data-URL
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'pickup' | 'delivery') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      showToast('Photo is too large. Please select an image under 15MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (type === 'pickup') {
+        setPickupPhotoPreview(base64);
+      } else {
+        setDeliveryPhotoPreview(base64);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Upload Proof of Pickup Photo to Cloudinary
+  const handleUploadPickupPhoto = async () => {
+    if (!activeBooking || !pickupPhotoPreview) return;
+    setIsUploadingPickup(true);
+    try {
+      const res = await portalApi.uploadProofOfPickup(activeBooking.ref, pickupPhotoPreview, riderData.riderId);
+      if (res.success && res.url) {
+        showToast('Proof of pickup photo uploaded to Cloudinary!');
+        const updatedBooking = {
+          ...activeBooking,
+          pickupPhoto: res.url,
+          pickupPhotoUploadedAt: new Date().toISOString(),
+          status: 'Picked Up' as const,
+        };
+        setActiveBooking(updatedBooking);
+        setDeliveries(prev => prev.map(d => d.ref === activeBooking.ref ? updatedBooking : d));
+        setPickupPhotoPreview(null);
+      } else {
+        showToast(res.error || 'Failed to upload pickup photo.');
+      }
+    } catch {
+      showToast('Error uploading pickup photo.');
+    } finally {
+      setIsUploadingPickup(false);
+    }
+  };
+
+  // Upload Proof of Delivery Photo to Cloudinary
+  const handleUploadDeliveryPhoto = async () => {
+    if (!activeBooking || !deliveryPhotoPreview) return;
+    setIsUploadingDelivery(true);
+    try {
+      const res = await portalApi.uploadProofOfDelivery(activeBooking.ref, deliveryPhotoPreview, riderData.riderId);
+      if (res.success && res.url) {
+        showToast('Proof of delivery photo uploaded to Cloudinary!');
+        const updatedBooking = {
+          ...activeBooking,
+          deliveryPhoto: res.url,
+          deliveryPhotoUploadedAt: new Date().toISOString(),
+        };
+        setActiveBooking(updatedBooking);
+        setDeliveries(prev => prev.map(d => d.ref === activeBooking.ref ? updatedBooking : d));
+        setDeliveryPhotoPreview(null);
+      } else {
+        showToast(res.error || 'Failed to upload delivery photo.');
+      }
+    } catch {
+      showToast('Error uploading delivery photo.');
+    } finally {
+      setIsUploadingDelivery(false);
+    }
+  };
+
   // OTP Verification Submission
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,17 +301,29 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
       const res = await fetch(`/api/portal/bookings/${activeBooking.ref}/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otp: otpCode, riderId: riderData.riderId })
+        body: JSON.stringify({
+          otp: otpCode,
+          riderId: riderData.riderId,
+          deliveryPhoto: deliveryPhotoPreview || undefined
+        })
       });
       const data = await res.json();
 
       if (res.ok && data.success) {
         setVerifyMessage({ type: 'success', text: 'Delivery confirmed and verified successfully!' });
         showToast('Package marked as Delivered.');
-        setDeliveries(prev => prev.map(d => d.ref === activeBooking.ref ? { ...d, status: 'Delivered' } : d));
+        const updatedBooking: Booking = {
+          ...activeBooking,
+          status: 'Delivered',
+          deliveryPhoto: data.booking?.deliveryPhoto || deliveryPhotoPreview || activeBooking.deliveryPhoto,
+          deliveryPhotoUploadedAt: new Date().toISOString()
+        };
+        setDeliveries(prev => prev.map(d => d.ref === activeBooking.ref ? updatedBooking : d));
+        setActiveBooking(updatedBooking);
         setTimeout(() => {
           setActiveBooking(null);
           setOtpCode('');
+          setDeliveryPhotoPreview(null);
           setVerifyMessage(null);
         }, 1500);
       } else {
@@ -580,18 +709,44 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
                                   </td>
                                   <td className="py-3.5 px-3">
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                      d.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                                      d.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' :
+                                      d.status === 'Picked Up' ? 'bg-indigo-100 text-indigo-800' :
+                                      d.riderAccepted ? 'bg-teal-100 text-teal-800' :
+                                      'bg-amber-100 text-amber-800 animate-pulse'
                                     }`}>
-                                      {d.status === 'Delivered' ? 'Completed' : 'On the Way'}
+                                      {d.status === 'Delivered' ? 'Completed' :
+                                       d.status === 'Picked Up' ? 'Picked Up' :
+                                       d.riderAccepted ? 'Accepted' : 'New (Awaiting Accept)'}
                                     </span>
                                   </td>
                                   <td className="py-3.5 px-3 text-center">
-                                    <button
-                                      onClick={() => setActiveBooking(d)}
-                                      className="px-2.5 py-1 bg-[#0B1B3D] hover:bg-[#07132c] text-white text-[10px] font-bold rounded-lg transition-all shadow-sm"
-                                    >
-                                      View
-                                    </button>
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      {!d.riderAccepted && d.status !== 'Delivered' && (
+                                        <button
+                                          onClick={() => handleAcceptAssignment(d.ref)}
+                                          disabled={isAccepting === d.ref}
+                                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm flex items-center gap-1"
+                                          title="Accept Assignment"
+                                        >
+                                          {isAccepting === d.ref ? (
+                                            <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                                          ) : (
+                                            <Check className="w-2.5 h-2.5" />
+                                          )}
+                                          <span>Accept</span>
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => {
+                                          setActiveBooking(d);
+                                          setPickupPhotoPreview(null);
+                                          setDeliveryPhotoPreview(null);
+                                        }}
+                                        className="px-2.5 py-1 bg-[#0B1B3D] hover:bg-[#07132c] text-white text-[10px] font-bold rounded-lg transition-all shadow-sm"
+                                      >
+                                        View
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               ))
@@ -857,19 +1012,45 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
                               </td>
                               <td className="py-3.5 px-3">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                  d.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                                  d.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' :
+                                  d.status === 'Picked Up' ? 'bg-indigo-100 text-indigo-800' :
+                                  d.riderAccepted ? 'bg-teal-100 text-teal-800' :
+                                  'bg-amber-100 text-amber-800 animate-pulse'
                                 }`}>
-                                  {d.status === 'Delivered' ? 'Delivered' : 'On the Way'}
+                                  {d.status === 'Delivered' ? 'Delivered' :
+                                   d.status === 'Picked Up' ? 'Picked Up' :
+                                   d.riderAccepted ? 'Accepted' : 'Awaiting Accept'}
                                 </span>
                               </td>
                               <td className="py-3.5 px-3 text-center">
-                                <button
-                                  onClick={() => setActiveBooking(d)}
-                                  className="px-3 py-1 bg-[#0B1B3D] hover:bg-[#07132c] text-white text-[11px] font-bold rounded-xl transition-all shadow-sm flex items-center gap-1 mx-auto"
-                                >
-                                  <ShieldCheck className="w-3.5 h-3.5" />
-                                  <span>View Details</span>
-                                </button>
+                                <div className="flex items-center justify-center gap-1.5">
+                                  {!d.riderAccepted && d.status !== 'Delivered' && (
+                                    <button
+                                      onClick={() => handleAcceptAssignment(d.ref)}
+                                      disabled={isAccepting === d.ref}
+                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-xl transition-all shadow-sm flex items-center gap-1"
+                                      title="Accept Assignment"
+                                    >
+                                      {isAccepting === d.ref ? (
+                                        <RefreshCw className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <Check className="w-3 h-3" />
+                                      )}
+                                      <span>Accept</span>
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      setActiveBooking(d);
+                                      setPickupPhotoPreview(null);
+                                      setDeliveryPhotoPreview(null);
+                                    }}
+                                    className="px-3 py-1 bg-[#0B1B3D] hover:bg-[#07132c] text-white text-[11px] font-bold rounded-xl transition-all shadow-sm flex items-center gap-1"
+                                  >
+                                    <ShieldCheck className="w-3.5 h-3.5" />
+                                    <span>Details</span>
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))
@@ -1077,59 +1258,79 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
                     <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Change Password</h4>
                     <p className="text-gray-400 text-[11px]">Keep your account secure.</p>
 
-                    <form onSubmit={(e) => {
+                    <form onSubmit={async (e) => {
                       e.preventDefault();
-                      if (newPass !== confirmPass) {
-                        showToast('New passwords do not match.');
+                      if (newPass.length !== 4 || !/^\d{4}$/.test(newPass)) {
+                        showToast('New PIN must be exactly 4 numeric digits.');
                         return;
                       }
-                      showToast('Password updated successfully.');
-                      setCurrPass('');
-                      setNewPass('');
-                      setConfirmPass('');
+                      if (newPass !== confirmPass) {
+                        showToast('New 4-digit PINs do not match.');
+                        return;
+                      }
+                      try {
+                        const res = await portalApi.riderChangePin(riderData.riderId, newPass, currPass);
+                        if (res.success) {
+                          showToast('4-digit PIN updated successfully!');
+                          setCurrPass('');
+                          setNewPass('');
+                          setConfirmPass('');
+                        } else {
+                          showToast(res.error || 'Failed to update PIN.');
+                        }
+                      } catch {
+                        showToast('Error updating PIN.');
+                      }
                     }} className="space-y-3 pt-1">
                       <div>
-                        <label className="block text-[11px] font-bold text-gray-600 mb-1">Current Password</label>
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">Current 4-Digit PIN</label>
                         <input
                           type="password"
+                          inputMode="numeric"
+                          maxLength={4}
                           required
                           value={currPass}
-                          onChange={(e) => setCurrPass(e.target.value)}
-                          placeholder="Enter current password"
-                          className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy"
+                          onChange={(e) => setCurrPass(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          placeholder="••••"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-mono text-center tracking-widest font-black"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-bold text-gray-600 mb-1">New Password</label>
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">New 4-Digit PIN</label>
                         <input
                           type="password"
+                          inputMode="numeric"
+                          maxLength={4}
                           required
                           value={newPass}
-                          onChange={(e) => setNewPass(e.target.value)}
-                          placeholder="Enter new password"
-                          className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy"
+                          onChange={(e) => setNewPass(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          placeholder="••••"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-mono text-center tracking-widest font-black"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-bold text-gray-600 mb-1">Confirm New Password</label>
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">Confirm New 4-Digit PIN</label>
                         <input
                           type="password"
+                          inputMode="numeric"
+                          maxLength={4}
                           required
                           value={confirmPass}
-                          onChange={(e) => setConfirmPass(e.target.value)}
-                          placeholder="Confirm new password"
-                          className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy"
+                          onChange={(e) => setConfirmPass(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          placeholder="••••"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-mono text-center tracking-widest font-black"
                         />
                       </div>
 
                       <button
                         type="submit"
-                        className="w-full py-2.5 px-4 bg-[#0B1B3D] hover:bg-[#07132c] text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 mt-2"
+                        disabled={newPass.length !== 4 || confirmPass.length !== 4}
+                        className="w-full py-2.5 px-4 bg-[#0B1B3D] hover:bg-[#07132c] disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 mt-2"
                       >
                         <Lock className="w-3.5 h-3.5" />
-                        <span>Update Password</span>
+                        <span>Update 4-Digit PIN</span>
                       </button>
                     </form>
                   </div>
@@ -1221,6 +1422,195 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
                 </div>
               </div>
 
+              {/* STEP 1: RIDER ACCEPTANCE CARD */}
+              {!activeBooking.riderAccepted && activeBooking.status !== 'Delivered' && activeBooking.status !== 'Cancelled' ? (
+                <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <Clock className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0 animate-pulse" />
+                    <div>
+                      <h4 className="text-xs font-bold text-amber-900">Assignment Pending Your Acceptance</h4>
+                      <p className="text-[11px] text-amber-700 leading-relaxed">
+                        Dispatch admin assigned this booking to you. Please accept this delivery to confirm your route and notify admin in real-time.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleAcceptAssignment(activeBooking.ref)}
+                    disabled={isAccepting === activeBooking.ref}
+                    className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                  >
+                    {isAccepting === activeBooking.ref ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4" />
+                    )}
+                    <span>Accept Assignment & Start Delivery</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3 bg-emerald-50/80 border border-emerald-200/80 rounded-xl flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-bold text-emerald-900">Assignment Accepted by You</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-700 font-semibold">
+                    {activeBooking.timeline?.accepted || 'Confirmed'}
+                  </span>
+                </div>
+              )}
+
+              {/* STEP 2: PROOF OF PICKUP PHOTO (CLOUDINARY) */}
+              <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-blue-600" />
+                    <h4 className="text-xs font-bold text-gray-900">1. Proof of Pickup (Photo)</h4>
+                  </div>
+                  {activeBooking.pickupPhoto && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Stored
+                    </span>
+                  )}
+                </div>
+
+                {activeBooking.pickupPhoto ? (
+                  <div className="flex items-center gap-3 p-2 bg-white rounded-xl border border-gray-200">
+                    <img
+                      src={activeBooking.pickupPhoto}
+                      alt="Proof of Pickup"
+                      className="w-16 h-16 object-cover rounded-lg border border-gray-100 cursor-pointer hover:opacity-90"
+                      onClick={() => setViewingPhoto({ url: activeBooking.pickupPhoto!, title: `Proof of Pickup - ${activeBooking.ref}` })}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Cloudinary Verified
+                      </span>
+                      <span className="text-[10px] text-gray-500 block truncate">
+                        {activeBooking.pickupPhotoUploadedAt ? new Date(activeBooking.pickupPhotoUploadedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Uploaded'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setViewingPhoto({ url: activeBooking.pickupPhoto!, title: `Proof of Pickup - ${activeBooking.ref}` })}
+                        className="text-[11px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 mt-1"
+                      >
+                        <Maximize2 className="w-3 h-3" /> View Full Photo
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-gray-500">
+                      Snap a photo of the item upon pickup from the sender to verify parcel condition.
+                    </p>
+
+                    {pickupPhotoPreview ? (
+                      <div className="space-y-2">
+                        <div className="relative rounded-xl overflow-hidden border border-blue-200 max-h-44 flex items-center justify-center bg-black/5">
+                          <img src={pickupPhotoPreview} alt="Pickup Preview" className="max-h-44 w-auto object-contain rounded-xl" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="flex-1 py-2 px-3 border border-gray-300 rounded-xl text-center font-bold text-xs text-gray-700 hover:bg-gray-50 cursor-pointer">
+                            Retake
+                            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoSelect(e, 'pickup')} />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleUploadPickupPhoto}
+                            disabled={isUploadingPickup}
+                            className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5"
+                          >
+                            {isUploadingPickup ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />}
+                            <span>Upload to Cloudinary</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="w-full py-2.5 px-3 border-2 border-dashed border-gray-300 hover:border-blue-500 hover:bg-blue-50/30 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all text-xs font-bold text-gray-700">
+                        <Camera className="w-4 h-4 text-blue-600" />
+                        <span>Snap / Upload Pickup Photo</span>
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoSelect(e, 'pickup')} />
+                      </label>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* STEP 3: PROOF OF DELIVERY PHOTO (CLOUDINARY) */}
+              <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-emerald-600" />
+                    <h4 className="text-xs font-bold text-gray-900">2. Proof of Delivery (Photo)</h4>
+                  </div>
+                  {activeBooking.deliveryPhoto && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Stored
+                    </span>
+                  )}
+                </div>
+
+                {activeBooking.deliveryPhoto ? (
+                  <div className="flex items-center gap-3 p-2 bg-white rounded-xl border border-gray-200">
+                    <img
+                      src={activeBooking.deliveryPhoto}
+                      alt="Proof of Delivery"
+                      className="w-16 h-16 object-cover rounded-lg border border-gray-100 cursor-pointer hover:opacity-90"
+                      onClick={() => setViewingPhoto({ url: activeBooking.deliveryPhoto!, title: `Proof of Delivery - ${activeBooking.ref}` })}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Cloudinary Verified
+                      </span>
+                      <span className="text-[10px] text-gray-500 block truncate">
+                        {activeBooking.deliveryPhotoUploadedAt ? new Date(activeBooking.deliveryPhotoUploadedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Delivered'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setViewingPhoto({ url: activeBooking.deliveryPhoto!, title: `Proof of Delivery - ${activeBooking.ref}` })}
+                        className="text-[11px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 mt-1"
+                      >
+                        <Maximize2 className="w-3 h-3" /> View Full Photo
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-gray-500">
+                      Take a photo of the parcel handed to receiver or at the doorstep.
+                    </p>
+
+                    {deliveryPhotoPreview ? (
+                      <div className="space-y-2">
+                        <div className="relative rounded-xl overflow-hidden border border-emerald-200 max-h-44 flex items-center justify-center bg-black/5">
+                          <img src={deliveryPhotoPreview} alt="Delivery Preview" className="max-h-44 w-auto object-contain rounded-xl" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="flex-1 py-2 px-3 border border-gray-300 rounded-xl text-center font-bold text-xs text-gray-700 hover:bg-gray-50 cursor-pointer">
+                            Retake
+                            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoSelect(e, 'delivery')} />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleUploadDeliveryPhoto}
+                            disabled={isUploadingDelivery}
+                            className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5"
+                          >
+                            {isUploadingDelivery ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />}
+                            <span>Upload to Cloudinary</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="w-full py-2.5 px-3 border-2 border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/30 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all text-xs font-bold text-gray-700">
+                        <Camera className="w-4 h-4 text-emerald-600" />
+                        <span>Snap / Upload Delivery Photo</span>
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoSelect(e, 'delivery')} />
+                      </label>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Handover Notice: Confirm payment before handing over */}
               <div className={`p-3 rounded-xl text-xs flex items-start gap-2.5 ${
                 activeBooking.paymentStatus === 'Paid'
@@ -1305,6 +1695,40 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
                   Report an issue (recipient unreachable, address mismatch)
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Fullscreen Photo Lightbox Modal */}
+      {viewingPhoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="relative max-w-2xl w-full bg-[#0B1B3D] text-white rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+            <div className="p-4 flex items-center justify-between border-b border-white/10">
+              <span className="font-bold text-sm">{viewingPhoto.title}</span>
+              <button 
+                onClick={() => setViewingPhoto(null)} 
+                className="p-1 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 flex items-center justify-center bg-black/40 min-h-[300px]">
+              <img src={viewingPhoto.url} alt={viewingPhoto.title} className="max-h-[70vh] w-auto object-contain rounded-xl shadow-lg" />
+            </div>
+            <div className="p-3.5 bg-[#07132c] flex items-center justify-between text-xs border-t border-white/10">
+              <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Cloudinary CDN Secured</span>
+              </div>
+              <a 
+                href={viewingPhoto.url} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Open Full Size</span>
+              </a>
             </div>
           </div>
         </div>

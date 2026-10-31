@@ -15,32 +15,65 @@ if (!cached) {
   cached = (global as any).mongooseConnection = { conn: null, promise: null };
 }
 
-export async function connectToDatabase(): Promise<mongoose.Connection | null> {
-  if (cached.conn && mongoose.connection.readyState === 1) {
-    return cached.conn;
+export async function connectToDatabase(retries = 2): Promise<mongoose.Connection | null> {
+  // 1. If active connected instance already exists, reuse it immediately
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+
+  // 2. If connection is currently in progress, await the ongoing promise
+  if (mongoose.connection.readyState === 2 && cached.promise) {
+    try {
+      const conn = await cached.promise;
+      if (conn && mongoose.connection.readyState === 1) {
+        return conn;
+      }
+    } catch {
+      // Proceed to fresh connection attempt below
+    }
   }
 
   const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/bbdmobility';
 
-  if (!cached.promise) {
-    cached.promise = mongoose.connect(uri, {
-      bufferCommands: false,
-      serverSelectionTimeoutMS: 10000,
-    }).then((m) => {
-      console.log(`[MongoDB] Connected to database: ${m.connection.name}`);
-      return m.connection;
-    });
+  // 3. Reset any stale/failed cached connection objects
+  cached.promise = null;
+  cached.conn = null;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      cached.promise = mongoose.connect(uri, {
+        bufferCommands: true,
+        serverSelectionTimeoutMS: 30000, // 30 seconds for mobile/remote Atlas latency
+        connectTimeoutMS: 30000,
+        socketTimeoutMS: 45000,
+        family: 4, // Force IPv4 to avoid broken IPv6 resolution timeouts on Nigerian ISPs
+        maxPoolSize: 10,
+        minPoolSize: 1,
+        retryWrites: true,
+      }).then((m) => {
+        console.log(`[MongoDB] Connected to database: ${m.connection.name}`);
+        return m.connection;
+      });
+
+      cached.conn = await cached.promise;
+      if (cached.conn && mongoose.connection.readyState === 1) {
+        return cached.conn;
+      }
+    } catch (error: any) {
+      cached.promise = null;
+      cached.conn = null;
+      console.warn(`[MongoDB] Connection attempt ${attempt}/${retries} failed:`, error.message);
+      
+      if (attempt < retries) {
+        // Wait 1.5 seconds before retrying
+        await new Promise(r => setTimeout(r, 1500));
+      } else {
+        console.error('[MongoDB Atlas Warning] Connection timed out. Please ensure 0.0.0.0/0 is whitelisted in MongoDB Atlas -> Network Access.');
+      }
+    }
   }
 
-  try {
-    cached.conn = await cached.promise;
-    return cached.conn;
-  } catch (error) {
-    cached.promise = null;
-    cached.conn = null;
-    console.warn('[MongoDB] Connection unavailable (fallback mode active):', (error as Error).message);
-    return null;
-  }
+  return null;
 }
 
 /* ==========================================================================
@@ -50,6 +83,7 @@ export type DeliveryStatus =
   | 'New Booking'
   | 'Awaiting Assignment'
   | 'Assigned'
+  | 'Accepted'
   | 'Arriving for Pickup'
   | 'Picked Up'
   | 'In Transit'
@@ -100,10 +134,13 @@ export interface IAssignmentHistory {
 }
 
 export interface INotificationLog {
+  channel?: 'email' | 'sms';
   recipientType: 'sender' | 'receiver' | 'rider' | 'admin';
-  recipientEmail: string;
+  recipientEmail?: string;
+  recipientPhone?: string;
   subject: string;
-  status: 'sent' | 'failed';
+  message?: string;
+  status: 'sent' | 'failed' | 'fallback';
   error?: string;
   sentAt: Date;
 }
@@ -148,6 +185,14 @@ export interface IBooking extends Document {
   assignedAt?: Date;
   assignedBy?: string;
 
+  // Rider Acceptance & Proof Photos (Cloudinary)
+  riderAccepted?: boolean;
+  riderAcceptedAt?: Date;
+  pickupPhoto?: string;
+  pickupPhotoUploadedAt?: Date;
+  deliveryPhoto?: string;
+  deliveryPhotoUploadedAt?: Date;
+
   // Secure OTP storage (hashed)
   otpHash: string;
   otpExpiresAt: Date;
@@ -167,6 +212,7 @@ export interface IBooking extends Document {
   timeline: {
     booked?: string;
     assigned?: string;
+    accepted?: string;
     arrivingForPickup?: string;
     pickedUp?: string;
     inTransit?: string;
@@ -219,6 +265,7 @@ const BookingSchema = new Schema<IBooking>({
       'New Booking',
       'Awaiting Assignment',
       'Assigned',
+      'Accepted',
       'Arriving for Pickup',
       'Picked Up',
       'In Transit',
@@ -239,6 +286,13 @@ const BookingSchema = new Schema<IBooking>({
   assignedRiderEmail: { type: String },
   assignedAt: { type: Date },
   assignedBy: { type: String },
+
+  riderAccepted: { type: Boolean, default: false, index: true },
+  riderAcceptedAt: { type: Date },
+  pickupPhoto: { type: String },
+  pickupPhotoUploadedAt: { type: Date },
+  deliveryPhoto: { type: String },
+  deliveryPhotoUploadedAt: { type: Date },
 
   otpHash: { type: String, required: true },
   otpExpiresAt: { type: Date, required: true },
@@ -282,9 +336,12 @@ const BookingSchema = new Schema<IBooking>({
     timestamp: { type: Date, default: Date.now }
   }],
   notificationLogs: [{
+    channel: { type: String, default: 'email' },
     recipientType: String,
     recipientEmail: String,
+    recipientPhone: String,
     subject: String,
+    message: String,
     status: String,
     error: String,
     sentAt: { type: Date, default: Date.now }
@@ -309,6 +366,8 @@ export interface IRider extends Document {
   phone: string;
   email: string;
   passwordHash: string;
+  mustChangePin?: boolean;
+  pinChangedAt?: Date;
   status: 'Active' | 'On Leave' | 'Suspended';
   isOnline: boolean;
   assignedDeliveries: number;
@@ -331,6 +390,8 @@ const RiderSchema = new Schema<IRider>({
   phone: { type: String, required: true, index: true },
   email: { type: String, required: true, index: true },
   passwordHash: { type: String, required: true },
+  mustChangePin: { type: Boolean, default: true },
+  pinChangedAt: { type: Date },
   status: { type: String, enum: ['Active', 'On Leave', 'Suspended'], default: 'Active', index: true },
   isOnline: { type: Boolean, default: true, index: true },
   assignedDeliveries: { type: Number, default: 0 },

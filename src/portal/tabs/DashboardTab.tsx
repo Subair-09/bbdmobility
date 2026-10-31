@@ -394,15 +394,28 @@ Dispatch Support Hotline: 0708 753 1148`;
                     <td className="py-3.5 px-4 text-gray-600 truncate max-w-[140px]">{displayDropoff}</td>
                     <td className="py-3.5 px-4 font-bold text-gray-900">₦{displayAmount.toLocaleString()}</td>
                     <td className="py-3.5 px-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                        b.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' :
-                        b.status === 'In Transit' ? 'bg-sky-100 text-sky-800' :
-                        b.status === 'Picked Up' ? 'bg-indigo-100 text-indigo-800' :
-                        b.status === 'Assigned' ? 'bg-purple-100 text-purple-800' :
-                        'bg-amber-100 text-amber-800'
-                      }`}>
-                        {b.status || 'Pending'}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                          b.status === 'Delivered' ? 'bg-emerald-100 text-emerald-800' :
+                          b.status === 'In Transit' ? 'bg-sky-100 text-sky-800' :
+                          b.status === 'Picked Up' ? 'bg-indigo-100 text-indigo-800' :
+                          b.status === 'Accepted' ? 'bg-teal-100 text-teal-800' :
+                          b.status === 'Assigned' ? 'bg-purple-100 text-purple-800' :
+                          'bg-amber-100 text-amber-800'
+                        }`}>
+                          {b.status || 'Pending'}
+                        </span>
+                        {(b.pickupPhoto || b.deliveryPhoto) && (
+                          <span title="Proof Photos Stored in Cloudinary" className="text-xs">📸</span>
+                        )}
+                      </div>
+                      {(b.riderName || (b as any).assignedRiderName) && b.status !== 'Delivered' && b.status !== 'Cancelled' && (
+                        <span className={`block text-[9px] font-bold mt-0.5 ${
+                          b.riderAccepted ? 'text-emerald-600' : 'text-amber-600'
+                        }`}>
+                          {b.riderAccepted ? '✓ Accepted by Rider' : '⏳ Awaiting Rider'}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3.5 px-4">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${

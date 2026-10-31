@@ -32,12 +32,14 @@ import {
   enforceRiderScope,
 } from './auth.ts';
 import { emailService } from './emailService.ts';
+import { kudiSmsService } from './kudiSmsService.ts';
 import {
   securityProtectionMiddleware,
   sanitizeString,
   validateEmail,
   validatePhone
 } from './security.ts';
+import { uploadToCloudinary, isCloudinaryConfigured } from './cloudinary.ts';
 
 dotenv.config();
 
@@ -45,7 +47,8 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ limit: '25mb', extended: true }));
 // Global SQL & NoSQL Injection Protection + XSS Sanitizer
 app.use(securityProtectionMiddleware);
 
@@ -261,9 +264,10 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
 // 2. Rider Login
 app.post('/api/auth/rider-login', async (req: Request, res: Response) => {
   try {
-    const { identifier, password } = req.body || {};
-    if (!identifier || !password) {
-      return res.status(400).json({ error: 'Rider ID, Email, or Phone and password are required.' });
+    const { identifier, pin, password } = req.body || {};
+    const enteredPin = String(pin || password || '').trim();
+    if (!identifier || !enteredPin) {
+      return res.status(400).json({ error: 'Rider ID, Email, or Phone and 4-digit PIN are required.' });
     }
 
     await connectToDatabase();
@@ -284,10 +288,12 @@ app.post('/api/auth/rider-login', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Rider account is suspended. Contact dispatch administration.' });
     }
 
-    const isMatch = await comparePassword(String(password), rider.passwordHash);
+    const isMatch = await comparePassword(enteredPin, rider.passwordHash);
     if (!isMatch) {
-      return res.status(401).json({ error: 'Incorrect password. Please verify your login credentials.' });
+      return res.status(401).json({ error: 'Incorrect 4-digit PIN. Please verify your login credentials.' });
     }
+
+    const mustChangePin = rider.mustChangePin ?? true;
 
     const token = generateToken({
       userId: rider.riderId,
@@ -312,6 +318,7 @@ app.post('/api/auth/rider-login', async (req: Request, res: Response) => {
     return res.json({
       success: true,
       token,
+      mustChangePin,
       greeting,
       message: `${greeting}, ${rider.name.split(' ')[0]}! Login successful.`,
       rider: {
@@ -322,10 +329,101 @@ app.post('/api/auth/rider-login', async (req: Request, res: Response) => {
         status: rider.status,
         isOnline: rider.isOnline,
         vehicleType: rider.vehicleType,
+        mustChangePin,
       },
     });
   } catch (err: any) {
     return res.status(500).json({ error: 'Rider authentication error: ' + err.message });
+  }
+});
+
+// 2. Rider Change 4-Digit PIN (First login or self-service update)
+app.post('/api/auth/rider-change-pin', async (req: Request, res: Response) => {
+  try {
+    const { riderId, currentPin, newPin } = req.body || {};
+    const cleanNewPin = String(newPin || '').trim();
+
+    if (!cleanNewPin || !/^\d{4}$/.test(cleanNewPin)) {
+      return res.status(400).json({ error: 'Your new PIN must be exactly 4 numeric digits (e.g. 2468).' });
+    }
+
+    await connectToDatabase();
+    let targetId = riderId;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const decoded = (req as any).user;
+        if (decoded?.riderId || decoded?.userId) {
+          targetId = decoded.riderId || decoded.userId;
+        }
+      } catch {}
+    }
+
+    if (!targetId) {
+      return res.status(400).json({ error: 'Rider ID is required to set new PIN.' });
+    }
+
+    const rider = await RiderModel.findOne({
+      $or: [
+        { riderId: String(targetId).toUpperCase() },
+        { phone: String(targetId).trim() },
+        { email: String(targetId).toLowerCase().trim() }
+      ]
+    });
+
+    if (!rider) {
+      return res.status(404).json({ error: 'Rider account not found.' });
+    }
+
+    // If current PIN was provided and rider already has an active PIN (not forced first login), verify current PIN
+    if (currentPin && !rider.mustChangePin) {
+      const match = await comparePassword(String(currentPin).trim(), rider.passwordHash);
+      if (!match) {
+        return res.status(401).json({ error: 'Current PIN is incorrect.' });
+      }
+    }
+
+    const newHash = await hashPassword(cleanNewPin);
+    rider.passwordHash = newHash;
+    rider.mustChangePin = false;
+    rider.pinChangedAt = new Date();
+    await rider.save();
+
+    await recordAuditLog({
+      actorId: rider.riderId,
+      actorName: rider.name,
+      actorRole: 'Rider',
+      action: 'RIDER_PIN_CHANGED',
+      affectedEntity: 'Rider',
+      entityRef: rider.riderId,
+      ipAddress: req.ip,
+    });
+
+    const token = generateToken({
+      userId: rider.riderId,
+      riderId: rider.riderId,
+      name: rider.name,
+      email: rider.email,
+      role: 'Rider',
+    });
+
+    return res.json({
+      success: true,
+      message: '4-digit PIN updated successfully. Welcome to BBD Mobility!',
+      token,
+      mustChangePin: false,
+      rider: {
+        riderId: rider.riderId,
+        name: rider.name,
+        phone: rider.phone,
+        email: rider.email,
+        status: rider.status,
+        isOnline: rider.isOnline,
+        mustChangePin: false,
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to update PIN: ' + err.message });
   }
 });
 
@@ -383,7 +481,12 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
     const dateFormatted = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const timeFormatted = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
-    await connectToDatabase();
+    const db = await connectToDatabase();
+    if (!db) {
+      return res.status(503).json({
+        error: 'Database connection temporarily unavailable. Please verify your MongoDB Atlas Network Access allows connections from anywhere (0.0.0.0/0).',
+      });
+    }
 
     // 1. Save permanently in MongoDB
     const newBooking = await BookingModel.create({
@@ -454,27 +557,97 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
       instructions,
     };
 
-    // A. Sender Confirmation
+    // A. Sender Confirmation Email
     emailService.sendSenderConfirmation(emailPayload)
       .then(res => {
         BookingModel.updateOne(
           { ref: bookingRef },
-          { $push: { notificationLogs: { recipientType: 'sender', recipientEmail: sEmail, subject: 'Booking Confirmation', status: res.success ? 'sent' : 'failed', error: res.error, sentAt: new Date() } } }
+          { $push: { notificationLogs: { channel: 'email', recipientType: 'sender', recipientEmail: sEmail, subject: 'Booking Confirmation', status: res.success ? 'sent' : 'failed', error: res.error, sentAt: new Date() } } }
         ).exec();
       })
       .catch(() => {});
 
-    // B. Receiver Delivery OTP Notice (Only receiver receives the OTP)
+    // B. Receiver Delivery OTP Notice Email (Only receiver receives the OTP)
     emailService.sendReceiverDeliveryNotice({ ...emailPayload, otpCode: rawOtp })
       .then(res => {
         BookingModel.updateOne(
           { ref: bookingRef },
-          { $push: { notificationLogs: { recipientType: 'receiver', recipientEmail: rEmail, subject: 'Delivery Notice & OTP', status: res.success ? 'sent' : 'failed', error: res.error, sentAt: new Date() } } }
+          { $push: { notificationLogs: { channel: 'email', recipientType: 'receiver', recipientEmail: rEmail, subject: 'Delivery Notice & OTP', status: res.success ? 'sent' : 'failed', error: res.error, sentAt: new Date() } } }
         ).exec();
       })
       .catch(() => {});
 
-    // C. Admin Alert
+    // C. Sender Booking Confirmation SMS (KudiSMS Nigerian Gateway)
+    kudiSmsService.sendBookingSenderSms({
+      senderPhone: sPhone,
+      senderName: sName,
+      bookingRef,
+      pickupAddress: pLoc,
+      deliveryAddress: dLoc,
+      receiverName: rName,
+      receiverPhone: rPhone,
+      packageDescription: pDetails || `${sType} parcel`,
+      serviceType: sType,
+      totalAmount: calculatedFee,
+    })
+      .then(smsRes => {
+        BookingModel.updateOne(
+          { ref: bookingRef },
+          {
+            $push: {
+              notificationLogs: {
+                channel: 'sms',
+                recipientType: 'sender',
+                recipientPhone: sPhone,
+                subject: 'SMS Booking Confirmation',
+                message: smsRes.messageText,
+                status: smsRes.success ? 'sent' : 'failed',
+                error: smsRes.error,
+                sentAt: new Date()
+              }
+            }
+          }
+        ).exec();
+      })
+      .catch(err => {
+        console.error('[KudiSMS Error] Sender booking SMS error:', err);
+      });
+
+    // D. Receiver Delivery Notice & Security OTP SMS (KudiSMS Nigerian Gateway)
+    kudiSmsService.sendBookingReceiverSms({
+      receiverPhone: rPhone,
+      receiverName: rName,
+      senderName: sName,
+      senderPhone: sPhone,
+      bookingRef,
+      deliveryAddress: dLoc,
+      packageDescription: pDetails || `${sType} parcel`,
+      otpCode: rawOtp,
+    })
+      .then(smsRes => {
+        BookingModel.updateOne(
+          { ref: bookingRef },
+          {
+            $push: {
+              notificationLogs: {
+                channel: 'sms',
+                recipientType: 'receiver',
+                recipientPhone: rPhone,
+                subject: 'SMS Delivery OTP Notice',
+                message: smsRes.messageText,
+                status: smsRes.success ? 'sent' : 'failed',
+                error: smsRes.error,
+                sentAt: new Date()
+              }
+            }
+          }
+        ).exec();
+      })
+      .catch(err => {
+        console.error('[KudiSMS Error] Receiver OTP SMS error:', err);
+      });
+
+    // E. Admin Alert Email
     emailService.sendAdminAlert(emailPayload).catch(() => {});
 
     // D. Admin Dashboard Real-Time Notification Bell
@@ -638,7 +811,11 @@ app.post('/api/portal/bookings/:ref/assign', async (req: Request, res: Response)
     booking.assignedRiderEmail = rider.email;
     booking.assignedAt = new Date();
     booking.assignedBy = req.user?.name || 'Dispatch Desk';
+    booking.riderAccepted = false;
+    booking.riderAcceptedAt = undefined;
     booking.status = 'Assigned';
+    if (!booking.timeline) booking.timeline = {};
+    booking.timeline.assigned = new Date().toLocaleString();
 
     booking.assignmentHistory.push({
       previousRiderId: prevRiderId,
@@ -700,6 +877,7 @@ app.post('/api/portal/bookings/:ref/assign', async (req: Request, res: Response)
       portalUrl: `${process.env.APP_URL || 'https://bbdmobility.com.ng'}/rider`,
     };
 
+    // Notify Rider via Email & Route Manifest
     emailService.sendRiderAssignmentNotice(riderEmailPayload)
       .then(emailResult => {
         BookingModel.updateOne(
@@ -707,6 +885,7 @@ app.post('/api/portal/bookings/:ref/assign', async (req: Request, res: Response)
           {
             $push: {
               notificationLogs: {
+                channel: 'email',
                 recipientType: 'rider',
                 recipientEmail: rider.email,
                 subject: `New Assignment Alert: ${booking.ref}`,
@@ -722,20 +901,318 @@ app.post('/api/portal/bookings/:ref/assign', async (req: Request, res: Response)
         console.error('Rider assignment email dispatch error:', err);
       });
 
+    // Notify Rider via KudiSMS (Instant Nigerian SMS Gateway with ride manifest)
+    kudiSmsService.sendRiderAssignmentSms({
+      riderPhone: rider.phone,
+      riderName: rider.name,
+      bookingRef: booking.ref,
+      pickupAddress: booking.pickupAddress,
+      deliveryAddress: booking.deliveryAddress,
+      senderName: booking.senderName,
+      senderPhone: booking.senderPhone,
+      receiverName: booking.receiverName,
+      receiverPhone: booking.receiverPhone,
+      packageDescription: booking.packageDescription || 'Parcel',
+      dispatchNote: note || booking.deliveryInstructions,
+      portalUrl: `${process.env.APP_URL || 'https://bbdmobility.com.ng'}/rider`,
+    })
+      .then(smsResult => {
+        BookingModel.updateOne(
+          { ref: booking.ref },
+          {
+            $push: {
+              notificationLogs: {
+                channel: 'sms',
+                recipientType: 'rider',
+                recipientPhone: rider.phone,
+                subject: 'SMS Rider Assignment Notice',
+                message: smsResult.messageText,
+                status: smsResult.success ? 'sent' : 'failed',
+                error: smsResult.error,
+                sentAt: new Date()
+              }
+            }
+          }
+        ).exec();
+      })
+      .catch(err => {
+        console.error('[KudiSMS Error] Rider assignment SMS dispatch error:', err);
+      });
+
+    // Also dispatch SMS updates to Sender and Receiver that rider has been assigned
+    kudiSmsService.sendRiderAssignedToCustomerSms({
+      senderPhone: booking.senderPhone,
+      receiverPhone: booking.receiverPhone,
+      senderName: booking.senderName,
+      receiverName: booking.receiverName,
+      bookingRef: booking.ref,
+      riderName: rider.name,
+      riderPhone: rider.phone,
+    }).catch(err => {
+      console.error('[KudiSMS Error] Customer rider assignment SMS error:', err);
+    });
+
     createAdminNotification({
       title: 'Rider Assigned & Notified',
-      message: `Booking ${booking.ref} assigned to courier ${rider.name} (${rider.riderId}). Email alert dispatched to ${rider.email}.`,
+      message: `Booking ${booking.ref} assigned to courier ${rider.name} (${rider.riderId}). SMS & email alerts dispatched.`,
       type: 'rider',
       entityRef: booking.ref
     }).catch(() => {});
 
     return res.json({
       success: true,
-      message: `Assigned to ${rider.name}. Email notification alert dispatched to ${rider.email}.`,
+      message: `Assigned to ${rider.name}. SMS and email notification alerts dispatched.`,
       booking
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// 4b. Rider Accept Assignment Endpoint
+app.post('/api/portal/bookings/:ref/accept', async (req: Request, res: Response) => {
+  try {
+    const { ref } = req.params;
+    const { riderId } = req.body || {};
+
+    await connectToDatabase();
+    const booking = await BookingModel.findOne({ ref });
+    if (!booking) return res.status(404).json({ error: 'Booking not found.' });
+
+    if (riderId && booking.assignedRiderId && booking.assignedRiderId !== riderId) {
+      return res.status(403).json({ error: 'You are not the designated courier rider for this booking.' });
+    }
+
+    if (booking.status === 'Delivered' || booking.status === 'Cancelled') {
+      return res.status(400).json({ error: `Cannot accept a ${booking.status} delivery.` });
+    }
+
+    const now = new Date();
+    booking.riderAccepted = true;
+    booking.riderAcceptedAt = now;
+    booking.status = 'Accepted';
+    if (!booking.timeline) booking.timeline = {};
+    booking.timeline.accepted = now.toLocaleString();
+
+    booking.statusHistory.push({
+      fromStatus: 'Assigned',
+      toStatus: 'Accepted',
+      changedBy: booking.assignedRiderName || riderId || 'Rider',
+      role: 'Rider',
+      reason: 'Rider accepted dispatch assignment and is en route to pickup',
+      timestamp: now,
+    });
+
+    await booking.save();
+
+    await recordAuditLog({
+      actorId: riderId || booking.assignedRiderId || 'RIDER',
+      actorName: booking.assignedRiderName || 'Courier Rider',
+      actorRole: 'Rider',
+      action: 'RIDER_ACCEPTED_ASSIGNMENT',
+      affectedEntity: 'Booking',
+      entityRef: ref,
+      metadata: { acceptedAt: now, riderId: booking.assignedRiderId },
+      ipAddress: req.ip,
+    });
+
+    createAdminNotification({
+      title: 'Rider Accepted Assignment',
+      message: `Rider ${booking.assignedRiderName || 'Courier'} accepted assignment for booking ${booking.ref}. Proceeding to pickup.`,
+      type: 'rider',
+      entityRef: booking.ref,
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: `Assignment accepted for ${booking.ref}.`,
+      booking,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to accept assignment: ' + err.message });
+  }
+});
+
+// 4c. Proof of Pickup Photo Upload (Cloudinary)
+app.post('/api/portal/bookings/:ref/proof-of-pickup', async (req: Request, res: Response) => {
+  try {
+    const { ref } = req.params;
+    const { photo, riderId } = req.body || {};
+
+    if (!photo) {
+      return res.status(400).json({ error: 'Pickup photo data is required.' });
+    }
+
+    await connectToDatabase();
+    const booking = await BookingModel.findOne({ ref });
+    if (!booking) return res.status(404).json({ error: 'Booking not found.' });
+
+    if (riderId && booking.assignedRiderId && booking.assignedRiderId !== riderId) {
+      return res.status(403).json({ error: 'You are not authorized for this booking.' });
+    }
+
+    const uploadResult = await uploadToCloudinary(photo, 'bbdmobility/proofs/pickup');
+
+    const now = new Date();
+    booking.pickupPhoto = uploadResult.url;
+    booking.pickupPhotoUploadedAt = now;
+    booking.status = 'Picked Up';
+    if (!booking.timeline) booking.timeline = {};
+    booking.timeline.pickedUp = now.toLocaleString();
+
+    booking.statusHistory.push({
+      fromStatus: booking.status,
+      toStatus: 'Picked Up',
+      changedBy: booking.assignedRiderName || riderId || 'Rider',
+      role: 'Rider',
+      reason: 'Proof of pickup photo uploaded to Cloudinary',
+      timestamp: now,
+    });
+
+    await booking.save();
+
+    await recordAuditLog({
+      actorId: riderId || booking.assignedRiderId || 'RIDER',
+      actorName: booking.assignedRiderName || 'Courier Rider',
+      actorRole: 'Rider',
+      action: 'PROOF_OF_PICKUP_UPLOADED',
+      affectedEntity: 'Booking',
+      entityRef: ref,
+      metadata: { photoUrl: uploadResult.url, uploadedAt: now },
+      ipAddress: req.ip,
+    });
+
+    createAdminNotification({
+      title: 'Item Picked Up (Photo Stored)',
+      message: `Rider ${booking.assignedRiderName || ''} uploaded proof of pickup photo for ${booking.ref}. Item is now in transit.`,
+      type: 'booking',
+      entityRef: booking.ref,
+    }).catch(() => {});
+
+    // Dispatch SMS updates to both Sender & Receiver that item is now picked up and in transit
+    kudiSmsService.sendPickupCustomerSms({
+      senderPhone: booking.senderPhone,
+      receiverPhone: booking.receiverPhone,
+      senderName: booking.senderName,
+      receiverName: booking.receiverName,
+      bookingRef: booking.ref,
+      riderName: booking.assignedRiderName || 'Courier',
+      riderPhone: booking.assignedRiderPhone || '07087531148',
+      deliveryAddress: booking.deliveryAddress,
+    }).then(results => {
+      const logs: any[] = [];
+      if (results.senderResult) {
+        logs.push({
+          channel: 'sms',
+          recipientType: 'sender',
+          recipientPhone: booking.senderPhone,
+          subject: 'SMS Item Picked Up Notice',
+          message: results.senderResult.messageText,
+          status: results.senderResult.success ? 'sent' : 'failed',
+          error: results.senderResult.error,
+          sentAt: new Date(),
+        });
+      }
+      if (results.receiverResult) {
+        logs.push({
+          channel: 'sms',
+          recipientType: 'receiver',
+          recipientPhone: booking.receiverPhone,
+          subject: 'SMS Item In Transit Notice',
+          message: results.receiverResult.messageText,
+          status: results.receiverResult.success ? 'sent' : 'failed',
+          error: results.receiverResult.error,
+          sentAt: new Date(),
+        });
+      }
+      if (logs.length > 0) {
+        BookingModel.updateOne({ ref: booking.ref }, { $push: { notificationLogs: { $each: logs } } }).exec();
+      }
+    }).catch(err => {
+      console.error('[KudiSMS Error] Pickup SMS notification error:', err);
+    });
+
+    return res.json({
+      success: true,
+      message: 'Proof of pickup photo uploaded successfully.',
+      url: uploadResult.url,
+      booking,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to upload pickup photo: ' + err.message });
+  }
+});
+
+// 4d. Proof of Delivery Photo Upload (Cloudinary)
+app.post('/api/portal/bookings/:ref/proof-of-delivery', async (req: Request, res: Response) => {
+  try {
+    const { ref } = req.params;
+    const { photo, riderId } = req.body || {};
+
+    if (!photo) {
+      return res.status(400).json({ error: 'Delivery photo data is required.' });
+    }
+
+    await connectToDatabase();
+    const booking = await BookingModel.findOne({ ref });
+    if (!booking) return res.status(404).json({ error: 'Booking not found.' });
+
+    if (riderId && booking.assignedRiderId && booking.assignedRiderId !== riderId) {
+      return res.status(403).json({ error: 'You are not authorized for this booking.' });
+    }
+
+    const uploadResult = await uploadToCloudinary(photo, 'bbdmobility/proofs/delivery');
+
+    const now = new Date();
+    booking.deliveryPhoto = uploadResult.url;
+    booking.deliveryPhotoUploadedAt = now;
+
+    await booking.save();
+
+    await recordAuditLog({
+      actorId: riderId || booking.assignedRiderId || 'RIDER',
+      actorName: booking.assignedRiderName || 'Courier Rider',
+      actorRole: 'Rider',
+      action: 'PROOF_OF_DELIVERY_UPLOADED',
+      affectedEntity: 'Booking',
+      entityRef: ref,
+      metadata: { photoUrl: uploadResult.url, uploadedAt: now },
+      ipAddress: req.ip,
+    });
+
+    createAdminNotification({
+      title: 'Proof of Delivery Photo Uploaded',
+      message: `Rider ${booking.assignedRiderName || ''} uploaded doorstep delivery proof photo for ${booking.ref}.`,
+      type: 'booking',
+      entityRef: booking.ref,
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: 'Proof of delivery photo uploaded successfully.',
+      url: uploadResult.url,
+      booking,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to upload delivery photo: ' + err.message });
+  }
+});
+
+// 4e. Standalone Cloudinary Upload API
+app.post('/api/upload', async (req: Request, res: Response) => {
+  try {
+    const { image, folder } = req.body || {};
+    if (!image) {
+      return res.status(400).json({ error: 'Image data is required.' });
+    }
+    const uploadResult = await uploadToCloudinary(image, folder || 'bbdmobility/uploads');
+    return res.json({
+      success: true,
+      url: uploadResult.url,
+      public_id: uploadResult.public_id,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Upload failed: ' + err.message });
   }
 });
 
@@ -916,7 +1393,7 @@ app.delete('/api/portal/bookings/:ref', async (req: Request, res: Response) => {
 app.post('/api/portal/bookings/:ref/verify-otp', async (req: Request, res: Response) => {
   try {
     const { ref } = req.params;
-    const { otp, riderId } = req.body;
+    const { otp, riderId, deliveryPhoto } = req.body;
 
     if (!otp || typeof otp !== 'string' || otp.trim().length !== 6) {
       return res.status(400).json({ error: 'A valid 6-digit OTP is required.' });
@@ -977,7 +1454,19 @@ app.post('/api/portal/bookings/:ref/verify-otp', async (req: Request, res: Respo
     booking.otpVerifiedAt = now;
     booking.otpVerifiedByRiderId = riderId || booking.assignedRiderId;
     booking.status = 'Delivered';
+    if (!booking.timeline) booking.timeline = {};
     booking.timeline.delivered = now.toLocaleString();
+
+    // If delivery proof photo was supplied during OTP verification, upload to Cloudinary
+    if (deliveryPhoto) {
+      try {
+        const uploadResult = await uploadToCloudinary(deliveryPhoto, 'bbdmobility/proofs/delivery');
+        booking.deliveryPhoto = uploadResult.url;
+        booking.deliveryPhotoUploadedAt = now;
+      } catch (err: any) {
+        console.warn('[Cloudinary Delivery Photo Error during OTP]:', err.message);
+      }
+    }
 
     booking.statusHistory.push({
       fromStatus: booking.status,
@@ -1015,6 +1504,46 @@ app.post('/api/portal/bookings/:ref/verify-otp', async (req: Request, res: Respo
       type: 'booking',
       entityRef: booking.ref
     }).catch(() => {});
+
+    // Dispatch SMS completion confirmations to Sender and Receiver
+    kudiSmsService.sendDeliveryCompletedCustomerSms({
+      senderPhone: booking.senderPhone,
+      receiverPhone: booking.receiverPhone,
+      senderName: booking.senderName,
+      receiverName: booking.receiverName,
+      bookingRef: booking.ref,
+    }).then(results => {
+      const logs: any[] = [];
+      if (results.senderResult) {
+        logs.push({
+          channel: 'sms',
+          recipientType: 'sender',
+          recipientPhone: booking.senderPhone,
+          subject: 'SMS Delivery Completed Notice',
+          message: results.senderResult.messageText,
+          status: results.senderResult.success ? 'sent' : 'failed',
+          error: results.senderResult.error,
+          sentAt: new Date(),
+        });
+      }
+      if (results.receiverResult) {
+        logs.push({
+          channel: 'sms',
+          recipientType: 'receiver',
+          recipientPhone: booking.receiverPhone,
+          subject: 'SMS Delivery Completed Notice',
+          message: results.receiverResult.messageText,
+          status: results.receiverResult.success ? 'sent' : 'failed',
+          error: results.receiverResult.error,
+          sentAt: new Date(),
+        });
+      }
+      if (logs.length > 0) {
+        BookingModel.updateOne({ ref: booking.ref }, { $push: { notificationLogs: { $each: logs } } }).exec();
+      }
+    }).catch(err => {
+      console.error('[KudiSMS Error] Delivery completed SMS notification error:', err);
+    });
 
     return res.json({
       success: true,
@@ -1066,6 +1595,15 @@ app.post('/api/portal/bookings/:ref/admin-override-otp', async (req: Request, re
       ipAddress: req.ip,
     });
 
+    // Dispatch SMS completion confirmations to Sender and Receiver
+    kudiSmsService.sendDeliveryCompletedCustomerSms({
+      senderPhone: booking.senderPhone,
+      receiverPhone: booking.receiverPhone,
+      senderName: booking.senderName,
+      receiverName: booking.receiverName,
+      bookingRef: booking.ref,
+    }).catch(() => {});
+
     return res.json({ success: true, message: 'Admin exception recorded. Delivery marked Delivered.', booking });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -1105,6 +1643,34 @@ app.post('/api/portal/bookings/:ref/resend-otp', async (req: Request, res: Respo
       rEmail: booking.receiverEmail,
     });
 
+    // Dispatch fresh SMS to receiver via KudiSMS
+    kudiSmsService.sendReceiverResendOtpSms({
+      receiverPhone: booking.receiverPhone,
+      receiverName: booking.receiverName,
+      bookingRef: ref,
+      otpCode: newOtp,
+    }).then(smsRes => {
+      BookingModel.updateOne(
+        { ref },
+        {
+          $push: {
+            notificationLogs: {
+              channel: 'sms',
+              recipientType: 'receiver',
+              recipientPhone: booking.receiverPhone,
+              subject: 'SMS Resent Delivery OTP',
+              message: smsRes.messageText,
+              status: smsRes.success ? 'sent' : 'failed',
+              error: smsRes.error,
+              sentAt: new Date()
+            }
+          }
+        }
+      ).exec();
+    }).catch(err => {
+      console.error('[KudiSMS Error] Resend OTP SMS error:', err);
+    });
+
     await recordAuditLog({
       actorId: req.user?.userId || 'ADMIN',
       actorName: req.user?.name || 'Admin',
@@ -1115,7 +1681,7 @@ app.post('/api/portal/bookings/:ref/resend-otp', async (req: Request, res: Respo
       ipAddress: req.ip,
     });
 
-    return res.json({ success: true, message: 'New OTP generated and dispatched to receiver email.' });
+    return res.json({ success: true, message: 'New OTP generated and dispatched to receiver email and phone (SMS).' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -2064,12 +2630,17 @@ app.post('/api/portal/riders', async (req: Request, res: Response) => {
       if (!found) isUnique = true;
     }
 
-    // Plain password provided by admin or generated temporary password
-    const plainPassword = (password && String(password).trim().length >= 6)
-      ? String(password).trim()
-      : `BBD@${Math.floor(1000 + Math.random() * 9000)}`;
+    // 4-digit PIN provided by admin or default 1234
+    const inputPin = String(req.body.pin || req.body.password || '').trim();
+    let plainPin = '1234';
+    if (inputPin && /^\d{4}$/.test(inputPin)) {
+      plainPin = inputPin;
+    } else if (inputPin) {
+      const digits = inputPin.replace(/\D/g, '');
+      plainPin = digits.length >= 4 ? digits.slice(0, 4) : `${Math.floor(1000 + Math.random() * 9000)}`;
+    }
 
-    const passHash = await hashPassword(plainPassword);
+    const passHash = await hashPassword(plainPin);
     const genPlate = plateNumber?.trim() || `BBD-${riderId.replace(/\D/g, '').slice(-3)}-LG`;
 
     const rider = await RiderModel.create({
@@ -2078,6 +2649,7 @@ app.post('/api/portal/riders', async (req: Request, res: Response) => {
       phone: cleanPhone,
       email: cleanEmail,
       passwordHash: passHash,
+      mustChangePin: true, // Always true on registration so rider changes PIN on first login!
       status: 'Active',
       isOnline: true,
       vehicleType: vehicleType && vehicleType !== 'Select vehicle type' ? vehicleType : 'Motorcycle',
@@ -2094,20 +2666,21 @@ app.post('/api/portal/riders', async (req: Request, res: Response) => {
       action: 'RIDER_CREATED',
       affectedEntity: 'Rider',
       entityRef: riderId,
-      metadata: { name: rider.name, phone: rider.phone, vehicle: rider.vehicleType, email: rider.email },
+      metadata: { name: rider.name, phone: rider.phone, vehicle: rider.vehicleType, email: rider.email, pin: plainPin },
       ipAddress: req.ip,
     });
 
     return res.status(201).json({
       success: true,
-      message: `Courier Rider ${rider.name} registered successfully.`,
+      message: `Courier Rider ${rider.name} registered with 4-digit PIN ${plainPin}.`,
       rider,
       credentials: {
         riderId: rider.riderId,
         name: rider.name,
         email: rider.email,
         phone: rider.phone,
-        password: plainPassword,
+        pin: plainPin,
+        password: plainPin,
         loginUrl: '/rider'
       }
     });
@@ -2174,22 +2747,24 @@ app.delete('/api/portal/riders/:id', async (req: Request, res: Response) => {
   }
 });
 
-// 5. Change Rider Password
-app.post('/api/portal/riders/:id/change-password', async (req: Request, res: Response) => {
+// 5. Change / Reset Rider 4-Digit PIN (Admin)
+const handleAdminRiderPinReset = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { password } = req.body || {};
-    if (!password || String(password).trim().length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+    const { pin, password } = req.body || {};
+    const inputPin = String(pin || password || '').trim();
+
+    if (!inputPin || !/^\d{4}$/.test(inputPin)) {
+      return res.status(400).json({ error: 'Rider PIN must be exactly 4 numeric digits (e.g. 1234).' });
     }
 
     await connectToDatabase();
     const isObjectId = mongoose.isValidObjectId(id);
     const query = isObjectId ? { $or: [{ riderId: id }, { _id: id }] } : { riderId: id };
-    const passHash = await hashPassword(String(password).trim());
+    const passHash = await hashPassword(inputPin);
     const rider = await RiderModel.findOneAndUpdate(
       query,
-      { $set: { passwordHash: passHash } },
+      { $set: { passwordHash: passHash, mustChangePin: true, pinChangedAt: new Date() } },
       { new: true }
     );
     if (!rider) return res.status(404).json({ error: 'Rider not found.' });
@@ -2198,22 +2773,27 @@ app.post('/api/portal/riders/:id/change-password', async (req: Request, res: Res
       actorId: req.user?.userId || 'ADMIN',
       actorName: req.user?.name || 'Admin',
       actorRole: 'Admin',
-      action: 'RIDER_PASSWORD_CHANGED',
+      action: 'RIDER_PIN_RESET_BY_ADMIN',
       affectedEntity: 'Rider',
       entityRef: rider.riderId,
+      metadata: { pin: inputPin },
       ipAddress: req.ip,
     });
 
     return res.json({ 
       success: true, 
-      message: `Password for rider ${rider.name} updated successfully.`,
-      password: String(password).trim(),
+      message: `4-digit PIN for rider ${rider.name} updated to ${inputPin}. Rider will be required to change it on next login.`,
+      pin: inputPin,
+      password: inputPin,
       rider
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
-});
+};
+
+app.post('/api/portal/riders/:id/change-password', handleAdminRiderPinReset);
+app.post('/api/portal/riders/:id/change-pin', handleAdminRiderPinReset);
 
 // 4. Anti-IDOR: Fetch Only Authenticated Rider's Assigned Deliveries
 app.get('/api/portal/rider/me/deliveries', async (req: Request, res: Response) => {
@@ -2276,6 +2856,20 @@ app.put('/api/portal/settings', async (req: Request, res: Response) => {
     await connectToDatabase();
     const updated = await SettingsModel.findOneAndUpdate({}, { $set: req.body }, { upsert: true, new: true });
     return res.json({ success: true, settings: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Check KudiSMS Gateway & Sender ID approval status
+app.get('/api/portal/kudisms/status', async (_req: Request, res: Response) => {
+  try {
+    const status = await kudiSmsService.checkSenderIdStatus();
+    return res.json({
+      success: true,
+      senderId: process.env.KUDISMS_SENDER_ID || 'BBDMobility',
+      ...status
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { 
   Package, 
   CheckCircle, 
+  CheckCircle2,
   Clock, 
   AlertCircle, 
   Search, 
@@ -22,7 +23,10 @@ import {
   RefreshCw,
   Ban,
   Trash2,
-  CreditCard
+  CreditCard,
+  Camera,
+  Maximize2,
+  ExternalLink
 } from 'lucide-react';
 import { Booking, Rider, PaymentRecord, PaymentMethod } from '../types';
 
@@ -61,6 +65,7 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
   const [copiedRef, setCopiedRef] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [viewingPhoto, setViewingPhoto] = useState<{ url: string; title: string } | null>(null);
 
   // Assign Rider Modal States
   const [assigningBooking, setAssigningBooking] = useState<Booking | null>(null);
@@ -506,18 +511,34 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
                             <Bike className="w-3 h-3" />
                           </div>
                           <div className="min-w-0">
-                            <span className="font-semibold text-gray-800 block text-xs leading-tight truncate max-w-[110px]">
-                              {b.riderName || (b as any).assignedRiderName}
-                            </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenAssignModal(b);
-                              }}
-                              className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold inline-block"
-                            >
-                              Reassign
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <span className="font-semibold text-gray-800 block text-xs leading-tight truncate max-w-[100px]">
+                                {b.riderName || (b as any).assignedRiderName}
+                              </span>
+                              {(b.pickupPhoto || b.deliveryPhoto) && (
+                                <span title="Proof Photos Uploaded (Cloudinary)" className="text-[10px]">📸</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {b.riderAccepted ? (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                  <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Accepted
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 animate-pulse">
+                                  <Clock className="w-2.5 h-2.5 text-amber-600" /> Awaiting
+                                </span>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenAssignModal(b);
+                                }}
+                                className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold inline-block"
+                              >
+                                Reassign
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ) : (
@@ -784,6 +805,18 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
                     <span className="text-gray-500">Vehicle Type</span>
                     <span className="font-medium text-gray-800">{selectedBooking.riderVehicle || 'Motorcycle'}</span>
                   </div>
+                  <div className="flex justify-between items-center pt-1.5 border-t border-gray-200/60">
+                    <span className="text-gray-500 font-medium">Rider Acceptance</span>
+                    {selectedBooking.riderAccepted ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Accepted by Rider
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 animate-pulse">
+                        <Clock className="w-3 h-3 text-amber-600" /> Awaiting Rider Acceptance
+                      </span>
+                    )}
+                  </div>
                   <div className="pt-2 border-t border-gray-200/60">
                     <button
                       onClick={() => handleOpenAssignModal(selectedBooking)}
@@ -809,6 +842,91 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
                   </button>
                 </div>
               )}
+            </div>
+
+            {/* Proof of Delivery & Pickup (Cloudinary Photos) */}
+            <div className="space-y-3 pt-2 border-t border-gray-100">
+              <div className="flex items-center justify-between text-gray-900 font-bold">
+                <div className="flex items-center gap-2">
+                  <Camera className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Proof Photos (Cloudinary)</span>
+                </div>
+                <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                  <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Cloudinary CDN
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* 1. Pickup Photo Card */}
+                <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase block">1. Proof of Pickup</span>
+                    {selectedBooking.pickupPhoto && (
+                      <span className="text-[9px] font-bold text-emerald-600">✓ Stored</span>
+                    )}
+                  </div>
+                  {selectedBooking.pickupPhoto ? (
+                    <div className="space-y-1.5">
+                      <div 
+                        className="relative rounded-lg overflow-hidden border border-gray-200 h-28 bg-black/5 cursor-pointer group shadow-xs"
+                        onClick={() => setViewingPhoto({ url: selectedBooking.pickupPhoto!, title: `Proof of Pickup - ${selectedBooking.ref}` })}
+                      >
+                        <img 
+                          src={selectedBooking.pickupPhoto} 
+                          alt="Proof of Pickup" 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                        <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold gap-1 backdrop-blur-xs">
+                          <Maximize2 className="w-3.5 h-3.5" /> View Photo
+                        </div>
+                      </div>
+                      <span className="text-[9px] text-gray-400 block truncate">
+                        {selectedBooking.pickupPhotoUploadedAt ? new Date(selectedBooking.pickupPhotoUploadedAt).toLocaleString() : 'Picked Up'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="h-28 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-center p-2 text-gray-400">
+                      <Camera className="w-5 h-5 mb-1 text-gray-300" />
+                      <span className="text-[10px] font-medium leading-tight">Awaiting pickup photo from rider</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Delivery Photo Card */}
+                <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase block">2. Proof of Delivery</span>
+                    {selectedBooking.deliveryPhoto && (
+                      <span className="text-[9px] font-bold text-emerald-600">✓ Stored</span>
+                    )}
+                  </div>
+                  {selectedBooking.deliveryPhoto ? (
+                    <div className="space-y-1.5">
+                      <div 
+                        className="relative rounded-lg overflow-hidden border border-gray-200 h-28 bg-black/5 cursor-pointer group shadow-xs"
+                        onClick={() => setViewingPhoto({ url: selectedBooking.deliveryPhoto!, title: `Proof of Delivery - ${selectedBooking.ref}` })}
+                      >
+                        <img 
+                          src={selectedBooking.deliveryPhoto} 
+                          alt="Proof of Delivery" 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                        <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold gap-1 backdrop-blur-xs">
+                          <Maximize2 className="w-3.5 h-3.5" /> View Photo
+                        </div>
+                      </div>
+                      <span className="text-[9px] text-gray-400 block truncate">
+                        {selectedBooking.deliveryPhotoUploadedAt ? new Date(selectedBooking.deliveryPhotoUploadedAt).toLocaleString() : 'Delivered'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="h-28 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-center p-2 text-gray-400">
+                      <Camera className="w-5 h-5 mb-1 text-gray-300" />
+                      <span className="text-[10px] font-medium leading-tight">Awaiting delivery photo from rider</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Status Timeline */}
@@ -1104,10 +1222,10 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
                 />
               </div>
 
-              {/* Rider Email Notification Alert Banner */}
+              {/* Rider SMS & Email Notification Alert Banner */}
               <div className="flex items-center gap-2 p-3 bg-blue-50/90 border border-blue-200/80 rounded-xl text-[11px] text-blue-900 leading-relaxed">
                 <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse flex-shrink-0" />
-                <span>An instant courier dispatch email notification with pickup/dropoff addresses, customer phone contacts, and package manifest will be automatically sent to the assigned rider's email.</span>
+                <span>An instant courier dispatch SMS & email notification with pickup/drop-off addresses, customer phone contacts, and package manifest will be automatically sent to the assigned rider's phone and email via KudiSMS.</span>
               </div>
 
               {/* Action Buttons */}
@@ -1272,6 +1390,41 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Photo Lightbox Modal for Proof of Pickup/Delivery */}
+      {viewingPhoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="relative max-w-2xl w-full bg-[#0B1B3D] text-white rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+            <div className="p-4 flex items-center justify-between border-b border-white/10">
+              <span className="font-bold text-sm">{viewingPhoto.title}</span>
+              <button 
+                onClick={() => setViewingPhoto(null)} 
+                className="p-1 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 flex items-center justify-center bg-black/40 min-h-[320px]">
+              <img src={viewingPhoto.url} alt={viewingPhoto.title} className="max-h-[70vh] w-auto object-contain rounded-xl shadow-lg" />
+            </div>
+            <div className="p-3.5 bg-[#07132c] flex items-center justify-between text-xs border-t border-white/10">
+              <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Cloudinary CDN Verified Asset</span>
+              </div>
+              <a 
+                href={viewingPhoto.url} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Open in Cloudinary</span>
+              </a>
+            </div>
           </div>
         </div>
       )}

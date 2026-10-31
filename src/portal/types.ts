@@ -8,7 +8,7 @@ export type PortalTab =
   | 'reports' 
   | 'settings';
 
-export type BookingStatus = 'Delivered' | 'In Transit' | 'Picked Up' | 'Assigned' | 'Awaiting Assignment' | 'Pending' | 'Cancelled';
+export type BookingStatus = 'Delivered' | 'In Transit' | 'Picked Up' | 'Assigned' | 'Accepted' | 'Awaiting Assignment' | 'Pending' | 'Cancelled';
 export type PaymentStatus = 'Paid' | 'Unpaid' | 'Pending';
 export type PaymentMethod = 'Cash' | 'Bank Transfer' | 'POS' | 'Card';
 export type RiderStatus = 'Active' | 'On Leave' | 'Suspended';
@@ -33,6 +33,12 @@ export interface Booking {
   riderPhone?: string;
   riderEmail?: string;
   riderVehicle?: string;
+  riderAccepted?: boolean;
+  riderAcceptedAt?: string;
+  pickupPhoto?: string;
+  pickupPhotoUploadedAt?: string;
+  deliveryPhoto?: string;
+  deliveryPhotoUploadedAt?: string;
   packageDescription: string;
   packageWeight: string;
   verificationOtp: string;
@@ -40,6 +46,7 @@ export interface Booking {
   time: string;
   timeline?: {
     booked?: string;
+    accepted?: string;
     pickedUp?: string;
     delivered?: string;
   };
@@ -60,6 +67,8 @@ export interface Rider {
   avatar?: string;
   rating?: number;
   currentLocation?: string;
+  mustChangePin?: boolean;
+  pin?: string;
 }
 
 export interface Customer {

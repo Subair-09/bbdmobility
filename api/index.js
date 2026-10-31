@@ -1,7 +1,7 @@
 // server/index.ts
 import express from "express";
 import cors from "cors";
-import dotenv2 from "dotenv";
+import dotenv4 from "dotenv";
 import mongoose2 from "mongoose";
 
 // server/models.ts
@@ -12,29 +12,55 @@ var cached = global.mongooseConnection;
 if (!cached) {
   cached = global.mongooseConnection = { conn: null, promise: null };
 }
-async function connectToDatabase() {
-  if (cached.conn && mongoose.connection.readyState === 1) {
-    return cached.conn;
+async function connectToDatabase(retries = 2) {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+  if (mongoose.connection.readyState === 2 && cached.promise) {
+    try {
+      const conn = await cached.promise;
+      if (conn && mongoose.connection.readyState === 1) {
+        return conn;
+      }
+    } catch {
+    }
   }
   const uri = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/bbdmobility";
-  if (!cached.promise) {
-    cached.promise = mongoose.connect(uri, {
-      bufferCommands: false,
-      serverSelectionTimeoutMS: 1e4
-    }).then((m) => {
-      console.log(`[MongoDB] Connected to database: ${m.connection.name}`);
-      return m.connection;
-    });
+  cached.promise = null;
+  cached.conn = null;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      cached.promise = mongoose.connect(uri, {
+        bufferCommands: true,
+        serverSelectionTimeoutMS: 3e4,
+        // 30 seconds for mobile/remote Atlas latency
+        connectTimeoutMS: 3e4,
+        socketTimeoutMS: 45e3,
+        family: 4,
+        // Force IPv4 to avoid broken IPv6 resolution timeouts on Nigerian ISPs
+        maxPoolSize: 10,
+        minPoolSize: 1,
+        retryWrites: true
+      }).then((m) => {
+        console.log(`[MongoDB] Connected to database: ${m.connection.name}`);
+        return m.connection;
+      });
+      cached.conn = await cached.promise;
+      if (cached.conn && mongoose.connection.readyState === 1) {
+        return cached.conn;
+      }
+    } catch (error) {
+      cached.promise = null;
+      cached.conn = null;
+      console.warn(`[MongoDB] Connection attempt ${attempt}/${retries} failed:`, error.message);
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 1500));
+      } else {
+        console.error("[MongoDB Atlas Warning] Connection timed out. Please ensure 0.0.0.0/0 is whitelisted in MongoDB Atlas -> Network Access.");
+      }
+    }
   }
-  try {
-    cached.conn = await cached.promise;
-    return cached.conn;
-  } catch (error) {
-    cached.promise = null;
-    cached.conn = null;
-    console.warn("[MongoDB] Connection unavailable (fallback mode active):", error.message);
-    return null;
-  }
+  return null;
 }
 var BookingSchema = new Schema({
   ref: { type: String, required: true, unique: true, index: true },
@@ -75,6 +101,7 @@ var BookingSchema = new Schema({
       "New Booking",
       "Awaiting Assignment",
       "Assigned",
+      "Accepted",
       "Arriving for Pickup",
       "Picked Up",
       "In Transit",
@@ -94,6 +121,12 @@ var BookingSchema = new Schema({
   assignedRiderEmail: { type: String },
   assignedAt: { type: Date },
   assignedBy: { type: String },
+  riderAccepted: { type: Boolean, default: false, index: true },
+  riderAcceptedAt: { type: Date },
+  pickupPhoto: { type: String },
+  pickupPhotoUploadedAt: { type: Date },
+  deliveryPhoto: { type: String },
+  deliveryPhotoUploadedAt: { type: Date },
   otpHash: { type: String, required: true },
   otpExpiresAt: { type: Date, required: true },
   otpAttempts: { type: Number, default: 0 },
@@ -135,9 +168,12 @@ var BookingSchema = new Schema({
     timestamp: { type: Date, default: Date.now }
   }],
   notificationLogs: [{
+    channel: { type: String, default: "email" },
     recipientType: String,
     recipientEmail: String,
+    recipientPhone: String,
     subject: String,
+    message: String,
     status: String,
     error: String,
     sentAt: { type: Date, default: Date.now }
@@ -157,6 +193,8 @@ var RiderSchema = new Schema({
   phone: { type: String, required: true, index: true },
   email: { type: String, required: true, index: true },
   passwordHash: { type: String, required: true },
+  mustChangePin: { type: Boolean, default: true },
+  pinChangedAt: { type: Date },
   status: { type: String, enum: ["Active", "On Leave", "Suspended"], default: "Active", index: true },
   isOnline: { type: Boolean, default: true, index: true },
   assignedDeliveries: { type: Number, default: 0 },
@@ -1527,6 +1565,322 @@ var emailService = {
   }
 };
 
+// server/kudiSmsService.ts
+import dotenv2 from "dotenv";
+dotenv2.config();
+function truncateText(str, max) {
+  if (!str) return "";
+  const trimmed = str.trim();
+  return trimmed.length > max ? trimmed.slice(0, max - 1) + "\u2026" : trimmed;
+}
+function formatNigerianPhone(phone) {
+  if (!phone) return "";
+  let cleaned = phone.trim().replace(/[^\d+]/g, "");
+  if (cleaned.startsWith("+")) {
+    cleaned = cleaned.slice(1);
+  }
+  if (cleaned.startsWith("0") && cleaned.length === 11) {
+    return "234" + cleaned.slice(1);
+  }
+  if (cleaned.length === 10 && ["7", "8", "9"].includes(cleaned.charAt(0))) {
+    return "234" + cleaned;
+  }
+  if (cleaned.startsWith("234")) {
+    return cleaned;
+  }
+  return cleaned;
+}
+function isTestRecipient(phone, ref, name) {
+  const p = (phone || "").replace(/\D/g, "");
+  const r = (ref || "").toUpperCase();
+  const n = (name || "").toLowerCase();
+  return p.includes("0000000") || p === "1234567890" || p === "2348000000000" || r.includes("TEST") || n.includes("test recipient") || n.includes("test sender");
+}
+async function sendKudiSms(options) {
+  const { message, bookingRef, recipientName } = options;
+  const rawList = Array.isArray(options.recipients) ? options.recipients : [options.recipients];
+  const formattedRecipients = rawList.map((p) => formatNigerianPhone(p)).filter((p) => p.length >= 10);
+  if (formattedRecipients.length === 0) {
+    console.warn("[KudiSMS] No valid recipient phone number provided.");
+    return { success: false, error: "No valid recipient phone number provided", messageText: message };
+  }
+  const recipientsJoined = formattedRecipients.join(",");
+  if (isTestRecipient(recipientsJoined, bookingRef, recipientName)) {
+    console.log(`[TEST SMS SUPPRESSED] Skipping real KudiSMS delivery for test recipient: ${recipientsJoined} (Ref: ${bookingRef || "N/A"})`);
+    return {
+      success: true,
+      messageId: "test-suppressed",
+      messageText: message,
+      recipients: recipientsJoined
+    };
+  }
+  const apiKey2 = (process.env.KUDISMS_API_KEY || process.env.KUDISMS_TOKEN || "").trim();
+  const senderID = (options.senderId || process.env.KUDISMS_SENDER_ID || "BBDMobility").trim().slice(0, 11);
+  const gateway = (options.gateway || process.env.KUDISMS_GATEWAY || "").trim();
+  if (!apiKey2 || apiKey2 === "your_kudisms_api_key_here") {
+    console.log(`[KUDISMS DEV MODE] Sender: ${senderID} | To: ${recipientsJoined} | Gateway: ${gateway || "Default"}
+Message:
+${message}
+--------------------------------------------------`);
+    return {
+      success: true,
+      devMode: true,
+      messageId: `dev-${Date.now()}`,
+      messageText: message,
+      recipients: recipientsJoined,
+      data: { status: "dev-mode", note: "KudiSMS API key not configured. Message logged to console." }
+    };
+  }
+  try {
+    const requestPayload = {
+      token: apiKey2,
+      senderID,
+      recipients: recipientsJoined,
+      message
+    };
+    if (gateway) {
+      requestPayload.gateway = gateway;
+    }
+    const response = await fetch("https://my.kudisms.net/api/sms", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify(requestPayload)
+    });
+    const responseText = await response.text();
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch {
+      responseData = { raw: responseText };
+    }
+    if (!response.ok) {
+      console.error(`[KudiSMS HTTP Error] Status ${response.status}:`, responseData);
+      return {
+        success: false,
+        error: `HTTP ${response.status}: ${responseData?.msg || responseData?.message || responseText}`,
+        messageText: message,
+        recipients: recipientsJoined,
+        data: responseData
+      };
+    }
+    const status = (responseData?.status || "").toString().toLowerCase();
+    const isSuccess = status === "success" || responseData?.error_code === "000" || responseData?.code === 100 || responseData?.code === 200 || !status.includes("error") && !responseData?.error_code;
+    if (!isSuccess && status.includes("error")) {
+      console.error("[KudiSMS API Error]:", responseData);
+      return {
+        success: false,
+        error: responseData?.msg || responseData?.message || "KudiSMS rejected request",
+        messageText: message,
+        recipients: recipientsJoined,
+        data: responseData
+      };
+    }
+    const messageId = responseData?.data?.[0]?.split("|")[1] || responseData?.batch_id || responseData?.id || `kudi-${Date.now()}`;
+    console.log(`[KudiSMS Success] Message dispatched to ${recipientsJoined} (MsgID: ${messageId}) for ${bookingRef || "SMS"}`);
+    return {
+      success: true,
+      messageId,
+      messageText: message,
+      recipients: recipientsJoined,
+      data: responseData
+    };
+  } catch (error) {
+    console.error("[KudiSMS Network Exception]:", error.message || error);
+    return {
+      success: false,
+      error: error.message || "Network exception communicating with KudiSMS API",
+      messageText: message,
+      recipients: recipientsJoined
+    };
+  }
+}
+var kudiSmsService = {
+  /**
+   * 1. Sender Booking Confirmation SMS
+   * Informs sender that booking has been registered, confirms route and recipient details.
+   */
+  async sendBookingSenderSms(data) {
+    const shortPickup = truncateText(data.pickupAddress, 32);
+    const shortDropoff = truncateText(data.deliveryAddress, 32);
+    const shortItem = truncateText(data.packageDescription, 24);
+    const message = `BBD Mobility: Hello ${data.senderName || "Customer"}, your delivery ${data.bookingRef} is confirmed.
+Route: ${shortPickup} -> ${shortDropoff}.
+Recipient: ${data.receiverName} (${data.receiverPhone}).
+Item: ${shortItem}.
+Track: https://bbdmobility.com.ng. Tel: 07087531148`;
+    return sendKudiSms({
+      recipients: data.senderPhone,
+      message,
+      bookingRef: data.bookingRef,
+      recipientName: data.senderName
+    });
+  },
+  /**
+   * 2. Receiver Delivery Notice & Security Passkey SMS
+   * Dispatches parcel arrival details, sender contact, and delivery verification passkey to receiver.
+   * Note: Uses "Delivery Passkey" instead of "OTP" or "Code" to comply with Nigerian NCC/telco anti-fraud filters.
+   */
+  async sendBookingReceiverSms(data) {
+    const shortDropoff = truncateText(data.deliveryAddress, 32);
+    const shortItem = truncateText(data.packageDescription, 24);
+    const message = `BBD Mobility: Hello ${data.receiverName || "Recipient"}, a parcel (${shortItem}) from ${data.senderName} (${data.senderPhone}) is heading to you at ${shortDropoff}.
+Ref: ${data.bookingRef}
+Delivery Passkey: ${data.otpCode}
+Present this passkey to the rider upon delivery.`;
+    return sendKudiSms({
+      recipients: data.receiverPhone,
+      message,
+      bookingRef: data.bookingRef,
+      recipientName: data.receiverName
+    });
+  },
+  /**
+   * 3. Courier Rider Assignment Alert SMS
+   * Dispatches complete ride manifest to rider when admin assigns them an order.
+   */
+  async sendRiderAssignmentSms(data) {
+    const shortPickup = truncateText(data.pickupAddress, 30);
+    const shortDropoff = truncateText(data.deliveryAddress, 30);
+    const shortItem = truncateText(data.packageDescription, 22);
+    const shortNote = data.dispatchNote ? `Note: ${truncateText(data.dispatchNote, 25)}
+` : "";
+    const portalUrl = data.portalUrl || `${process.env.APP_URL || "https://bbdmobility.com.ng"}/rider`;
+    const message = `BBD Mobility: Hi ${data.riderName}, new delivery assigned: ${data.bookingRef}.
+Pickup: ${shortPickup} (Sender: ${data.senderName}, ${data.senderPhone})
+Drop-off: ${shortDropoff} (Receiver: ${data.receiverName}, ${data.receiverPhone})
+Item: ${shortItem}
+` + shortNote + `Accept delivery on portal: ${portalUrl}`;
+    return sendKudiSms({
+      recipients: data.riderPhone,
+      message,
+      bookingRef: data.bookingRef,
+      recipientName: data.riderName
+    });
+  },
+  /**
+   * 4. Customer Rider Assignment Alert SMS
+   * Notifies sender and receiver that a courier rider has been assigned and is en route.
+   */
+  async sendRiderAssignedToCustomerSms(data) {
+    const senderMessage = `BBD Mobility: Rider ${data.riderName} (${data.riderPhone}) has been assigned to your order ${data.bookingRef}. Pickup is being initiated. Tel: 07087531148`;
+    const receiverMessage = `BBD Mobility: Rider ${data.riderName} (${data.riderPhone}) has been assigned to deliver parcel ${data.bookingRef} from ${data.senderName}. Have your Delivery Passkey ready for arrival.`;
+    const [senderResult, receiverResult] = await Promise.all([
+      sendKudiSms({
+        recipients: data.senderPhone,
+        message: senderMessage,
+        bookingRef: data.bookingRef,
+        recipientName: data.senderName
+      }).catch((err) => ({ success: false, error: err.message })),
+      sendKudiSms({
+        recipients: data.receiverPhone,
+        message: receiverMessage,
+        bookingRef: data.bookingRef,
+        recipientName: data.receiverName
+      }).catch((err) => ({ success: false, error: err.message }))
+    ]);
+    return { senderResult, receiverResult };
+  },
+  /**
+   * 5. Receiver Resend Passkey SMS
+   * Triggered when admin regenerates delivery verification passkey.
+   */
+  async sendReceiverResendOtpSms(data) {
+    const message = `BBD Mobility: Hello ${data.receiverName || "Recipient"}, your new Delivery Passkey for parcel ${data.bookingRef} is: ${data.otpCode}.
+Present this passkey to your rider upon arrival to complete delivery.`;
+    return sendKudiSms({
+      recipients: data.receiverPhone,
+      message,
+      bookingRef: data.bookingRef,
+      recipientName: data.receiverName
+    });
+  },
+  /**
+   * 6. Proof of Pickup Customer Alert SMS
+   * Dispatches updates when rider picks up item from sender and begins transit to receiver.
+   */
+  async sendPickupCustomerSms(data) {
+    const shortDropoff = truncateText(data.deliveryAddress, 30);
+    const senderMessage = `BBD Mobility: Order ${data.bookingRef} has been picked up by rider ${data.riderName} and is en route to ${data.receiverName}. Track at bbdmobility.com.ng`;
+    const receiverMessage = `BBD Mobility: Hello ${data.receiverName}, your parcel ${data.bookingRef} from ${data.senderName} has been picked up by rider ${data.riderName} (${data.riderPhone}) and is heading to ${shortDropoff}. Have your Delivery Passkey ready.`;
+    const [senderResult, receiverResult] = await Promise.all([
+      sendKudiSms({
+        recipients: data.senderPhone,
+        message: senderMessage,
+        bookingRef: data.bookingRef,
+        recipientName: data.senderName
+      }).catch((err) => ({ success: false, error: err.message })),
+      sendKudiSms({
+        recipients: data.receiverPhone,
+        message: receiverMessage,
+        bookingRef: data.bookingRef,
+        recipientName: data.receiverName
+      }).catch((err) => ({ success: false, error: err.message }))
+    ]);
+    return { senderResult, receiverResult };
+  },
+  /**
+   * 7. Delivery Completed Customer Alert SMS
+   * Dispatches confirmation when delivery is verified and completed.
+   */
+  async sendDeliveryCompletedCustomerSms(data) {
+    const senderMessage = `BBD Mobility: Order ${data.bookingRef} has been safely delivered to ${data.receiverName}. Thank you for choosing BBD Mobility!`;
+    const receiverMessage = `BBD Mobility: Hello ${data.receiverName}, your parcel ${data.bookingRef} from ${data.senderName} has been delivered. Thank you for choosing BBD Mobility!`;
+    const [senderResult, receiverResult] = await Promise.all([
+      sendKudiSms({
+        recipients: data.senderPhone,
+        message: senderMessage,
+        bookingRef: data.bookingRef,
+        recipientName: data.senderName
+      }).catch((err) => ({ success: false, error: err.message })),
+      sendKudiSms({
+        recipients: data.receiverPhone,
+        message: receiverMessage,
+        bookingRef: data.bookingRef,
+        recipientName: data.receiverName
+      }).catch((err) => ({ success: false, error: err.message }))
+    ]);
+    return { senderResult, receiverResult };
+  },
+  /**
+   * 6. Check approval status of Sender ID on KudiSMS
+   */
+  async checkSenderIdStatus(senderId) {
+    const apiKey2 = (process.env.KUDISMS_API_KEY || process.env.KUDISMS_TOKEN || "").trim();
+    const idToCheck = (senderId || process.env.KUDISMS_SENDER_ID || "BBDMobility").trim();
+    if (!apiKey2) {
+      return { approved: false, status: "not_configured", msg: "KudiSMS API key not configured" };
+    }
+    try {
+      const [statusRes, balanceRes] = await Promise.all([
+        fetch("https://my.kudisms.net/api/check_senderID", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: apiKey2, senderID: idToCheck })
+        }),
+        fetch("https://my.kudisms.net/api/balance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: apiKey2 })
+        })
+      ]);
+      const statusData = await statusRes.json().catch(() => ({}));
+      const balanceData = await balanceRes.json().catch(() => ({}));
+      const isApproved = statusData?.status === "success" || statusData?.error_code === "000";
+      return {
+        approved: isApproved,
+        status: statusData?.status || "unknown",
+        msg: statusData?.msg || "Pending operator review",
+        balance: balanceData?.msg || void 0
+      };
+    } catch (err) {
+      return { approved: false, status: "error", msg: err.message };
+    }
+  }
+};
+
 // server/security.ts
 var FORBIDDEN_KEY_PREFIX = /^\$|[\.]/;
 function sanitizeObject(obj, depth = 0) {
@@ -1535,6 +1889,9 @@ function sanitizeObject(obj, depth = 0) {
   }
   if (obj === null || obj === void 0) return obj;
   if (typeof obj === "string") {
+    if (obj.startsWith("data:image/") || obj.startsWith("https://res.cloudinary.com")) {
+      return obj;
+    }
     return sanitizeString(obj);
   }
   if (Array.isArray(obj)) {
@@ -1594,12 +1951,74 @@ function securityProtectionMiddleware(req, res, next) {
   }
 }
 
+// server/cloudinary.ts
+import { v2 as cloudinary } from "cloudinary";
+import dotenv3 from "dotenv";
+dotenv3.config();
+var cloudName = process.env.CLOUDINARY_CLOUD_NAME || "";
+var apiKey = process.env.CLOUDINARY_API_KEY || "";
+var apiSecret = process.env.CLOUDINARY_API_SECRET || "";
+if (cloudName && apiKey && apiSecret) {
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+    secure: true
+  });
+  console.log(`[Cloudinary] Configured successfully for cloud: ${cloudName}`);
+} else if (process.env.CLOUDINARY_URL) {
+  cloudinary.config({
+    secure: true
+  });
+  console.log("[Cloudinary] Configured via CLOUDINARY_URL.");
+} else {
+  console.warn("[Cloudinary] Warning: CLOUDINARY credentials not set in environment. Running in fallback mode.");
+}
+function isCloudinaryConfigured() {
+  return Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_URL
+  );
+}
+async function uploadToCloudinary(fileData, folder = "bbdmobility/proofs") {
+  if (!fileData) {
+    throw new Error("No image data provided for upload.");
+  }
+  if (isCloudinaryConfigured()) {
+    try {
+      const result = await cloudinary.uploader.upload(fileData, {
+        folder,
+        resource_type: "image",
+        allowed_formats: ["jpg", "png", "jpeg", "webp", "heic"],
+        transformation: [
+          { quality: "auto:good" },
+          { fetch_format: "auto" }
+        ]
+      });
+      return {
+        url: result.secure_url,
+        public_id: result.public_id,
+        bytes: result.bytes,
+        format: result.format
+      };
+    } catch (err) {
+      console.error("[Cloudinary Upload Error]:", err.message || err);
+      throw new Error(`Cloudinary upload failed: ${err.message || "Unknown error"}`);
+    }
+  }
+  console.warn("[Cloudinary] Missing credentials. Storing data URL fallback directly.");
+  return {
+    url: fileData,
+    public_id: `fallback-${Date.now()}`
+  };
+}
+
 // server/index.ts
-dotenv2.config();
+dotenv4.config();
 var app = express();
 var port = process.env.PORT || 3001;
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ limit: "25mb", extended: true }));
 app.use(securityProtectionMiddleware);
 app.use((req, _res, next) => {
   if (req.url && !req.url.startsWith("/api")) {
@@ -1756,9 +2175,10 @@ app.post("/api/auth/login", async (req, res) => {
 });
 app.post("/api/auth/rider-login", async (req, res) => {
   try {
-    const { identifier, password } = req.body || {};
-    if (!identifier || !password) {
-      return res.status(400).json({ error: "Rider ID, Email, or Phone and password are required." });
+    const { identifier, pin, password } = req.body || {};
+    const enteredPin = String(pin || password || "").trim();
+    if (!identifier || !enteredPin) {
+      return res.status(400).json({ error: "Rider ID, Email, or Phone and 4-digit PIN are required." });
     }
     await connectToDatabase();
     const cleanId = sanitizeString(String(identifier)).trim();
@@ -1775,10 +2195,11 @@ app.post("/api/auth/rider-login", async (req, res) => {
     if (rider.status === "Suspended") {
       return res.status(403).json({ error: "Rider account is suspended. Contact dispatch administration." });
     }
-    const isMatch = await comparePassword(String(password), rider.passwordHash);
+    const isMatch = await comparePassword(enteredPin, rider.passwordHash);
     if (!isMatch) {
-      return res.status(401).json({ error: "Incorrect password. Please verify your login credentials." });
+      return res.status(401).json({ error: "Incorrect 4-digit PIN. Please verify your login credentials." });
     }
+    const mustChangePin = rider.mustChangePin ?? true;
     const token = generateToken({
       userId: rider.riderId,
       riderId: rider.riderId,
@@ -1799,6 +2220,7 @@ app.post("/api/auth/rider-login", async (req, res) => {
     return res.json({
       success: true,
       token,
+      mustChangePin,
       greeting,
       message: `${greeting}, ${rider.name.split(" ")[0]}! Login successful.`,
       rider: {
@@ -1808,11 +2230,90 @@ app.post("/api/auth/rider-login", async (req, res) => {
         email: rider.email,
         status: rider.status,
         isOnline: rider.isOnline,
-        vehicleType: rider.vehicleType
+        vehicleType: rider.vehicleType,
+        mustChangePin
       }
     });
   } catch (err) {
     return res.status(500).json({ error: "Rider authentication error: " + err.message });
+  }
+});
+app.post("/api/auth/rider-change-pin", async (req, res) => {
+  try {
+    const { riderId, currentPin, newPin } = req.body || {};
+    const cleanNewPin = String(newPin || "").trim();
+    if (!cleanNewPin || !/^\d{4}$/.test(cleanNewPin)) {
+      return res.status(400).json({ error: "Your new PIN must be exactly 4 numeric digits (e.g. 2468)." });
+    }
+    await connectToDatabase();
+    let targetId = riderId;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const decoded = req.user;
+        if (decoded?.riderId || decoded?.userId) {
+          targetId = decoded.riderId || decoded.userId;
+        }
+      } catch {
+      }
+    }
+    if (!targetId) {
+      return res.status(400).json({ error: "Rider ID is required to set new PIN." });
+    }
+    const rider = await RiderModel.findOne({
+      $or: [
+        { riderId: String(targetId).toUpperCase() },
+        { phone: String(targetId).trim() },
+        { email: String(targetId).toLowerCase().trim() }
+      ]
+    });
+    if (!rider) {
+      return res.status(404).json({ error: "Rider account not found." });
+    }
+    if (currentPin && !rider.mustChangePin) {
+      const match = await comparePassword(String(currentPin).trim(), rider.passwordHash);
+      if (!match) {
+        return res.status(401).json({ error: "Current PIN is incorrect." });
+      }
+    }
+    const newHash = await hashPassword(cleanNewPin);
+    rider.passwordHash = newHash;
+    rider.mustChangePin = false;
+    rider.pinChangedAt = /* @__PURE__ */ new Date();
+    await rider.save();
+    await recordAuditLog({
+      actorId: rider.riderId,
+      actorName: rider.name,
+      actorRole: "Rider",
+      action: "RIDER_PIN_CHANGED",
+      affectedEntity: "Rider",
+      entityRef: rider.riderId,
+      ipAddress: req.ip
+    });
+    const token = generateToken({
+      userId: rider.riderId,
+      riderId: rider.riderId,
+      name: rider.name,
+      email: rider.email,
+      role: "Rider"
+    });
+    return res.json({
+      success: true,
+      message: "4-digit PIN updated successfully. Welcome to BBD Mobility!",
+      token,
+      mustChangePin: false,
+      rider: {
+        riderId: rider.riderId,
+        name: rider.name,
+        phone: rider.phone,
+        email: rider.email,
+        status: rider.status,
+        isOnline: rider.isOnline,
+        mustChangePin: false
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to update PIN: " + err.message });
   }
 });
 app.post("/api/bookings", async (req, res) => {
@@ -1857,7 +2358,12 @@ app.post("/api/bookings", async (req, res) => {
     const now = /* @__PURE__ */ new Date();
     const dateFormatted = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     const timeFormatted = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-    await connectToDatabase();
+    const db = await connectToDatabase();
+    if (!db) {
+      return res.status(503).json({
+        error: "Database connection temporarily unavailable. Please verify your MongoDB Atlas Network Access allows connections from anywhere (0.0.0.0/0)."
+      });
+    }
     const newBooking = await BookingModel.create({
       ref: bookingRef,
       senderName: sName,
@@ -1925,16 +2431,78 @@ app.post("/api/bookings", async (req, res) => {
     emailService.sendSenderConfirmation(emailPayload).then((res2) => {
       BookingModel.updateOne(
         { ref: bookingRef },
-        { $push: { notificationLogs: { recipientType: "sender", recipientEmail: sEmail, subject: "Booking Confirmation", status: res2.success ? "sent" : "failed", error: res2.error, sentAt: /* @__PURE__ */ new Date() } } }
+        { $push: { notificationLogs: { channel: "email", recipientType: "sender", recipientEmail: sEmail, subject: "Booking Confirmation", status: res2.success ? "sent" : "failed", error: res2.error, sentAt: /* @__PURE__ */ new Date() } } }
       ).exec();
     }).catch(() => {
     });
     emailService.sendReceiverDeliveryNotice({ ...emailPayload, otpCode: rawOtp }).then((res2) => {
       BookingModel.updateOne(
         { ref: bookingRef },
-        { $push: { notificationLogs: { recipientType: "receiver", recipientEmail: rEmail, subject: "Delivery Notice & OTP", status: res2.success ? "sent" : "failed", error: res2.error, sentAt: /* @__PURE__ */ new Date() } } }
+        { $push: { notificationLogs: { channel: "email", recipientType: "receiver", recipientEmail: rEmail, subject: "Delivery Notice & OTP", status: res2.success ? "sent" : "failed", error: res2.error, sentAt: /* @__PURE__ */ new Date() } } }
       ).exec();
     }).catch(() => {
+    });
+    kudiSmsService.sendBookingSenderSms({
+      senderPhone: sPhone,
+      senderName: sName,
+      bookingRef,
+      pickupAddress: pLoc,
+      deliveryAddress: dLoc,
+      receiverName: rName,
+      receiverPhone: rPhone,
+      packageDescription: pDetails || `${sType} parcel`,
+      serviceType: sType,
+      totalAmount: calculatedFee
+    }).then((smsRes) => {
+      BookingModel.updateOne(
+        { ref: bookingRef },
+        {
+          $push: {
+            notificationLogs: {
+              channel: "sms",
+              recipientType: "sender",
+              recipientPhone: sPhone,
+              subject: "SMS Booking Confirmation",
+              message: smsRes.messageText,
+              status: smsRes.success ? "sent" : "failed",
+              error: smsRes.error,
+              sentAt: /* @__PURE__ */ new Date()
+            }
+          }
+        }
+      ).exec();
+    }).catch((err) => {
+      console.error("[KudiSMS Error] Sender booking SMS error:", err);
+    });
+    kudiSmsService.sendBookingReceiverSms({
+      receiverPhone: rPhone,
+      receiverName: rName,
+      senderName: sName,
+      senderPhone: sPhone,
+      bookingRef,
+      deliveryAddress: dLoc,
+      packageDescription: pDetails || `${sType} parcel`,
+      otpCode: rawOtp
+    }).then((smsRes) => {
+      BookingModel.updateOne(
+        { ref: bookingRef },
+        {
+          $push: {
+            notificationLogs: {
+              channel: "sms",
+              recipientType: "receiver",
+              recipientPhone: rPhone,
+              subject: "SMS Delivery OTP Notice",
+              message: smsRes.messageText,
+              status: smsRes.success ? "sent" : "failed",
+              error: smsRes.error,
+              sentAt: /* @__PURE__ */ new Date()
+            }
+          }
+        }
+      ).exec();
+    }).catch((err) => {
+      console.error("[KudiSMS Error] Receiver OTP SMS error:", err);
     });
     emailService.sendAdminAlert(emailPayload).catch(() => {
     });
@@ -2074,7 +2642,11 @@ app.post("/api/portal/bookings/:ref/assign", async (req, res) => {
     booking.assignedRiderEmail = rider.email;
     booking.assignedAt = /* @__PURE__ */ new Date();
     booking.assignedBy = req.user?.name || "Dispatch Desk";
+    booking.riderAccepted = false;
+    booking.riderAcceptedAt = void 0;
     booking.status = "Assigned";
+    if (!booking.timeline) booking.timeline = {};
+    booking.timeline.assigned = (/* @__PURE__ */ new Date()).toLocaleString();
     booking.assignmentHistory.push({
       previousRiderId: prevRiderId,
       previousRiderName: prevRiderName,
@@ -2135,6 +2707,7 @@ app.post("/api/portal/bookings/:ref/assign", async (req, res) => {
         {
           $push: {
             notificationLogs: {
+              channel: "email",
               recipientType: "rider",
               recipientEmail: rider.email,
               subject: `New Assignment Alert: ${booking.ref}`,
@@ -2148,20 +2721,277 @@ app.post("/api/portal/bookings/:ref/assign", async (req, res) => {
     }).catch((err) => {
       console.error("Rider assignment email dispatch error:", err);
     });
+    kudiSmsService.sendRiderAssignmentSms({
+      riderPhone: rider.phone,
+      riderName: rider.name,
+      bookingRef: booking.ref,
+      pickupAddress: booking.pickupAddress,
+      deliveryAddress: booking.deliveryAddress,
+      senderName: booking.senderName,
+      senderPhone: booking.senderPhone,
+      receiverName: booking.receiverName,
+      receiverPhone: booking.receiverPhone,
+      packageDescription: booking.packageDescription || "Parcel",
+      dispatchNote: note || booking.deliveryInstructions,
+      portalUrl: `${process.env.APP_URL || "https://bbdmobility.com.ng"}/rider`
+    }).then((smsResult) => {
+      BookingModel.updateOne(
+        { ref: booking.ref },
+        {
+          $push: {
+            notificationLogs: {
+              channel: "sms",
+              recipientType: "rider",
+              recipientPhone: rider.phone,
+              subject: "SMS Rider Assignment Notice",
+              message: smsResult.messageText,
+              status: smsResult.success ? "sent" : "failed",
+              error: smsResult.error,
+              sentAt: /* @__PURE__ */ new Date()
+            }
+          }
+        }
+      ).exec();
+    }).catch((err) => {
+      console.error("[KudiSMS Error] Rider assignment SMS dispatch error:", err);
+    });
+    kudiSmsService.sendRiderAssignedToCustomerSms({
+      senderPhone: booking.senderPhone,
+      receiverPhone: booking.receiverPhone,
+      senderName: booking.senderName,
+      receiverName: booking.receiverName,
+      bookingRef: booking.ref,
+      riderName: rider.name,
+      riderPhone: rider.phone
+    }).catch((err) => {
+      console.error("[KudiSMS Error] Customer rider assignment SMS error:", err);
+    });
     createAdminNotification({
       title: "Rider Assigned & Notified",
-      message: `Booking ${booking.ref} assigned to courier ${rider.name} (${rider.riderId}). Email alert dispatched to ${rider.email}.`,
+      message: `Booking ${booking.ref} assigned to courier ${rider.name} (${rider.riderId}). SMS & email alerts dispatched.`,
       type: "rider",
       entityRef: booking.ref
     }).catch(() => {
     });
     return res.json({
       success: true,
-      message: `Assigned to ${rider.name}. Email notification alert dispatched to ${rider.email}.`,
+      message: `Assigned to ${rider.name}. SMS and email notification alerts dispatched.`,
       booking
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/portal/bookings/:ref/accept", async (req, res) => {
+  try {
+    const { ref } = req.params;
+    const { riderId } = req.body || {};
+    await connectToDatabase();
+    const booking = await BookingModel.findOne({ ref });
+    if (!booking) return res.status(404).json({ error: "Booking not found." });
+    if (riderId && booking.assignedRiderId && booking.assignedRiderId !== riderId) {
+      return res.status(403).json({ error: "You are not the designated courier rider for this booking." });
+    }
+    if (booking.status === "Delivered" || booking.status === "Cancelled") {
+      return res.status(400).json({ error: `Cannot accept a ${booking.status} delivery.` });
+    }
+    const now = /* @__PURE__ */ new Date();
+    booking.riderAccepted = true;
+    booking.riderAcceptedAt = now;
+    booking.status = "Accepted";
+    if (!booking.timeline) booking.timeline = {};
+    booking.timeline.accepted = now.toLocaleString();
+    booking.statusHistory.push({
+      fromStatus: "Assigned",
+      toStatus: "Accepted",
+      changedBy: booking.assignedRiderName || riderId || "Rider",
+      role: "Rider",
+      reason: "Rider accepted dispatch assignment and is en route to pickup",
+      timestamp: now
+    });
+    await booking.save();
+    await recordAuditLog({
+      actorId: riderId || booking.assignedRiderId || "RIDER",
+      actorName: booking.assignedRiderName || "Courier Rider",
+      actorRole: "Rider",
+      action: "RIDER_ACCEPTED_ASSIGNMENT",
+      affectedEntity: "Booking",
+      entityRef: ref,
+      metadata: { acceptedAt: now, riderId: booking.assignedRiderId },
+      ipAddress: req.ip
+    });
+    createAdminNotification({
+      title: "Rider Accepted Assignment",
+      message: `Rider ${booking.assignedRiderName || "Courier"} accepted assignment for booking ${booking.ref}. Proceeding to pickup.`,
+      type: "rider",
+      entityRef: booking.ref
+    }).catch(() => {
+    });
+    return res.json({
+      success: true,
+      message: `Assignment accepted for ${booking.ref}.`,
+      booking
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to accept assignment: " + err.message });
+  }
+});
+app.post("/api/portal/bookings/:ref/proof-of-pickup", async (req, res) => {
+  try {
+    const { ref } = req.params;
+    const { photo, riderId } = req.body || {};
+    if (!photo) {
+      return res.status(400).json({ error: "Pickup photo data is required." });
+    }
+    await connectToDatabase();
+    const booking = await BookingModel.findOne({ ref });
+    if (!booking) return res.status(404).json({ error: "Booking not found." });
+    if (riderId && booking.assignedRiderId && booking.assignedRiderId !== riderId) {
+      return res.status(403).json({ error: "You are not authorized for this booking." });
+    }
+    const uploadResult = await uploadToCloudinary(photo, "bbdmobility/proofs/pickup");
+    const now = /* @__PURE__ */ new Date();
+    booking.pickupPhoto = uploadResult.url;
+    booking.pickupPhotoUploadedAt = now;
+    booking.status = "Picked Up";
+    if (!booking.timeline) booking.timeline = {};
+    booking.timeline.pickedUp = now.toLocaleString();
+    booking.statusHistory.push({
+      fromStatus: booking.status,
+      toStatus: "Picked Up",
+      changedBy: booking.assignedRiderName || riderId || "Rider",
+      role: "Rider",
+      reason: "Proof of pickup photo uploaded to Cloudinary",
+      timestamp: now
+    });
+    await booking.save();
+    await recordAuditLog({
+      actorId: riderId || booking.assignedRiderId || "RIDER",
+      actorName: booking.assignedRiderName || "Courier Rider",
+      actorRole: "Rider",
+      action: "PROOF_OF_PICKUP_UPLOADED",
+      affectedEntity: "Booking",
+      entityRef: ref,
+      metadata: { photoUrl: uploadResult.url, uploadedAt: now },
+      ipAddress: req.ip
+    });
+    createAdminNotification({
+      title: "Item Picked Up (Photo Stored)",
+      message: `Rider ${booking.assignedRiderName || ""} uploaded proof of pickup photo for ${booking.ref}. Item is now in transit.`,
+      type: "booking",
+      entityRef: booking.ref
+    }).catch(() => {
+    });
+    kudiSmsService.sendPickupCustomerSms({
+      senderPhone: booking.senderPhone,
+      receiverPhone: booking.receiverPhone,
+      senderName: booking.senderName,
+      receiverName: booking.receiverName,
+      bookingRef: booking.ref,
+      riderName: booking.assignedRiderName || "Courier",
+      riderPhone: booking.assignedRiderPhone || "07087531148",
+      deliveryAddress: booking.deliveryAddress
+    }).then((results) => {
+      const logs = [];
+      if (results.senderResult) {
+        logs.push({
+          channel: "sms",
+          recipientType: "sender",
+          recipientPhone: booking.senderPhone,
+          subject: "SMS Item Picked Up Notice",
+          message: results.senderResult.messageText,
+          status: results.senderResult.success ? "sent" : "failed",
+          error: results.senderResult.error,
+          sentAt: /* @__PURE__ */ new Date()
+        });
+      }
+      if (results.receiverResult) {
+        logs.push({
+          channel: "sms",
+          recipientType: "receiver",
+          recipientPhone: booking.receiverPhone,
+          subject: "SMS Item In Transit Notice",
+          message: results.receiverResult.messageText,
+          status: results.receiverResult.success ? "sent" : "failed",
+          error: results.receiverResult.error,
+          sentAt: /* @__PURE__ */ new Date()
+        });
+      }
+      if (logs.length > 0) {
+        BookingModel.updateOne({ ref: booking.ref }, { $push: { notificationLogs: { $each: logs } } }).exec();
+      }
+    }).catch((err) => {
+      console.error("[KudiSMS Error] Pickup SMS notification error:", err);
+    });
+    return res.json({
+      success: true,
+      message: "Proof of pickup photo uploaded successfully.",
+      url: uploadResult.url,
+      booking
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to upload pickup photo: " + err.message });
+  }
+});
+app.post("/api/portal/bookings/:ref/proof-of-delivery", async (req, res) => {
+  try {
+    const { ref } = req.params;
+    const { photo, riderId } = req.body || {};
+    if (!photo) {
+      return res.status(400).json({ error: "Delivery photo data is required." });
+    }
+    await connectToDatabase();
+    const booking = await BookingModel.findOne({ ref });
+    if (!booking) return res.status(404).json({ error: "Booking not found." });
+    if (riderId && booking.assignedRiderId && booking.assignedRiderId !== riderId) {
+      return res.status(403).json({ error: "You are not authorized for this booking." });
+    }
+    const uploadResult = await uploadToCloudinary(photo, "bbdmobility/proofs/delivery");
+    const now = /* @__PURE__ */ new Date();
+    booking.deliveryPhoto = uploadResult.url;
+    booking.deliveryPhotoUploadedAt = now;
+    await booking.save();
+    await recordAuditLog({
+      actorId: riderId || booking.assignedRiderId || "RIDER",
+      actorName: booking.assignedRiderName || "Courier Rider",
+      actorRole: "Rider",
+      action: "PROOF_OF_DELIVERY_UPLOADED",
+      affectedEntity: "Booking",
+      entityRef: ref,
+      metadata: { photoUrl: uploadResult.url, uploadedAt: now },
+      ipAddress: req.ip
+    });
+    createAdminNotification({
+      title: "Proof of Delivery Photo Uploaded",
+      message: `Rider ${booking.assignedRiderName || ""} uploaded doorstep delivery proof photo for ${booking.ref}.`,
+      type: "booking",
+      entityRef: booking.ref
+    }).catch(() => {
+    });
+    return res.json({
+      success: true,
+      message: "Proof of delivery photo uploaded successfully.",
+      url: uploadResult.url,
+      booking
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to upload delivery photo: " + err.message });
+  }
+});
+app.post("/api/upload", async (req, res) => {
+  try {
+    const { image, folder } = req.body || {};
+    if (!image) {
+      return res.status(400).json({ error: "Image data is required." });
+    }
+    const uploadResult = await uploadToCloudinary(image, folder || "bbdmobility/uploads");
+    return res.json({
+      success: true,
+      url: uploadResult.url,
+      public_id: uploadResult.public_id
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Upload failed: " + err.message });
   }
 });
 app.post("/api/portal/bookings/:ref/status", async (req, res) => {
@@ -2304,7 +3134,7 @@ app.delete("/api/portal/bookings/:ref", async (req, res) => {
 app.post("/api/portal/bookings/:ref/verify-otp", async (req, res) => {
   try {
     const { ref } = req.params;
-    const { otp, riderId } = req.body;
+    const { otp, riderId, deliveryPhoto } = req.body;
     if (!otp || typeof otp !== "string" || otp.trim().length !== 6) {
       return res.status(400).json({ error: "A valid 6-digit OTP is required." });
     }
@@ -2348,7 +3178,17 @@ app.post("/api/portal/bookings/:ref/verify-otp", async (req, res) => {
     booking.otpVerifiedAt = now;
     booking.otpVerifiedByRiderId = riderId || booking.assignedRiderId;
     booking.status = "Delivered";
+    if (!booking.timeline) booking.timeline = {};
     booking.timeline.delivered = now.toLocaleString();
+    if (deliveryPhoto) {
+      try {
+        const uploadResult = await uploadToCloudinary(deliveryPhoto, "bbdmobility/proofs/delivery");
+        booking.deliveryPhoto = uploadResult.url;
+        booking.deliveryPhotoUploadedAt = now;
+      } catch (err) {
+        console.warn("[Cloudinary Delivery Photo Error during OTP]:", err.message);
+      }
+    }
     booking.statusHistory.push({
       fromStatus: booking.status,
       toStatus: "Delivered",
@@ -2380,6 +3220,44 @@ app.post("/api/portal/bookings/:ref/verify-otp", async (req, res) => {
       type: "booking",
       entityRef: booking.ref
     }).catch(() => {
+    });
+    kudiSmsService.sendDeliveryCompletedCustomerSms({
+      senderPhone: booking.senderPhone,
+      receiverPhone: booking.receiverPhone,
+      senderName: booking.senderName,
+      receiverName: booking.receiverName,
+      bookingRef: booking.ref
+    }).then((results) => {
+      const logs = [];
+      if (results.senderResult) {
+        logs.push({
+          channel: "sms",
+          recipientType: "sender",
+          recipientPhone: booking.senderPhone,
+          subject: "SMS Delivery Completed Notice",
+          message: results.senderResult.messageText,
+          status: results.senderResult.success ? "sent" : "failed",
+          error: results.senderResult.error,
+          sentAt: /* @__PURE__ */ new Date()
+        });
+      }
+      if (results.receiverResult) {
+        logs.push({
+          channel: "sms",
+          recipientType: "receiver",
+          recipientPhone: booking.receiverPhone,
+          subject: "SMS Delivery Completed Notice",
+          message: results.receiverResult.messageText,
+          status: results.receiverResult.success ? "sent" : "failed",
+          error: results.receiverResult.error,
+          sentAt: /* @__PURE__ */ new Date()
+        });
+      }
+      if (logs.length > 0) {
+        BookingModel.updateOne({ ref: booking.ref }, { $push: { notificationLogs: { $each: logs } } }).exec();
+      }
+    }).catch((err) => {
+      console.error("[KudiSMS Error] Delivery completed SMS notification error:", err);
     });
     return res.json({
       success: true,
@@ -2423,6 +3301,14 @@ app.post("/api/portal/bookings/:ref/admin-override-otp", async (req, res) => {
       metadata: { reason },
       ipAddress: req.ip
     });
+    kudiSmsService.sendDeliveryCompletedCustomerSms({
+      senderPhone: booking.senderPhone,
+      receiverPhone: booking.receiverPhone,
+      senderName: booking.senderName,
+      receiverName: booking.receiverName,
+      bookingRef: booking.ref
+    }).catch(() => {
+    });
     return res.json({ success: true, message: "Admin exception recorded. Delivery marked Delivered.", booking });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -2454,6 +3340,32 @@ app.post("/api/portal/bookings/:ref/resend-otp", async (req, res) => {
       rPhone: booking.receiverPhone,
       rEmail: booking.receiverEmail
     });
+    kudiSmsService.sendReceiverResendOtpSms({
+      receiverPhone: booking.receiverPhone,
+      receiverName: booking.receiverName,
+      bookingRef: ref,
+      otpCode: newOtp
+    }).then((smsRes) => {
+      BookingModel.updateOne(
+        { ref },
+        {
+          $push: {
+            notificationLogs: {
+              channel: "sms",
+              recipientType: "receiver",
+              recipientPhone: booking.receiverPhone,
+              subject: "SMS Resent Delivery OTP",
+              message: smsRes.messageText,
+              status: smsRes.success ? "sent" : "failed",
+              error: smsRes.error,
+              sentAt: /* @__PURE__ */ new Date()
+            }
+          }
+        }
+      ).exec();
+    }).catch((err) => {
+      console.error("[KudiSMS Error] Resend OTP SMS error:", err);
+    });
     await recordAuditLog({
       actorId: req.user?.userId || "ADMIN",
       actorName: req.user?.name || "Admin",
@@ -2463,7 +3375,7 @@ app.post("/api/portal/bookings/:ref/resend-otp", async (req, res) => {
       entityRef: ref,
       ipAddress: req.ip
     });
-    return res.json({ success: true, message: "New OTP generated and dispatched to receiver email." });
+    return res.json({ success: true, message: "New OTP generated and dispatched to receiver email and phone (SMS)." });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -3246,8 +4158,15 @@ app.post("/api/portal/riders", async (req, res) => {
       const found = await RiderModel.findOne({ riderId });
       if (!found) isUnique = true;
     }
-    const plainPassword = password && String(password).trim().length >= 6 ? String(password).trim() : `BBD@${Math.floor(1e3 + Math.random() * 9e3)}`;
-    const passHash = await hashPassword(plainPassword);
+    const inputPin = String(req.body.pin || req.body.password || "").trim();
+    let plainPin = "1234";
+    if (inputPin && /^\d{4}$/.test(inputPin)) {
+      plainPin = inputPin;
+    } else if (inputPin) {
+      const digits = inputPin.replace(/\D/g, "");
+      plainPin = digits.length >= 4 ? digits.slice(0, 4) : `${Math.floor(1e3 + Math.random() * 9e3)}`;
+    }
+    const passHash = await hashPassword(plainPin);
     const genPlate = plateNumber?.trim() || `BBD-${riderId.replace(/\D/g, "").slice(-3)}-LG`;
     const rider = await RiderModel.create({
       riderId,
@@ -3255,6 +4174,8 @@ app.post("/api/portal/riders", async (req, res) => {
       phone: cleanPhone,
       email: cleanEmail,
       passwordHash: passHash,
+      mustChangePin: true,
+      // Always true on registration so rider changes PIN on first login!
       status: "Active",
       isOnline: true,
       vehicleType: vehicleType && vehicleType !== "Select vehicle type" ? vehicleType : "Motorcycle",
@@ -3270,19 +4191,20 @@ app.post("/api/portal/riders", async (req, res) => {
       action: "RIDER_CREATED",
       affectedEntity: "Rider",
       entityRef: riderId,
-      metadata: { name: rider.name, phone: rider.phone, vehicle: rider.vehicleType, email: rider.email },
+      metadata: { name: rider.name, phone: rider.phone, vehicle: rider.vehicleType, email: rider.email, pin: plainPin },
       ipAddress: req.ip
     });
     return res.status(201).json({
       success: true,
-      message: `Courier Rider ${rider.name} registered successfully.`,
+      message: `Courier Rider ${rider.name} registered with 4-digit PIN ${plainPin}.`,
       rider,
       credentials: {
         riderId: rider.riderId,
         name: rider.name,
         email: rider.email,
         phone: rider.phone,
-        password: plainPassword,
+        pin: plainPin,
+        password: plainPin,
         loginUrl: "/rider"
       }
     });
@@ -3340,20 +4262,21 @@ app.delete("/api/portal/riders/:id", async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
-app.post("/api/portal/riders/:id/change-password", async (req, res) => {
+var handleAdminRiderPinReset = async (req, res) => {
   try {
     const { id } = req.params;
-    const { password } = req.body || {};
-    if (!password || String(password).trim().length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters long." });
+    const { pin, password } = req.body || {};
+    const inputPin = String(pin || password || "").trim();
+    if (!inputPin || !/^\d{4}$/.test(inputPin)) {
+      return res.status(400).json({ error: "Rider PIN must be exactly 4 numeric digits (e.g. 1234)." });
     }
     await connectToDatabase();
     const isObjectId = mongoose2.isValidObjectId(id);
     const query = isObjectId ? { $or: [{ riderId: id }, { _id: id }] } : { riderId: id };
-    const passHash = await hashPassword(String(password).trim());
+    const passHash = await hashPassword(inputPin);
     const rider = await RiderModel.findOneAndUpdate(
       query,
-      { $set: { passwordHash: passHash } },
+      { $set: { passwordHash: passHash, mustChangePin: true, pinChangedAt: /* @__PURE__ */ new Date() } },
       { new: true }
     );
     if (!rider) return res.status(404).json({ error: "Rider not found." });
@@ -3361,21 +4284,25 @@ app.post("/api/portal/riders/:id/change-password", async (req, res) => {
       actorId: req.user?.userId || "ADMIN",
       actorName: req.user?.name || "Admin",
       actorRole: "Admin",
-      action: "RIDER_PASSWORD_CHANGED",
+      action: "RIDER_PIN_RESET_BY_ADMIN",
       affectedEntity: "Rider",
       entityRef: rider.riderId,
+      metadata: { pin: inputPin },
       ipAddress: req.ip
     });
     return res.json({
       success: true,
-      message: `Password for rider ${rider.name} updated successfully.`,
-      password: String(password).trim(),
+      message: `4-digit PIN for rider ${rider.name} updated to ${inputPin}. Rider will be required to change it on next login.`,
+      pin: inputPin,
+      password: inputPin,
       rider
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
-});
+};
+app.post("/api/portal/riders/:id/change-password", handleAdminRiderPinReset);
+app.post("/api/portal/riders/:id/change-pin", handleAdminRiderPinReset);
 app.get("/api/portal/rider/me/deliveries", async (req, res) => {
   try {
     const riderId = req.query.riderId || req.user?.riderId || "RID-2026-007";
@@ -3421,6 +4348,18 @@ app.put("/api/portal/settings", async (req, res) => {
     await connectToDatabase();
     const updated = await SettingsModel.findOneAndUpdate({}, { $set: req.body }, { upsert: true, new: true });
     return res.json({ success: true, settings: updated });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/portal/kudisms/status", async (_req, res) => {
+  try {
+    const status = await kudiSmsService.checkSenderIdStatus();
+    return res.json({
+      success: true,
+      senderId: process.env.KUDISMS_SENDER_ID || "BBDMobility",
+      ...status
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

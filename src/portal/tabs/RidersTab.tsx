@@ -84,18 +84,18 @@ export const RidersTab: React.FC<RidersTabProps> = ({
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const handleAutoGenerateNewPassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789#$';
-    let pass = 'BBD@';
-    for (let i = 0; i < 6; i++) {
-      pass += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setNewPasswordVal(pass);
+    const randPin = `${Math.floor(1000 + Math.random() * 9000)}`;
+    setNewPasswordVal(randPin);
     setShowNewPassword(true);
   };
 
   const handleSaveNewPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passwordRider || !newPasswordVal) return;
+    if (newPasswordVal.length !== 4 || !/^\d{4}$/.test(newPasswordVal)) {
+      onShowToast('PIN must be exactly 4 numeric digits (e.g. 1234).');
+      return;
+    }
     setIsUpdatingPassword(true);
     try {
       if (onChangeRiderPassword) {
@@ -128,14 +128,10 @@ export const RidersTab: React.FC<RidersTabProps> = ({
   };
 
   const handleGeneratePassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789#$';
-    let pass = 'BBD@';
-    for (let i = 0; i < 6; i++) {
-      pass += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setPassword(pass);
+    const randPin = `${Math.floor(1000 + Math.random() * 9000)}`;
+    setPassword(randPin);
     setShowPassword(true);
-    onShowToast('Secure temporary password generated.');
+    onShowToast('Initial 4-digit PIN generated.');
   };
 
   const copyToClipboard = (text: string, fieldName: string) => {
@@ -154,14 +150,14 @@ Your official Courier Rider Account is now activated. Please find your login det
 
 • *Rider ID:* ${createdCredentials.riderId}
 • *Login Portal:* ${portalUrl}
-• *Login Username:* ${createdCredentials.riderId} (or ${createdCredentials.phone})
-• *Password:* ${createdCredentials.password || '(use existing)'}
+• *Login Identifier:* ${createdCredentials.riderId} (or ${createdCredentials.phone})
+• *Initial 4-Digit PIN:* ${createdCredentials.password || '1234'}
 
 *Next Steps:*
 1. Open the portal: ${portalUrl}
-2. Log in using your Rider ID and Password.
-3. Keep your phone active to receive assigned pickups and deliveries.
-4. Always request and verify the receiver's 6-digit OTP before completing delivery.
+2. Log in using your Rider ID and the 4-digit PIN above.
+3. You will be prompted to set your own desired 4-digit PIN on first login.
+4. Always request and verify the receiver's Delivery Passkey upon arrival.
 
 Dispatch Support Hotline: 0708 753 1148`;
 
@@ -641,7 +637,7 @@ Dispatch Support Hotline: 0708 753 1148`;
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[11px] font-bold text-gray-700">Password</label>
+                  <label className="block text-[11px] font-bold text-gray-700">Initial 4-Digit Login PIN *</label>
                   <button
                     type="button"
                     onClick={handleGeneratePassword}
@@ -654,10 +650,12 @@ Dispatch Support Hotline: 0708 753 1148`;
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    inputMode="numeric"
+                    maxLength={4}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter or auto-generate password"
-                    className="w-full px-3 py-2 pr-9 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-mono"
+                    onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="e.g. 1234"
+                    className="w-full px-3 py-2 pr-9 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-mono text-sm tracking-widest font-bold"
                   />
                   <button
                     type="button"
@@ -668,7 +666,7 @@ Dispatch Support Hotline: 0708 753 1148`;
                   </button>
                 </div>
                 <p className="text-[10px] text-gray-400 mt-1">
-                  Rider uses this password to log in at /rider. If left blank, a secure password is generated automatically.
+                  Admin sets this initial 4-digit PIN. Rider will be prompted to set their own desired PIN on first login.
                 </p>
               </div>
 
@@ -827,24 +825,28 @@ Dispatch Support Hotline: 0708 753 1148`;
               <div className="flex items-center justify-between pt-1">
                 <span className="text-gray-500 font-semibold flex items-center gap-1.5">
                   <Key className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Temporary Password</span>
+                  <span>Initial 4-Digit PIN</span>
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg text-sm">
-                    {createdCredentials.password || '••••••••'}
+                  <span className="font-mono font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg text-sm tracking-widest">
+                    {createdCredentials.password || '1234'}
                   </span>
                   {createdCredentials.password && (
                     <button
-                      onClick={() => copyToClipboard(createdCredentials.password || '', 'Password')}
+                      onClick={() => copyToClipboard(createdCredentials.password || '', 'Initial PIN')}
                       className="p-1.5 text-gray-500 hover:text-bbd-navy bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
-                      title="Copy Password"
+                      title="Copy 4-Digit PIN"
                     >
-                      {copiedField === 'Password' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedField === 'Initial PIN' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   )}
                 </div>
               </div>
             </div>
+
+            <p className="text-[11px] text-gray-500 italic mb-4">
+              * The rider will be prompted to change this initial PIN to their own desired 4-digit PIN upon first login.
+            </p>
 
             {/* Quick Dispatch Copy Button */}
             <div className="space-y-2.5">
@@ -888,7 +890,7 @@ Dispatch Support Hotline: 0708 753 1148`;
                 <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-full font-mono">
                   {passwordRider.riderId}
                 </span>
-                <h3 className="text-base font-black text-gray-900 mt-0.5">Change Rider Password</h3>
+                <h3 className="text-base font-black text-gray-900 mt-0.5">Reset Rider 4-Digit PIN</h3>
               </div>
             </div>
 
@@ -897,13 +899,13 @@ Dispatch Support Hotline: 0708 753 1148`;
                 <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200/80 text-xs text-emerald-800 space-y-2">
                   <div className="flex items-center gap-2 font-bold text-emerald-900">
                     <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    <span>Password Updated in Database!</span>
+                    <span>4-Digit PIN Updated in Database!</span>
                   </div>
-                  <p>New credentials are saved for {updatedPasswordResult.name}.</p>
-                  <div className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-emerald-200 mt-2 font-mono text-sm font-bold text-gray-900">
+                  <p>New 4-digit PIN saved for {updatedPasswordResult.name}. Rider must set their own PIN upon next login.</p>
+                  <div className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-emerald-200 mt-2 font-mono text-base font-black text-gray-900 tracking-widest">
                     <span>{updatedPasswordResult.password}</span>
                     <button
-                      onClick={() => copyToClipboard(updatedPasswordResult.password, 'New Password')}
+                      onClick={() => copyToClipboard(updatedPasswordResult.password, '4-Digit PIN')}
                       className="p-1 text-gray-500 hover:text-bbd-navy"
                     >
                       <Copy className="w-4 h-4" />
@@ -914,7 +916,7 @@ Dispatch Support Hotline: 0708 753 1148`;
                 <button
                   onClick={() => {
                     const portalUrl = `${window.location.origin}/rider`;
-                    const msg = `🚴 *BBD MOBILITY — PASSWORD UPDATED*\n\nHello ${updatedPasswordResult.name},\nYour courier rider portal password has been reset by dispatch administration:\n\n• Rider ID: ${updatedPasswordResult.riderId}\n• Login Portal: ${portalUrl}\n• New Password: ${updatedPasswordResult.password}\n\nPlease login and keep your deliveries up to date.\nHotline: 0708 753 1148`;
+                    const msg = `🚴 *BBD MOBILITY — 4-DIGIT PIN RESET*\n\nHello ${updatedPasswordResult.name},\nYour courier rider portal PIN has been reset by dispatch administration:\n\n• Rider ID: ${updatedPasswordResult.riderId}\n• Login Portal: ${portalUrl}\n• New Initial PIN: ${updatedPasswordResult.password}\n\nPlease log in at /rider and set your desired 4-digit PIN upon entry.\nHotline: 0708 753 1148`;
                     navigator.clipboard.writeText(msg);
                     onShowToast('WhatsApp message copied to clipboard!');
                   }}
@@ -936,13 +938,13 @@ Dispatch Support Hotline: 0708 753 1148`;
               </div>
             ) : (
               <form onSubmit={handleSaveNewPassword} className="space-y-4">
-                <p className="text-xs text-gray-500">
-                  Update the login password for <strong className="text-gray-900">{passwordRider.name}</strong>. Rider can log in using this new password immediately at <code className="bg-slate-100 px-1 py-0.5 rounded text-[11px]">/rider</code>.
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Reset the 4-digit login PIN for <strong className="text-gray-900">{passwordRider.name}</strong>. The rider will use this PIN to log in at <code className="bg-slate-100 px-1 py-0.5 rounded text-[11px]">/rider</code> and will be prompted to set their own desired PIN immediately.
                 </p>
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-[11px] font-bold text-gray-700">New Password *</label>
+                    <label className="block text-[11px] font-bold text-gray-700">New 4-Digit PIN *</label>
                     <button
                       type="button"
                       onClick={handleAutoGenerateNewPassword}
@@ -955,11 +957,13 @@ Dispatch Support Hotline: 0708 753 1148`;
                   <div className="relative">
                     <input
                       type={showNewPassword ? 'text' : 'password'}
+                      inputMode="numeric"
+                      maxLength={4}
                       required
                       value={newPasswordVal}
-                      onChange={(e) => setNewPasswordVal(e.target.value)}
-                      placeholder="Minimum 6 characters"
-                      className="w-full px-3 py-2 pr-9 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-mono text-xs"
+                      onChange={(e) => setNewPasswordVal(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      placeholder="e.g. 1234"
+                      className="w-full px-3 py-2.5 pr-9 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-mono text-sm tracking-widest font-black"
                     />
                     <button
                       type="button"
@@ -981,18 +985,18 @@ Dispatch Support Hotline: 0708 753 1148`;
                   </button>
                   <button
                     type="submit"
-                    disabled={isUpdatingPassword || !newPasswordVal}
+                    disabled={isUpdatingPassword || newPasswordVal.length !== 4}
                     className="flex-1 py-2.5 px-4 bg-[#0B1B3D] hover:bg-[#07132c] disabled:opacity-60 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all"
                   >
                     {isUpdatingPassword ? (
                       <>
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Updating...</span>
+                        <span>Updating PIN...</span>
                       </>
                     ) : (
                       <>
                         <KeyRound className="w-3.5 h-3.5" />
-                        <span>Save Password</span>
+                        <span>Save 4-Digit PIN</span>
                       </>
                     )}
                   </button>
