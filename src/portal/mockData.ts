@@ -28,6 +28,7 @@ export const INITIAL_SETTINGS: GeneralSettings = {
   deliveryRadiusKm: 50,
   maxDeliveryTimeMinutes: 180,
   defaultServiceType: 'Standard Delivery',
+  riderCommissionPercent: 25,
   notifications: {
     newBookings: true,
     payments: true,

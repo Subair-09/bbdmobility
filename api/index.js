@@ -66,13 +66,13 @@ var BookingSchema = new Schema({
   ref: { type: String, required: true, unique: true, index: true },
   senderName: { type: String, required: true },
   senderPhone: { type: String, required: true },
-  senderEmail: { type: String, required: true },
+  senderEmail: { type: String, required: false, default: "" },
   pickupAddress: { type: String, required: true },
   pickupArea: { type: String },
   pickupInstructions: { type: String },
   receiverName: { type: String, required: true },
   receiverPhone: { type: String, required: true },
-  receiverEmail: { type: String, required: true },
+  receiverEmail: { type: String, required: false, default: "" },
   deliveryAddress: { type: String, required: true },
   deliveryArea: { type: String },
   deliveryInstructions: { type: String },
@@ -88,6 +88,10 @@ var BookingSchema = new Schema({
   totalAmount: { type: Number, required: true, default: 5e3 },
   totalPaid: { type: Number, default: 0 },
   outstandingBalance: { type: Number, required: true, default: 5e3 },
+  // Commission & Rider Earnings Breakdown
+  commissionPercent: { type: Number, default: 25 },
+  companyCommission: { type: Number, default: 0 },
+  riderEarnings: { type: Number, default: 0 },
   paymentStatus: {
     type: String,
     enum: ["Unpaid", "Partially Paid", "Paid", "Overpaid", "Refunded"],
@@ -256,6 +260,7 @@ var SettingsSchema = new Schema({
   deliveryRadiusKm: { type: Number, default: 50 },
   maxDeliveryTimeMinutes: { type: Number, default: 180 },
   defaultServiceType: { type: String, default: "Standard Delivery" },
+  riderCommissionPercent: { type: Number, default: 25 },
   notifications: {
     newBookings: { type: Boolean, default: true },
     payments: { type: Boolean, default: true },
@@ -326,6 +331,7 @@ var INITIAL_SETTINGS = {
   deliveryRadiusKm: 50,
   maxDeliveryTimeMinutes: 180,
   defaultServiceType: "Standard Delivery",
+  riderCommissionPercent: 25,
   notifications: {
     newBookings: true,
     payments: true,
@@ -2440,10 +2446,10 @@ app.post("/api/bookings", async (req, res) => {
     if (!dLoc || dLoc.length < 3) return res.status(400).json({ error: "Please enter a valid drop-off address." });
     if (!sName) return res.status(400).json({ error: "Please provide sender name." });
     if (!sPhone || sPhone.length < 6) return res.status(400).json({ error: "Please provide a valid sender phone number." });
-    if (!sEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sEmail)) return res.status(400).json({ error: "Please provide a valid sender email." });
+    if (sEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sEmail)) return res.status(400).json({ error: "Please provide a valid sender email." });
     if (!rName) return res.status(400).json({ error: "Please provide receiver name." });
     if (!rPhone || rPhone.length < 6) return res.status(400).json({ error: "Please provide a valid receiver phone number." });
-    if (!rEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rEmail)) return res.status(400).json({ error: "Please provide a valid receiver email." });
+    if (rEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rEmail)) return res.status(400).json({ error: "Please provide a valid receiver email." });
     const calculatedFee = calculateDeliveryFee(sType, 1.5);
     const bookingRef = generateBookingReference();
     const { code: rawOtp, hash: otpHash, expiresAt: otpExpiresAt } = generateDeliveryOtp(bookingRef);
@@ -2456,15 +2462,19 @@ app.post("/api/bookings", async (req, res) => {
         error: "Database connection temporarily unavailable. Please verify your MongoDB Atlas Network Access allows connections from anywhere (0.0.0.0/0)."
       });
     }
+    const settingsDoc = await SettingsModel.findOne().lean().catch(() => null);
+    const commPercent = typeof settingsDoc?.riderCommissionPercent === "number" ? settingsDoc.riderCommissionPercent : 25;
+    const companyCut = Math.round(calculatedFee * (commPercent / 100));
+    const riderNetPayout = Math.max(0, calculatedFee - companyCut);
     const newBooking = await BookingModel.create({
       ref: bookingRef,
       senderName: sName,
       senderPhone: sPhone,
-      senderEmail: sEmail,
+      senderEmail: sEmail || "",
       pickupAddress: pLoc,
       receiverName: rName,
       receiverPhone: rPhone,
-      receiverEmail: rEmail,
+      receiverEmail: rEmail || "",
       deliveryAddress: dLoc,
       deliveryInstructions: instructions,
       serviceType: sType,
@@ -2479,6 +2489,9 @@ app.post("/api/bookings", async (req, res) => {
       paymentStatus: "Unpaid",
       paymentMethod: "Cash",
       status: "New Booking",
+      commissionPercent: commPercent,
+      companyCommission: companyCut,
+      riderEarnings: riderNetPayout,
       otpHash,
       otpExpiresAt,
       otpAttempts: 0,
@@ -2522,8 +2535,8 @@ app.post("/api/bookings", async (req, res) => {
     };
     (async () => {
       const results = await Promise.allSettled([
-        emailService.sendSenderConfirmation(emailPayload),
-        emailService.sendReceiverDeliveryNotice({ ...emailPayload, otpCode: rawOtp }),
+        sEmail ? emailService.sendSenderConfirmation(emailPayload) : Promise.resolve({ success: true, skipped: true }),
+        rEmail ? emailService.sendReceiverDeliveryNotice({ ...emailPayload, otpCode: rawOtp }) : Promise.resolve({ success: true, skipped: true }),
         kudiSmsService.sendBookingSenderSms({
           senderPhone: sPhone,
           senderName: sName,
@@ -2550,13 +2563,17 @@ app.post("/api/bookings", async (req, res) => {
       ]);
       const logs = [];
       const [senderEmailRes, receiverEmailRes, senderSmsRes, receiverSmsRes] = results;
-      if (senderEmailRes.status === "fulfilled") {
+      if (sEmail && senderEmailRes.status === "fulfilled") {
         const val = senderEmailRes.value;
-        logs.push({ channel: "email", recipientType: "sender", recipientEmail: sEmail, subject: "Booking Confirmation", status: val.success ? "sent" : "failed", error: val.error, sentAt: /* @__PURE__ */ new Date() });
+        if (!val.skipped) {
+          logs.push({ channel: "email", recipientType: "sender", recipientEmail: sEmail, subject: "Booking Confirmation", status: val.success ? "sent" : "failed", error: val.error, sentAt: /* @__PURE__ */ new Date() });
+        }
       }
-      if (receiverEmailRes.status === "fulfilled") {
+      if (rEmail && receiverEmailRes.status === "fulfilled") {
         const val = receiverEmailRes.value;
-        logs.push({ channel: "email", recipientType: "receiver", recipientEmail: rEmail, subject: "Delivery Notice & OTP", status: val.success ? "sent" : "failed", error: val.error, sentAt: /* @__PURE__ */ new Date() });
+        if (!val.skipped) {
+          logs.push({ channel: "email", recipientType: "receiver", recipientEmail: rEmail, subject: "Delivery Notice & OTP", status: val.success ? "sent" : "failed", error: val.error, sentAt: /* @__PURE__ */ new Date() });
+        }
       }
       if (senderSmsRes.status === "fulfilled") {
         const val = senderSmsRes.value;
@@ -3233,6 +3250,14 @@ app.post("/api/portal/bookings/:ref/verify-otp", async (req, res) => {
     booking.status = "Delivered";
     if (!booking.timeline) booking.timeline = {};
     booking.timeline.delivered = now.toLocaleString();
+    const settingsDoc = await SettingsModel.findOne().lean().catch(() => null);
+    const commPercent = typeof booking.commissionPercent === "number" ? booking.commissionPercent : typeof settingsDoc?.riderCommissionPercent === "number" ? settingsDoc.riderCommissionPercent : 25;
+    const fee = Number(booking.totalAmount || booking.deliveryFee || 4e3);
+    const companyCut = Math.round(fee * (commPercent / 100));
+    const riderNetPayout = Math.max(0, fee - companyCut);
+    booking.commissionPercent = commPercent;
+    booking.companyCommission = companyCut;
+    booking.riderEarnings = riderNetPayout;
     if (deliveryPhoto) {
       try {
         const uploadResult = await uploadToCloudinary(deliveryPhoto, "bbdmobility/proofs/delivery");
@@ -3247,14 +3272,14 @@ app.post("/api/portal/bookings/:ref/verify-otp", async (req, res) => {
       toStatus: "Delivered",
       changedBy: riderId ? `Rider ${riderId}` : "Rider OTP Doorstep Verification",
       role: "Rider",
-      reason: "Recipient handed over correct 6-digit OTP code",
+      reason: `Recipient handed over correct 6-digit OTP code (Net payout: \u20A6${riderNetPayout.toLocaleString()} after ${commPercent}% deduction)`,
       timestamp: now
     });
     await booking.save();
     if (booking.assignedRiderId) {
       await RiderModel.updateOne(
         { riderId: booking.assignedRiderId },
-        { $inc: { completedDeliveries: 1, totalEarnings: 1500 } }
+        { $inc: { completedDeliveries: 1, totalEarnings: riderNetPayout } }
       );
     }
     await recordAuditLog({
@@ -3335,15 +3360,29 @@ app.post("/api/portal/bookings/:ref/admin-override-otp", async (req, res) => {
     booking.status = "Delivered";
     booking.timeline.delivered = now.toLocaleString();
     booking.isOtpUsed = true;
+    const settingsDoc = await SettingsModel.findOne().lean().catch(() => null);
+    const commPercent = typeof booking.commissionPercent === "number" ? booking.commissionPercent : typeof settingsDoc?.riderCommissionPercent === "number" ? settingsDoc.riderCommissionPercent : 25;
+    const fee = Number(booking.totalAmount || booking.deliveryFee || 4e3);
+    const companyCut = Math.round(fee * (commPercent / 100));
+    const riderNetPayout = Math.max(0, fee - companyCut);
+    booking.commissionPercent = commPercent;
+    booking.companyCommission = companyCut;
+    booking.riderEarnings = riderNetPayout;
     booking.statusHistory.push({
       fromStatus: booking.status,
       toStatus: "Delivered",
       changedBy: adminName || req.user?.name || "Administrator",
       role: "Admin",
-      reason: `ADMIN MANUAL EXCEPTION OVERRIDE: ${reason}`,
+      reason: `ADMIN MANUAL EXCEPTION OVERRIDE: ${reason} (Net payout: \u20A6${riderNetPayout.toLocaleString()} after ${commPercent}% deduction)`,
       timestamp: now
     });
     await booking.save();
+    if (booking.assignedRiderId) {
+      await RiderModel.updateOne(
+        { riderId: booking.assignedRiderId },
+        { $inc: { completedDeliveries: 1, totalEarnings: riderNetPayout } }
+      );
+    }
     await recordAuditLog({
       actorId: req.user?.userId || "ADMIN",
       actorName: adminName || "Admin",
@@ -4390,7 +4429,14 @@ app.get("/api/portal/audit-logs", async (req, res) => {
 app.get("/api/portal/settings", async (_req, res) => {
   try {
     await connectToDatabase();
-    const settings = await SettingsModel.findOne().lean();
+    let settings = await SettingsModel.findOne().lean();
+    if (!settings) {
+      const created = await SettingsModel.create({ riderCommissionPercent: 25 });
+      settings = created.toObject();
+    } else if (settings.riderCommissionPercent === void 0) {
+      await SettingsModel.updateOne({ _id: settings._id }, { $set: { riderCommissionPercent: 25 } });
+      settings.riderCommissionPercent = 25;
+    }
     return res.json(settings);
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -4399,7 +4445,15 @@ app.get("/api/portal/settings", async (_req, res) => {
 app.put("/api/portal/settings", async (req, res) => {
   try {
     await connectToDatabase();
-    const updated = await SettingsModel.findOneAndUpdate({}, { $set: req.body }, { upsert: true, new: true });
+    const payload = { ...req.body };
+    if (payload.riderCommissionPercent !== void 0) {
+      const parsed = Number(payload.riderCommissionPercent);
+      if (isNaN(parsed) || parsed < 0 || parsed > 100) {
+        return res.status(400).json({ error: "Rider commission percentage must be between 0 and 100." });
+      }
+      payload.riderCommissionPercent = parsed;
+    }
+    const updated = await SettingsModel.findOneAndUpdate({}, { $set: payload }, { upsert: true, new: true });
     return res.json({ success: true, settings: updated });
   } catch (err) {
     return res.status(500).json({ error: err.message });

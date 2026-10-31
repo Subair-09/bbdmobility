@@ -48,7 +48,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ bookings, onShowToast })
     const cur = riderMap.get(name) || { deliveries: 0, earnings: 0 };
     riderMap.set(name, {
       deliveries: cur.deliveries + 1,
-      earnings: cur.earnings + Number(b.amount || (b as any).totalAmount || 0)
+      earnings: cur.earnings + (b.riderEarnings !== undefined ? Number(b.riderEarnings) : Math.round(Number(b.amount || (b as any).totalAmount || 0) * 0.75))
     });
   });
 

@@ -467,10 +467,11 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
     if (!dLoc || dLoc.length < 3) return res.status(400).json({ error: 'Please enter a valid drop-off address.' });
     if (!sName) return res.status(400).json({ error: 'Please provide sender name.' });
     if (!sPhone || sPhone.length < 6) return res.status(400).json({ error: 'Please provide a valid sender phone number.' });
-    if (!sEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sEmail)) return res.status(400).json({ error: 'Please provide a valid sender email.' });
+    // Email is OPTIONAL: validate format only if provided
+    if (sEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sEmail)) return res.status(400).json({ error: 'Please provide a valid sender email.' });
     if (!rName) return res.status(400).json({ error: 'Please provide receiver name.' });
     if (!rPhone || rPhone.length < 6) return res.status(400).json({ error: 'Please provide a valid receiver phone number.' });
-    if (!rEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rEmail)) return res.status(400).json({ error: 'Please provide a valid receiver email.' });
+    if (rEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rEmail)) return res.status(400).json({ error: 'Please provide a valid receiver email.' });
 
     // Server-side pricing calculation (never trust client amounts)
     const calculatedFee = calculateDeliveryFee(sType, 1.5);
@@ -490,16 +491,24 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
       });
     }
 
+    // Retrieve active company commission deduction rate from Settings (default 25%)
+    const settingsDoc = await SettingsModel.findOne().lean().catch(() => null);
+    const commPercent = typeof settingsDoc?.riderCommissionPercent === 'number'
+      ? settingsDoc.riderCommissionPercent
+      : 25;
+    const companyCut = Math.round(calculatedFee * (commPercent / 100));
+    const riderNetPayout = Math.max(0, calculatedFee - companyCut);
+
     // 1. Save permanently in MongoDB
     const newBooking = await BookingModel.create({
       ref: bookingRef,
       senderName: sName,
       senderPhone: sPhone,
-      senderEmail: sEmail,
+      senderEmail: sEmail || '',
       pickupAddress: pLoc,
       receiverName: rName,
       receiverPhone: rPhone,
-      receiverEmail: rEmail,
+      receiverEmail: rEmail || '',
       deliveryAddress: dLoc,
       deliveryInstructions: instructions,
       serviceType: sType,
@@ -514,6 +523,9 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
       paymentStatus: 'Unpaid',
       paymentMethod: 'Cash',
       status: 'New Booking',
+      commissionPercent: commPercent,
+      companyCommission: companyCut,
+      riderEarnings: riderNetPayout,
       otpHash,
       otpExpiresAt,
       otpAttempts: 0,
@@ -562,8 +574,8 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
     // Concurrent High-Speed Notification Pipeline (All channels dispatch in parallel)
     (async () => {
       const results = await Promise.allSettled([
-        emailService.sendSenderConfirmation(emailPayload),
-        emailService.sendReceiverDeliveryNotice({ ...emailPayload, otpCode: rawOtp }),
+        sEmail ? emailService.sendSenderConfirmation(emailPayload) : Promise.resolve({ success: true, skipped: true } as any),
+        rEmail ? emailService.sendReceiverDeliveryNotice({ ...emailPayload, otpCode: rawOtp }) : Promise.resolve({ success: true, skipped: true } as any),
         kudiSmsService.sendBookingSenderSms({
           senderPhone: sPhone,
           senderName: sName,
@@ -592,13 +604,17 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
       const logs: any[] = [];
       const [senderEmailRes, receiverEmailRes, senderSmsRes, receiverSmsRes] = results;
 
-      if (senderEmailRes.status === 'fulfilled') {
-        const val = senderEmailRes.value;
-        logs.push({ channel: 'email', recipientType: 'sender', recipientEmail: sEmail, subject: 'Booking Confirmation', status: val.success ? 'sent' : 'failed', error: val.error, sentAt: new Date() });
+      if (sEmail && senderEmailRes.status === 'fulfilled') {
+        const val: any = senderEmailRes.value;
+        if (!val.skipped) {
+          logs.push({ channel: 'email', recipientType: 'sender', recipientEmail: sEmail, subject: 'Booking Confirmation', status: val.success ? 'sent' : 'failed', error: val.error, sentAt: new Date() });
+        }
       }
-      if (receiverEmailRes.status === 'fulfilled') {
-        const val = receiverEmailRes.value;
-        logs.push({ channel: 'email', recipientType: 'receiver', recipientEmail: rEmail, subject: 'Delivery Notice & OTP', status: val.success ? 'sent' : 'failed', error: val.error, sentAt: new Date() });
+      if (rEmail && receiverEmailRes.status === 'fulfilled') {
+        const val: any = receiverEmailRes.value;
+        if (!val.skipped) {
+          logs.push({ channel: 'email', recipientType: 'receiver', recipientEmail: rEmail, subject: 'Delivery Notice & OTP', status: val.success ? 'sent' : 'failed', error: val.error, sentAt: new Date() });
+        }
       }
       if (senderSmsRes.status === 'fulfilled') {
         const val = senderSmsRes.value;
@@ -1405,6 +1421,19 @@ app.post('/api/portal/bookings/:ref/verify-otp', async (req: Request, res: Respo
     if (!booking.timeline) booking.timeline = {};
     booking.timeline.delivered = now.toLocaleString();
 
+    // Calculate commission deduction & rider net earnings
+    const settingsDoc = await SettingsModel.findOne().lean().catch(() => null);
+    const commPercent = typeof booking.commissionPercent === 'number'
+      ? booking.commissionPercent
+      : (typeof settingsDoc?.riderCommissionPercent === 'number' ? settingsDoc.riderCommissionPercent : 25);
+    const fee = Number(booking.totalAmount || booking.deliveryFee || 4000);
+    const companyCut = Math.round(fee * (commPercent / 100));
+    const riderNetPayout = Math.max(0, fee - companyCut);
+
+    booking.commissionPercent = commPercent;
+    booking.companyCommission = companyCut;
+    booking.riderEarnings = riderNetPayout;
+
     // If delivery proof photo was supplied during OTP verification, upload to Cloudinary
     if (deliveryPhoto) {
       try {
@@ -1421,17 +1450,17 @@ app.post('/api/portal/bookings/:ref/verify-otp', async (req: Request, res: Respo
       toStatus: 'Delivered',
       changedBy: riderId ? `Rider ${riderId}` : 'Rider OTP Doorstep Verification',
       role: 'Rider',
-      reason: 'Recipient handed over correct 6-digit OTP code',
+      reason: `Recipient handed over correct 6-digit OTP code (Net payout: ₦${riderNetPayout.toLocaleString()} after ${commPercent}% deduction)`,
       timestamp: now,
     });
 
     await booking.save();
 
-    // Increment rider completed count
+    // Increment rider completed count and rider net earnings after company deduction
     if (booking.assignedRiderId) {
       await RiderModel.updateOne(
         { riderId: booking.assignedRiderId },
-        { $inc: { completedDeliveries: 1, totalEarnings: 1500 } }
+        { $inc: { completedDeliveries: 1, totalEarnings: riderNetPayout } }
       );
     }
 
@@ -1521,16 +1550,38 @@ app.post('/api/portal/bookings/:ref/admin-override-otp', async (req: Request, re
     booking.status = 'Delivered';
     booking.timeline.delivered = now.toLocaleString();
     booking.isOtpUsed = true;
+
+    // Calculate commission deduction & rider net earnings
+    const settingsDoc = await SettingsModel.findOne().lean().catch(() => null);
+    const commPercent = typeof booking.commissionPercent === 'number'
+      ? booking.commissionPercent
+      : (typeof settingsDoc?.riderCommissionPercent === 'number' ? settingsDoc.riderCommissionPercent : 25);
+    const fee = Number(booking.totalAmount || booking.deliveryFee || 4000);
+    const companyCut = Math.round(fee * (commPercent / 100));
+    const riderNetPayout = Math.max(0, fee - companyCut);
+
+    booking.commissionPercent = commPercent;
+    booking.companyCommission = companyCut;
+    booking.riderEarnings = riderNetPayout;
+
     booking.statusHistory.push({
       fromStatus: booking.status,
       toStatus: 'Delivered',
       changedBy: adminName || req.user?.name || 'Administrator',
       role: 'Admin',
-      reason: `ADMIN MANUAL EXCEPTION OVERRIDE: ${reason}`,
+      reason: `ADMIN MANUAL EXCEPTION OVERRIDE: ${reason} (Net payout: ₦${riderNetPayout.toLocaleString()} after ${commPercent}% deduction)`,
       timestamp: now,
     });
 
     await booking.save();
+
+    // Increment rider completed count and net earnings after company deduction
+    if (booking.assignedRiderId) {
+      await RiderModel.updateOne(
+        { riderId: booking.assignedRiderId },
+        { $inc: { completedDeliveries: 1, totalEarnings: riderNetPayout } }
+      );
+    }
 
     await recordAuditLog({
       actorId: req.user?.userId || 'ADMIN',
@@ -2792,7 +2843,14 @@ app.get('/api/portal/audit-logs', async (req: Request, res: Response) => {
 app.get('/api/portal/settings', async (_req: Request, res: Response) => {
   try {
     await connectToDatabase();
-    const settings = await SettingsModel.findOne().lean();
+    let settings = await SettingsModel.findOne().lean();
+    if (!settings) {
+      const created = await SettingsModel.create({ riderCommissionPercent: 25 });
+      settings = created.toObject();
+    } else if (settings.riderCommissionPercent === undefined) {
+      await SettingsModel.updateOne({ _id: settings._id }, { $set: { riderCommissionPercent: 25 } });
+      settings.riderCommissionPercent = 25;
+    }
     return res.json(settings);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -2802,7 +2860,15 @@ app.get('/api/portal/settings', async (_req: Request, res: Response) => {
 app.put('/api/portal/settings', async (req: Request, res: Response) => {
   try {
     await connectToDatabase();
-    const updated = await SettingsModel.findOneAndUpdate({}, { $set: req.body }, { upsert: true, new: true });
+    const payload = { ...req.body };
+    if (payload.riderCommissionPercent !== undefined) {
+      const parsed = Number(payload.riderCommissionPercent);
+      if (isNaN(parsed) || parsed < 0 || parsed > 100) {
+        return res.status(400).json({ error: 'Rider commission percentage must be between 0 and 100.' });
+      }
+      payload.riderCommissionPercent = parsed;
+    }
+    const updated = await SettingsModel.findOneAndUpdate({}, { $set: payload }, { upsert: true, new: true });
     return res.json({ success: true, settings: updated });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

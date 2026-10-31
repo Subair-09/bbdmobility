@@ -84,16 +84,12 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
     const newErrors: Partial<Record<keyof BookingFormData, string>> = {};
     if (!formData.senderName.trim()) newErrors.senderName = 'Sender name is required.';
     if (!formData.senderPhone.trim()) newErrors.senderPhone = 'Sender phone number is required.';
-    if (!formData.senderEmail.trim()) {
-      newErrors.senderEmail = 'Email is required to receive your booking confirmation.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.senderEmail.trim())) {
+    if (formData.senderEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.senderEmail.trim())) {
       newErrors.senderEmail = 'Please enter a valid email address.';
     }
     if (!formData.receiverName.trim()) newErrors.receiverName = 'Recipient name is required.';
     if (!formData.receiverPhone.trim()) newErrors.receiverPhone = 'Recipient phone number is required.';
-    if (!formData.receiverEmail.trim()) {
-      newErrors.receiverEmail = 'Recipient email is required for delivery notification & OTP.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.receiverEmail.trim())) {
+    if (formData.receiverEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.receiverEmail.trim())) {
       newErrors.receiverEmail = 'Please enter a valid recipient email address.';
     }
 
@@ -400,11 +396,11 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
             <div>
               <label className="block text-xs font-semibold text-bbd-navy mb-1 flex items-center gap-1">
                 <Mail className="w-3 h-3 text-bbd-navy" />
-                <span>Sender Email (for Booking Confirmation) *</span>
+                <span>Sender Email (Optional)</span>
               </label>
               <input
                 type="email"
-                placeholder="name@example.com"
+                placeholder="name@example.com (optional)"
                 value={formData.senderEmail}
                 onChange={(e) => handleChange('senderEmail', e.target.value)}
                 className={`w-full px-3 py-2.5 bg-slate-50 text-xs sm:text-sm rounded-xl border focus:outline-none ${
@@ -453,11 +449,11 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
             <div>
               <label className="block text-xs font-semibold text-bbd-navy mb-1 flex items-center gap-1">
                 <Mail className="w-3 h-3 text-bbd-navy" />
-                <span>Recipient Email (for Delivery Verification OTP) *</span>
+                <span>Recipient Email (Optional)</span>
               </label>
               <input
                 type="email"
-                placeholder="recipient@example.com"
+                placeholder="recipient@example.com (optional)"
                 value={formData.receiverEmail}
                 onChange={(e) => handleChange('receiverEmail', e.target.value)}
                 className={`w-full px-3 py-2.5 bg-slate-50 text-xs sm:text-sm rounded-xl border focus:outline-none ${
@@ -528,12 +524,12 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-2">
                 <span className="text-slate-500">Sender:</span>
-                <span className="font-medium text-slate-800">{formData.senderName} ({formData.senderPhone})</span>
+                <span className="font-medium text-slate-800">{formData.senderName} ({formData.senderPhone}{formData.senderEmail ? ` | ${formData.senderEmail}` : ''})</span>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-2">
                 <span className="text-slate-500">Recipient:</span>
                 <span className="font-medium text-slate-800 text-right max-w-[65%] truncate">
-                  {formData.receiverName} ({formData.receiverPhone} | {formData.receiverEmail})
+                  {formData.receiverName} ({formData.receiverPhone}{formData.receiverEmail ? ` | ${formData.receiverEmail}` : ''})
                 </span>
               </div>
               {formData.packageDetails && (

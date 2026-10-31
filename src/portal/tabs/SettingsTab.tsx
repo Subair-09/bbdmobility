@@ -11,7 +11,8 @@ import {
   MapPin, 
   UserPlus,
   ArrowRight,
-  FileCode
+  FileCode,
+  Percent
 } from 'lucide-react';
 import { GeneralSettings } from '../types';
 
@@ -47,6 +48,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [deliveryRadius, setDeliveryRadius] = useState(settings.deliveryRadiusKm || 50);
   const [maxDeliveryTime, setMaxDeliveryTime] = useState(settings.maxDeliveryTimeMinutes || 180);
   const [defaultService, setDefaultService] = useState(settings.defaultServiceType || 'Standard Delivery');
+  const [commissionPercent, setCommissionPercent] = useState<number>(settings.riderCommissionPercent ?? 25);
 
   // Security
   const [twoFactor, setTwoFactor] = useState(settings.twoFactorAuth || false);
@@ -65,13 +67,24 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     onShowToast('General settings saved successfully to MongoDB.');
   };
 
+  const handleSaveCommission = () => {
+    const parsed = Number(commissionPercent);
+    if (isNaN(parsed) || parsed < 0 || parsed > 100) {
+      onShowToast('Please enter a valid percentage between 0 and 100.');
+      return;
+    }
+    onUpdateSettings({ riderCommissionPercent: parsed });
+    onShowToast(`Rider commission deduction updated to ${parsed}%. Successfully saved.`);
+  };
+
   const handleSaveDeliveryRules = () => {
     onUpdateSettings({
       defaultPickupLocation: defaultPickup,
       serviceArea,
       deliveryRadiusKm: Number(deliveryRadius),
       maxDeliveryTimeMinutes: Number(maxDeliveryTime),
-      defaultServiceType: defaultService
+      defaultServiceType: defaultService,
+      riderCommissionPercent: Number(commissionPercent)
     });
     onShowToast('Delivery and business rules updated.');
   };
@@ -363,6 +376,80 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 <Save className="w-3.5 h-3.5" />
                 <span>Save Changes</span>
               </button>
+            </div>
+          </div>
+
+          {/* Rider Commission & Company Deduction (Configurable Admin Percentage) */}
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
+                  <Percent className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-gray-900">Rider Delivery Commission & Deduction</h4>
+                  <p className="text-[10px] text-gray-500">Configure the company percentage deducted from rider earnings on every completed delivery.</p>
+                </div>
+              </div>
+              <span className="self-start sm:self-auto px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                Active Cut: {commissionPercent}%
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                    Company Deduction Percentage (%)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={commissionPercent}
+                      onChange={(e) => setCommissionPercent(Math.max(0, Math.min(100, Number(e.target.value))))}
+                      className="w-full pl-3 pr-8 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy text-sm font-semibold text-gray-800"
+                      placeholder="25"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">%</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Enter the percentage value (e.g. 25). The company retains {commissionPercent}%, and the courier rider receives {100 - commissionPercent}% upon delivery OTP verification.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSaveCommission}
+                  className="py-2.5 px-4 bg-[#0B1B3D] text-white text-xs font-bold rounded-xl hover:bg-[#07132c] shadow-sm transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Commission Percentage</span>
+                </button>
+              </div>
+
+              {/* Dynamic Live Calculation Simulation */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-2.5 text-xs">
+                <span className="font-bold text-gray-800 block text-[11px] uppercase tracking-wider">
+                  Live Delivery Payout Example
+                </span>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-gray-600">
+                    <span>Sample Delivery Fee:</span>
+                    <span className="font-semibold text-gray-900">₦4,000</span>
+                  </div>
+                  <div className="flex justify-between text-amber-700 font-medium bg-amber-50/70 p-2 rounded-lg border border-amber-100">
+                    <span>Company Cut ({commissionPercent}%):</span>
+                    <span className="font-bold">₦{Math.round(4000 * (commissionPercent / 100)).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-700 font-medium bg-emerald-50/70 p-2 rounded-lg border border-emerald-100">
+                    <span>Rider Net Earnings ({100 - commissionPercent}%):</span>
+                    <span className="font-bold">₦{Math.round(4000 * (1 - commissionPercent / 100)).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

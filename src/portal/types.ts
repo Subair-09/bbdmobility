@@ -20,11 +20,14 @@ export interface Booking {
   ref: string; // e.g. BBD-20261028-001
   customerName: string;
   customerPhone: string;
-  customerEmail: string;
+  customerEmail?: string;
   pickupLocation: string;
   dropoffLocation: string;
   amount: number;
   deliveryFee?: number;
+  commissionPercent?: number;
+  companyCommission?: number;
+  riderEarnings?: number;
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   paymentMethod?: PaymentMethod;
@@ -147,4 +150,5 @@ export interface GeneralSettings {
   };
   twoFactorAuth: boolean;
   sessionTimeout: string;
+  riderCommissionPercent?: number;
 }

@@ -69,6 +69,9 @@ export function normalizeBooking(b: any, index: number = 0): Booking {
     packageDescription: b.packageDescription || 'General Parcel',
     packageWeight: b.packageWeight || '1.0 kg',
     verificationOtp: b.verificationOtp || '••••••',
+    commissionPercent: b.commissionPercent !== undefined ? Number(b.commissionPercent) : 25,
+    companyCommission: b.companyCommission !== undefined ? Number(b.companyCommission) : undefined,
+    riderEarnings: b.riderEarnings !== undefined ? Number(b.riderEarnings) : undefined,
     date: dateStr,
     time: timeStr,
     timeline: b.timeline || {

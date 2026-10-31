@@ -149,14 +149,14 @@ export interface IBooking extends Document {
   ref: string;
   senderName: string;
   senderPhone: string;
-  senderEmail: string;
+  senderEmail?: string;
   pickupAddress: string;
   pickupArea?: string;
   pickupInstructions?: string;
 
   receiverName: string;
   receiverPhone: string;
-  receiverEmail: string;
+  receiverEmail?: string;
   deliveryAddress: string;
   deliveryArea?: string;
   deliveryInstructions?: string;
@@ -177,6 +177,11 @@ export interface IBooking extends Document {
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;
   status: DeliveryStatus;
+
+  // Commission & Rider Earnings Breakdown
+  commissionPercent?: number;
+  companyCommission?: number;
+  riderEarnings?: number;
 
   assignedRiderId?: string;
   assignedRiderName?: string;
@@ -227,14 +232,14 @@ const BookingSchema = new Schema<IBooking>({
   ref: { type: String, required: true, unique: true, index: true },
   senderName: { type: String, required: true },
   senderPhone: { type: String, required: true },
-  senderEmail: { type: String, required: true },
+  senderEmail: { type: String, required: false, default: '' },
   pickupAddress: { type: String, required: true },
   pickupArea: { type: String },
   pickupInstructions: { type: String },
 
   receiverName: { type: String, required: true },
   receiverPhone: { type: String, required: true },
-  receiverEmail: { type: String, required: true },
+  receiverEmail: { type: String, required: false, default: '' },
   deliveryAddress: { type: String, required: true },
   deliveryArea: { type: String },
   deliveryInstructions: { type: String },
@@ -252,6 +257,11 @@ const BookingSchema = new Schema<IBooking>({
   totalAmount: { type: Number, required: true, default: 5000 },
   totalPaid: { type: Number, default: 0 },
   outstandingBalance: { type: Number, required: true, default: 5000 },
+
+  // Commission & Rider Earnings Breakdown
+  commissionPercent: { type: Number, default: 25 },
+  companyCommission: { type: Number, default: 0 },
+  riderEarnings: { type: Number, default: 0 },
   paymentStatus: { 
     type: String, 
     enum: ['Unpaid', 'Partially Paid', 'Paid', 'Overpaid', 'Refunded'], 
@@ -512,6 +522,7 @@ export interface ISettings extends Document {
   deliveryRadiusKm: number;
   maxDeliveryTimeMinutes: number;
   defaultServiceType: string;
+  riderCommissionPercent?: number;
   notifications: {
     newBookings: boolean;
     payments: boolean;
@@ -534,6 +545,7 @@ const SettingsSchema = new Schema<ISettings>({
   deliveryRadiusKm: { type: Number, default: 50 },
   maxDeliveryTimeMinutes: { type: Number, default: 180 },
   defaultServiceType: { type: String, default: 'Standard Delivery' },
+  riderCommissionPercent: { type: Number, default: 25 },
   notifications: {
     newBookings: { type: Boolean, default: true },
     payments: { type: Boolean, default: true },
