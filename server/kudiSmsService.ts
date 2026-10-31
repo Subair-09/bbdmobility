@@ -404,17 +404,18 @@ export const kudiSmsService = {
     const rider = formatName(data.riderName, true);
     const pickup = formatAddress(data.pickupAddress, 26);
     const dropoff = formatAddress(data.deliveryAddress, 26);
-    const sender = cleanSmsText(data.senderName);
+    const sender = formatName(data.senderName, true);
     const receiver = cleanSmsText(data.receiverName);
-    const item = formatItem(data.packageDescription, 20);
-    const shortNote = data.dispatchNote ? `Note: ${formatItem(data.dispatchNote, 24)}\n` : '';
+    const item = formatItem(data.packageDescription, 24);
+    const note = data.dispatchNote ? cleanSmsText(data.dispatchNote) : '';
+    const noteLine = note && note !== 'Parcel' && note !== 'Standard' ? `Note: ${formatItem(note, 28)}\n` : '';
 
     const message = 
-      `Hi ${rider}, new delivery assigned: ${data.bookingRef}\n` +
-      `Pickup: ${pickup} (${sender}: ${data.senderPhone})\n` +
-      `Drop-off: ${dropoff} (${receiver}: ${data.receiverPhone})\n` +
+      `Hello ${rider}, new delivery assigned: ${data.bookingRef}\n` +
+      `Pickup: ${pickup} - ${sender} (${data.senderPhone})\n` +
+      `Dropoff: ${dropoff} - ${receiver} (${data.receiverPhone})\n` +
       `Item: ${item}\n` +
-      shortNote +
+      noteLine +
       `Accept on portal: bbdmobility.com.ng/rider`;
 
     return sendKudiSms({

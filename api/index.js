@@ -1787,16 +1787,17 @@ Present this passkey to the rider upon delivery.`;
     const rider = formatName(data.riderName, true);
     const pickup = formatAddress(data.pickupAddress, 26);
     const dropoff = formatAddress(data.deliveryAddress, 26);
-    const sender = cleanSmsText(data.senderName);
+    const sender = formatName(data.senderName, true);
     const receiver = cleanSmsText(data.receiverName);
-    const item = formatItem(data.packageDescription, 20);
-    const shortNote = data.dispatchNote ? `Note: ${formatItem(data.dispatchNote, 24)}
+    const item = formatItem(data.packageDescription, 24);
+    const note = data.dispatchNote ? cleanSmsText(data.dispatchNote) : "";
+    const noteLine = note && note !== "Parcel" && note !== "Standard" ? `Note: ${formatItem(note, 28)}
 ` : "";
-    const message = `Hi ${rider}, new delivery assigned: ${data.bookingRef}
-Pickup: ${pickup} (${sender}: ${data.senderPhone})
-Drop-off: ${dropoff} (${receiver}: ${data.receiverPhone})
+    const message = `Hello ${rider}, new delivery assigned: ${data.bookingRef}
+Pickup: ${pickup} - ${sender} (${data.senderPhone})
+Dropoff: ${dropoff} - ${receiver} (${data.receiverPhone})
 Item: ${item}
-` + shortNote + `Accept on portal: bbdmobility.com.ng/rider`;
+` + noteLine + `Accept on portal: bbdmobility.com.ng/rider`;
     return sendKudiSms({
       recipients: data.riderPhone,
       message,
