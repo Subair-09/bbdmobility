@@ -254,89 +254,120 @@ export async function sendKudiSms(options: {
     };
   }
 
-  // 5. Send HTTP POST request to KudiSMS API
-  try {
-    const requestPayload: Record<string, any> = {
-      token: apiKey,
-      senderID,
-      recipients: recipientsJoined,
-      message,
-    };
-    if (gateway) {
-      requestPayload.gateway = gateway;
-    }
+  // 5. Send HTTP POST request to KudiSMS API with automatic fallback routing & timeout protection
+  const gatewaysToTry = gateway ? [gateway, gateway === '2' ? '1' : '2'] : ['2', '1'];
+  let lastError = '';
+  let lastData: any = null;
 
-    const response = await fetch('https://my.kudisms.net/api/sms', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(requestPayload),
-    });
+  for (let attempt = 0; attempt < gatewaysToTry.length; attempt++) {
+    const activeGateway = gatewaysToTry[attempt];
+    const startTime = Date.now();
 
-    const responseText = await response.text();
-    let responseData: any;
     try {
-      responseData = JSON.parse(responseText);
-    } catch {
-      responseData = { raw: responseText };
-    }
+      const requestPayload: Record<string, any> = {
+        token: apiKey,
+        senderID,
+        recipients: recipientsJoined,
+        message,
+      };
+      if (activeGateway) {
+        requestPayload.gateway = activeGateway;
+      }
 
-    if (!response.ok) {
-      console.error(`[KudiSMS HTTP Error] Status ${response.status}:`, responseData);
+      // Enforce 7-second abort timeout so HTTP calls never hang under high network load
+      const response = await fetch('https://my.kudisms.net/api/sms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(requestPayload),
+        signal: AbortSignal.timeout(7000),
+      });
+
+      const responseText = await response.text();
+      let responseData: any;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch {
+        responseData = { raw: responseText };
+      }
+
+      if (!response.ok) {
+        lastError = `HTTP ${response.status}: ${responseData?.msg || responseData?.message || responseText}`;
+        lastData = responseData;
+        console.warn(`[KudiSMS Gateway ${activeGateway} HTTP ${response.status}] Attempt ${attempt + 1}:`, lastError);
+        if (attempt < gatewaysToTry.length - 1) {
+          await new Promise(r => setTimeout(r, 200));
+          continue;
+        }
+        return {
+          success: false,
+          error: lastError,
+          messageText: message,
+          recipients: recipientsJoined,
+          data: responseData,
+        };
+      }
+
+      // KudiSMS JSON status check
+      const status = (responseData?.status || '').toString().toLowerCase();
+      const isSuccess =
+        status === 'success' ||
+        responseData?.error_code === '000' ||
+        responseData?.code === 100 ||
+        responseData?.code === 200 ||
+        (!status.includes('error') && !responseData?.error_code);
+
+      if (!isSuccess && status.includes('error')) {
+        lastError = responseData?.msg || responseData?.message || 'KudiSMS rejected request';
+        lastData = responseData;
+        console.warn(`[KudiSMS Gateway ${activeGateway} Rejected] Attempt ${attempt + 1}:`, lastError);
+        if (attempt < gatewaysToTry.length - 1) {
+          await new Promise(r => setTimeout(r, 200));
+          continue;
+        }
+        return {
+          success: false,
+          error: lastError,
+          messageText: message,
+          recipients: recipientsJoined,
+          data: responseData,
+        };
+      }
+
+      const messageId =
+        responseData?.data?.[0]?.split('|')[1] ||
+        responseData?.batch_id ||
+        responseData?.id ||
+        `kudi-${Date.now()}`;
+
+      const durationMs = Date.now() - startTime;
+      console.log(`[KudiSMS High-Speed] Delivered to ${recipientsJoined} in ${durationMs}ms via Gateway ${activeGateway} (MsgID: ${messageId}) for ${bookingRef || 'SMS'}`);
+
       return {
-        success: false,
-        error: `HTTP ${response.status}: ${responseData?.msg || responseData?.message || responseText}`,
+        success: true,
+        messageId,
         messageText: message,
         recipients: recipientsJoined,
         data: responseData,
       };
+    } catch (error: any) {
+      lastError = error.message || 'Network exception communicating with KudiSMS API';
+      console.warn(`[KudiSMS Gateway ${activeGateway} Exception] Attempt ${attempt + 1}:`, lastError);
+      if (attempt < gatewaysToTry.length - 1) {
+        await new Promise(r => setTimeout(r, 200));
+      }
     }
-
-    // KudiSMS JSON status check
-    const status = (responseData?.status || '').toString().toLowerCase();
-    const isSuccess =
-      status === 'success' ||
-      responseData?.error_code === '000' ||
-      responseData?.code === 100 ||
-      responseData?.code === 200 ||
-      (!status.includes('error') && !responseData?.error_code);
-
-    if (!isSuccess && status.includes('error')) {
-      console.error('[KudiSMS API Error]:', responseData);
-      return {
-        success: false,
-        error: responseData?.msg || responseData?.message || 'KudiSMS rejected request',
-        messageText: message,
-        recipients: recipientsJoined,
-        data: responseData,
-      };
-    }
-
-    const messageId =
-      responseData?.data?.[0]?.split('|')[1] ||
-      responseData?.batch_id ||
-      responseData?.id ||
-      `kudi-${Date.now()}`;
-
-    console.log(`[KudiSMS Success] Message dispatched to ${recipientsJoined} (MsgID: ${messageId}) for ${bookingRef || 'SMS'}`);
-    return {
-      success: true,
-      messageId,
-      messageText: message,
-      recipients: recipientsJoined,
-      data: responseData,
-    };
-  } catch (error: any) {
-    console.error('[KudiSMS Network Exception]:', error.message || error);
-    return {
-      success: false,
-      error: error.message || 'Network exception communicating with KudiSMS API',
-      messageText: message,
-      recipients: recipientsJoined,
-    };
   }
+
+  return {
+    success: false,
+    error: lastError || 'KudiSMS dispatch failed across all route gateways.',
+    messageText: message,
+    recipients: recipientsJoined,
+    data: lastData,
+  };
 }
 
 /**

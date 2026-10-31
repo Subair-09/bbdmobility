@@ -49,6 +49,40 @@ function isTestPayload(sEmail?: string, rEmail?: string, sName?: string, booking
   );
 }
 
+/**
+ * Executes Resend email dispatch with automatic timeout (7s) and fast retry (up to 2 attempts)
+ */
+async function sendWithTimeoutAndRetry(sendFn: () => Promise<any>, maxRetries = 2): Promise<EmailDispatchResult> {
+  let lastError = '';
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result: any = await Promise.race([
+        sendFn(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Resend email timeout (7s)')), 7000)),
+      ]);
+
+      if (result && !result.error) {
+        return { success: true, messageId: result.data?.id };
+      }
+
+      lastError = result?.error?.message || 'Unknown email service rejection';
+      console.warn(`[Resend Email Warning] Attempt ${attempt + 1} error: ${lastError}`);
+
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+      }
+    } catch (err: any) {
+      lastError = err.message || 'Network exception communicating with Resend API';
+      console.warn(`[Resend Email Exception] Attempt ${attempt + 1}: ${lastError}`);
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+      }
+    }
+  }
+
+  return { success: false, error: lastError };
+}
+
 export const emailService = {
   /**
    * 1. Sender Booking Confirmation Email
@@ -84,18 +118,15 @@ export const emailService = {
         businessEmails
       });
 
-      const result = await resend.emails.send({
-        from: fromEmail,
-        to: [data.sEmail],
-        replyTo: businessEmails[0] || 'Info@bbdautosng.com',
-        subject: `BBD Mobility Booking Confirmation - ${data.bookingRef}`,
-        html
-      });
-
-      if (result.error) {
-        return { success: false, error: result.error.message };
-      }
-      return { success: true, messageId: result.data?.id };
+      return await sendWithTimeoutAndRetry(() =>
+        resend.emails.send({
+          from: fromEmail,
+          to: [data.sEmail],
+          replyTo: businessEmails[0] || 'Info@bbdautosng.com',
+          subject: `BBD Mobility Booking Confirmation - ${data.bookingRef}`,
+          html
+        })
+      );
     } catch (err: any) {
       return { success: false, error: err.message };
     }
@@ -136,18 +167,15 @@ export const emailService = {
         businessEmails
       });
 
-      const result = await resend.emails.send({
-        from: fromEmail,
-        to: [data.rEmail],
-        replyTo: businessEmails[0] || 'Info@bbdautosng.com',
-        subject: `BBD Mobility Delivery Notice - Verification Code: ${data.otpCode} (${data.bookingRef})`,
-        html
-      });
-
-      if (result.error) {
-        return { success: false, error: result.error.message };
-      }
-      return { success: true, messageId: result.data?.id };
+      return await sendWithTimeoutAndRetry(() =>
+        resend.emails.send({
+          from: fromEmail,
+          to: [data.rEmail],
+          replyTo: businessEmails[0] || 'Info@bbdautosng.com',
+          subject: `BBD Mobility Delivery Notice - Verification Code: ${data.otpCode} (${data.bookingRef})`,
+          html
+        })
+      );
     } catch (err: any) {
       return { success: false, error: err.message };
     }
@@ -187,18 +215,15 @@ export const emailService = {
         businessEmails
       });
 
-      const result = await resend.emails.send({
-        from: fromEmail,
-        to: businessEmails,
-        replyTo: data.sEmail,
-        subject: `[New Booking] ${data.bookingRef} - ${data.sType} (${data.pLoc} → ${data.dLoc})`,
-        html
-      });
-
-      if (result.error) {
-        return { success: false, error: result.error.message };
-      }
-      return { success: true, messageId: result.data?.id };
+      return await sendWithTimeoutAndRetry(() =>
+        resend.emails.send({
+          from: fromEmail,
+          to: businessEmails,
+          replyTo: data.sEmail,
+          subject: `[New Booking] ${data.bookingRef} - ${data.sType} (${data.pLoc} → ${data.dLoc})`,
+          html
+        })
+      );
     } catch (err: any) {
       return { success: false, error: err.message };
     }
@@ -252,19 +277,15 @@ export const emailService = {
 
     try {
       const html = generateRiderAssignmentEmailHtml(data);
-      const result = await resend.emails.send({
-        from: fromEmail,
-        to: [targetEmail],
-        replyTo: businessEmails[0] || 'Info@bbdautosng.com',
-        subject: `[New Assignment] Delivery ${data.bookingRef} - ${data.serviceType || 'BBD Mobility Dispatch'}`,
-        html
-      });
-
-      if (result.error) {
-        console.error(`[RESEND ERROR] Failed sending assignment to rider ${targetEmail}:`, result.error);
-        return { success: false, error: result.error.message };
-      }
-      return { success: true, messageId: result.data?.id };
+      return await sendWithTimeoutAndRetry(() =>
+        resend.emails.send({
+          from: fromEmail,
+          to: [targetEmail],
+          replyTo: businessEmails[0] || 'Info@bbdautosng.com',
+          subject: `[New Assignment] Delivery ${data.bookingRef} - ${data.serviceType || 'BBD Mobility Dispatch'}`,
+          html
+        })
+      );
     } catch (err: any) {
       console.error(`[EMAIL ERROR] Rider assignment email dispatch exception:`, err);
       return { success: false, error: err.message };

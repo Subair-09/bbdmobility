@@ -559,98 +559,62 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
       instructions,
     };
 
-    // A. Sender Confirmation Email
-    emailService.sendSenderConfirmation(emailPayload)
-      .then(res => {
-        BookingModel.updateOne(
-          { ref: bookingRef },
-          { $push: { notificationLogs: { channel: 'email', recipientType: 'sender', recipientEmail: sEmail, subject: 'Booking Confirmation', status: res.success ? 'sent' : 'failed', error: res.error, sentAt: new Date() } } }
-        ).exec();
-      })
-      .catch(() => {});
+    // Concurrent High-Speed Notification Pipeline (All channels dispatch in parallel)
+    (async () => {
+      const results = await Promise.allSettled([
+        emailService.sendSenderConfirmation(emailPayload),
+        emailService.sendReceiverDeliveryNotice({ ...emailPayload, otpCode: rawOtp }),
+        kudiSmsService.sendBookingSenderSms({
+          senderPhone: sPhone,
+          senderName: sName,
+          bookingRef,
+          pickupAddress: pLoc,
+          deliveryAddress: dLoc,
+          receiverName: rName,
+          receiverPhone: rPhone,
+          packageDescription: pDetails || `${sType} parcel`,
+          serviceType: sType,
+          totalAmount: calculatedFee,
+        }),
+        kudiSmsService.sendBookingReceiverSms({
+          receiverPhone: rPhone,
+          receiverName: rName,
+          senderName: sName,
+          senderPhone: sPhone,
+          bookingRef,
+          deliveryAddress: dLoc,
+          packageDescription: pDetails || `${sType} parcel`,
+          otpCode: rawOtp,
+        }),
+        emailService.sendAdminAlert(emailPayload),
+      ]);
 
-    // B. Receiver Delivery OTP Notice Email (Only receiver receives the OTP)
-    emailService.sendReceiverDeliveryNotice({ ...emailPayload, otpCode: rawOtp })
-      .then(res => {
-        BookingModel.updateOne(
-          { ref: bookingRef },
-          { $push: { notificationLogs: { channel: 'email', recipientType: 'receiver', recipientEmail: rEmail, subject: 'Delivery Notice & OTP', status: res.success ? 'sent' : 'failed', error: res.error, sentAt: new Date() } } }
-        ).exec();
-      })
-      .catch(() => {});
+      const logs: any[] = [];
+      const [senderEmailRes, receiverEmailRes, senderSmsRes, receiverSmsRes] = results;
 
-    // C. Sender Booking Confirmation SMS (KudiSMS Nigerian Gateway)
-    kudiSmsService.sendBookingSenderSms({
-      senderPhone: sPhone,
-      senderName: sName,
-      bookingRef,
-      pickupAddress: pLoc,
-      deliveryAddress: dLoc,
-      receiverName: rName,
-      receiverPhone: rPhone,
-      packageDescription: pDetails || `${sType} parcel`,
-      serviceType: sType,
-      totalAmount: calculatedFee,
-    })
-      .then(smsRes => {
-        BookingModel.updateOne(
-          { ref: bookingRef },
-          {
-            $push: {
-              notificationLogs: {
-                channel: 'sms',
-                recipientType: 'sender',
-                recipientPhone: sPhone,
-                subject: 'SMS Booking Confirmation',
-                message: smsRes.messageText,
-                status: smsRes.success ? 'sent' : 'failed',
-                error: smsRes.error,
-                sentAt: new Date()
-              }
-            }
-          }
-        ).exec();
-      })
-      .catch(err => {
-        console.error('[KudiSMS Error] Sender booking SMS error:', err);
-      });
+      if (senderEmailRes.status === 'fulfilled') {
+        const val = senderEmailRes.value;
+        logs.push({ channel: 'email', recipientType: 'sender', recipientEmail: sEmail, subject: 'Booking Confirmation', status: val.success ? 'sent' : 'failed', error: val.error, sentAt: new Date() });
+      }
+      if (receiverEmailRes.status === 'fulfilled') {
+        const val = receiverEmailRes.value;
+        logs.push({ channel: 'email', recipientType: 'receiver', recipientEmail: rEmail, subject: 'Delivery Notice & OTP', status: val.success ? 'sent' : 'failed', error: val.error, sentAt: new Date() });
+      }
+      if (senderSmsRes.status === 'fulfilled') {
+        const val = senderSmsRes.value;
+        logs.push({ channel: 'sms', recipientType: 'sender', recipientPhone: sPhone, subject: 'SMS Booking Confirmation', message: val.messageText, status: val.success ? 'sent' : 'failed', error: val.error, sentAt: new Date() });
+      }
+      if (receiverSmsRes.status === 'fulfilled') {
+        const val = receiverSmsRes.value;
+        logs.push({ channel: 'sms', recipientType: 'receiver', recipientPhone: rPhone, subject: 'SMS Delivery OTP Notice', message: val.messageText, status: val.success ? 'sent' : 'failed', error: val.error, sentAt: new Date() });
+      }
 
-    // D. Receiver Delivery Notice & Security OTP SMS (KudiSMS Nigerian Gateway)
-    kudiSmsService.sendBookingReceiverSms({
-      receiverPhone: rPhone,
-      receiverName: rName,
-      senderName: sName,
-      senderPhone: sPhone,
-      bookingRef,
-      deliveryAddress: dLoc,
-      packageDescription: pDetails || `${sType} parcel`,
-      otpCode: rawOtp,
-    })
-      .then(smsRes => {
-        BookingModel.updateOne(
-          { ref: bookingRef },
-          {
-            $push: {
-              notificationLogs: {
-                channel: 'sms',
-                recipientType: 'receiver',
-                recipientPhone: rPhone,
-                subject: 'SMS Delivery OTP Notice',
-                message: smsRes.messageText,
-                status: smsRes.success ? 'sent' : 'failed',
-                error: smsRes.error,
-                sentAt: new Date()
-              }
-            }
-          }
-        ).exec();
-      })
-      .catch(err => {
-        console.error('[KudiSMS Error] Receiver OTP SMS error:', err);
-      });
-
-    // E. Admin Alert Email
-    emailService.sendAdminAlert(emailPayload).catch(() => {});
+      if (logs.length > 0) {
+        BookingModel.updateOne({ ref: bookingRef }, { $push: { notificationLogs: { $each: logs } } }).exec().catch(() => {});
+      }
+    })().catch(err => {
+      console.error('[Notification Pipeline Exception]:', err);
+    });
 
     // D. Admin Dashboard Real-Time Notification Bell
     createAdminNotification({
@@ -879,80 +843,62 @@ app.post('/api/portal/bookings/:ref/assign', async (req: Request, res: Response)
       portalUrl: `${process.env.APP_URL || 'https://bbdmobility.com.ng'}/rider`,
     };
 
-    // Notify Rider via Email & Route Manifest
-    emailService.sendRiderAssignmentNotice(riderEmailPayload)
-      .then(emailResult => {
-        BookingModel.updateOne(
-          { ref: booking.ref },
-          {
-            $push: {
-              notificationLogs: {
-                channel: 'email',
-                recipientType: 'rider',
-                recipientEmail: rider.email,
-                subject: `New Assignment Alert: ${booking.ref}`,
-                status: emailResult.success ? 'sent' : 'failed',
-                error: emailResult.error,
-                sentAt: new Date()
-              }
-            }
-          }
-        ).exec();
-      })
-      .catch((err) => {
-        console.error('Rider assignment email dispatch error:', err);
-      });
+    // Concurrent High-Speed Rider & Customer Alert Pipeline
+    (async () => {
+      const results = await Promise.allSettled([
+        emailService.sendRiderAssignmentNotice(riderEmailPayload),
+        kudiSmsService.sendRiderAssignmentSms({
+          riderPhone: rider.phone,
+          riderName: rider.name,
+          bookingRef: booking.ref,
+          pickupAddress: booking.pickupAddress,
+          deliveryAddress: booking.deliveryAddress,
+          senderName: booking.senderName,
+          senderPhone: booking.senderPhone,
+          receiverName: booking.receiverName,
+          receiverPhone: booking.receiverPhone,
+          packageDescription: booking.packageDescription || 'Parcel',
+          dispatchNote: note || booking.deliveryInstructions,
+          portalUrl: `${process.env.APP_URL || 'https://bbdmobility.com.ng'}/rider`,
+        }),
+        kudiSmsService.sendRiderAssignedToCustomerSms({
+          senderPhone: booking.senderPhone,
+          receiverPhone: booking.receiverPhone,
+          senderName: booking.senderName,
+          receiverName: booking.receiverName,
+          bookingRef: booking.ref,
+          riderName: rider.name,
+          riderPhone: rider.phone,
+        }),
+      ]);
 
-    // Notify Rider via KudiSMS (Instant Nigerian SMS Gateway with ride manifest)
-    kudiSmsService.sendRiderAssignmentSms({
-      riderPhone: rider.phone,
-      riderName: rider.name,
-      bookingRef: booking.ref,
-      pickupAddress: booking.pickupAddress,
-      deliveryAddress: booking.deliveryAddress,
-      senderName: booking.senderName,
-      senderPhone: booking.senderPhone,
-      receiverName: booking.receiverName,
-      receiverPhone: booking.receiverPhone,
-      packageDescription: booking.packageDescription || 'Parcel',
-      dispatchNote: note || booking.deliveryInstructions,
-      portalUrl: `${process.env.APP_URL || 'https://bbdmobility.com.ng'}/rider`,
-    })
-      .then(smsResult => {
-        BookingModel.updateOne(
-          { ref: booking.ref },
-          {
-            $push: {
-              notificationLogs: {
-                channel: 'sms',
-                recipientType: 'rider',
-                recipientPhone: rider.phone,
-                subject: 'SMS Rider Assignment Notice',
-                message: smsResult.messageText,
-                status: smsResult.success ? 'sent' : 'failed',
-                error: smsResult.error,
-                sentAt: new Date()
-              }
-            }
-          }
-        ).exec();
-      })
-      .catch(err => {
-        console.error('[KudiSMS Error] Rider assignment SMS dispatch error:', err);
-      });
+      const logs: any[] = [];
+      const [emailRes, riderSmsRes, custSmsRes] = results;
 
-    // Also dispatch SMS updates to Sender and Receiver that rider has been assigned
-    kudiSmsService.sendRiderAssignedToCustomerSms({
-      senderPhone: booking.senderPhone,
-      receiverPhone: booking.receiverPhone,
-      senderName: booking.senderName,
-      receiverName: booking.receiverName,
-      bookingRef: booking.ref,
-      riderName: rider.name,
-      riderPhone: rider.phone,
-    }).catch(err => {
-      console.error('[KudiSMS Error] Customer rider assignment SMS error:', err);
-    });
+      if (emailRes.status === 'fulfilled') {
+        const val = emailRes.value;
+        logs.push({ channel: 'email', recipientType: 'rider', recipientEmail: rider.email, subject: `New Assignment Alert: ${booking.ref}`, status: val.success ? 'sent' : 'failed', error: val.error, sentAt: new Date() });
+      }
+
+      if (riderSmsRes.status === 'fulfilled') {
+        const val = riderSmsRes.value;
+        logs.push({ channel: 'sms', recipientType: 'rider', recipientPhone: rider.phone, subject: 'SMS Rider Assignment Notice', message: val.messageText, status: val.success ? 'sent' : 'failed', error: val.error, sentAt: new Date() });
+      }
+
+      if (custSmsRes.status === 'fulfilled') {
+        const val = custSmsRes.value;
+        if (val.senderResult) {
+          logs.push({ channel: 'sms', recipientType: 'sender', recipientPhone: booking.senderPhone, subject: 'SMS Rider Assigned (Sender)', message: val.senderResult.messageText, status: val.senderResult.success ? 'sent' : 'failed', error: val.senderResult.error, sentAt: new Date() });
+        }
+        if (val.receiverResult) {
+          logs.push({ channel: 'sms', recipientType: 'receiver', recipientPhone: booking.receiverPhone, subject: 'SMS Rider Assigned (Receiver)', message: val.receiverResult.messageText, status: val.receiverResult.success ? 'sent' : 'failed', error: val.receiverResult.error, sentAt: new Date() });
+        }
+      }
+
+      if (logs.length > 0) {
+        BookingModel.updateOne({ ref: booking.ref }, { $push: { notificationLogs: { $each: logs } } }).exec().catch(() => {});
+      }
+    })().catch(err => console.error('[Rider Notification Pipeline Exception]:', err));
 
     createAdminNotification({
       title: 'Rider Assigned & Notified',

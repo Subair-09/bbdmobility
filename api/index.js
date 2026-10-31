@@ -1410,6 +1410,32 @@ function isTestPayload(sEmail, rEmail, sName, bookingRef) {
   const ref = (bookingRef || "").toUpperCase();
   return sE.includes("example.com") || rE.includes("example.com") || sE.includes("testsender") || rE.includes("testrecipient") || sE.includes("@test.") || sN.includes("test sender") || sN.includes("test recipient") || ref.includes("TEST");
 }
+async function sendWithTimeoutAndRetry(sendFn, maxRetries = 2) {
+  let lastError = "";
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await Promise.race([
+        sendFn(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Resend email timeout (7s)")), 7e3))
+      ]);
+      if (result && !result.error) {
+        return { success: true, messageId: result.data?.id };
+      }
+      lastError = result?.error?.message || "Unknown email service rejection";
+      console.warn(`[Resend Email Warning] Attempt ${attempt + 1} error: ${lastError}`);
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+      }
+    } catch (err) {
+      lastError = err.message || "Network exception communicating with Resend API";
+      console.warn(`[Resend Email Exception] Attempt ${attempt + 1}: ${lastError}`);
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+      }
+    }
+  }
+  return { success: false, error: lastError };
+}
 var emailService = {
   /**
    * 1. Sender Booking Confirmation Email
@@ -1429,17 +1455,15 @@ var emailService = {
         verificationOtp: "Shared with recipient",
         businessEmails
       });
-      const result = await resend.emails.send({
-        from: fromEmail,
-        to: [data.sEmail],
-        replyTo: businessEmails[0] || "Info@bbdautosng.com",
-        subject: `BBD Mobility Booking Confirmation - ${data.bookingRef}`,
-        html
-      });
-      if (result.error) {
-        return { success: false, error: result.error.message };
-      }
-      return { success: true, messageId: result.data?.id };
+      return await sendWithTimeoutAndRetry(
+        () => resend.emails.send({
+          from: fromEmail,
+          to: [data.sEmail],
+          replyTo: businessEmails[0] || "Info@bbdautosng.com",
+          subject: `BBD Mobility Booking Confirmation - ${data.bookingRef}`,
+          html
+        })
+      );
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -1462,17 +1486,15 @@ var emailService = {
         verificationOtp: data.otpCode,
         businessEmails
       });
-      const result = await resend.emails.send({
-        from: fromEmail,
-        to: [data.rEmail],
-        replyTo: businessEmails[0] || "Info@bbdautosng.com",
-        subject: `BBD Mobility Delivery Notice - Verification Code: ${data.otpCode} (${data.bookingRef})`,
-        html
-      });
-      if (result.error) {
-        return { success: false, error: result.error.message };
-      }
-      return { success: true, messageId: result.data?.id };
+      return await sendWithTimeoutAndRetry(
+        () => resend.emails.send({
+          from: fromEmail,
+          to: [data.rEmail],
+          replyTo: businessEmails[0] || "Info@bbdautosng.com",
+          subject: `BBD Mobility Delivery Notice - Verification Code: ${data.otpCode} (${data.bookingRef})`,
+          html
+        })
+      );
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -1495,17 +1517,15 @@ var emailService = {
         verificationOtp: "Encrypted in MongoDB",
         businessEmails
       });
-      const result = await resend.emails.send({
-        from: fromEmail,
-        to: businessEmails,
-        replyTo: data.sEmail,
-        subject: `[New Booking] ${data.bookingRef} - ${data.sType} (${data.pLoc} \u2192 ${data.dLoc})`,
-        html
-      });
-      if (result.error) {
-        return { success: false, error: result.error.message };
-      }
-      return { success: true, messageId: result.data?.id };
+      return await sendWithTimeoutAndRetry(
+        () => resend.emails.send({
+          from: fromEmail,
+          to: businessEmails,
+          replyTo: data.sEmail,
+          subject: `[New Booking] ${data.bookingRef} - ${data.sType} (${data.pLoc} \u2192 ${data.dLoc})`,
+          html
+        })
+      );
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -1546,18 +1566,15 @@ var emailService = {
     }
     try {
       const html = generateRiderAssignmentEmailHtml(data);
-      const result = await resend.emails.send({
-        from: fromEmail,
-        to: [targetEmail],
-        replyTo: businessEmails[0] || "Info@bbdautosng.com",
-        subject: `[New Assignment] Delivery ${data.bookingRef} - ${data.serviceType || "BBD Mobility Dispatch"}`,
-        html
-      });
-      if (result.error) {
-        console.error(`[RESEND ERROR] Failed sending assignment to rider ${targetEmail}:`, result.error);
-        return { success: false, error: result.error.message };
-      }
-      return { success: true, messageId: result.data?.id };
+      return await sendWithTimeoutAndRetry(
+        () => resend.emails.send({
+          from: fromEmail,
+          to: [targetEmail],
+          replyTo: businessEmails[0] || "Info@bbdautosng.com",
+          subject: `[New Assignment] Delivery ${data.bookingRef} - ${data.serviceType || "BBD Mobility Dispatch"}`,
+          html
+        })
+      );
     } catch (err) {
       console.error(`[EMAIL ERROR] Rider assignment email dispatch exception:`, err);
       return { success: false, error: err.message };
@@ -1667,71 +1684,97 @@ ${message}
       data: { status: "dev-mode", note: "KudiSMS API key not configured. Message logged to console." }
     };
   }
-  try {
-    const requestPayload = {
-      token: apiKey2,
-      senderID,
-      recipients: recipientsJoined,
-      message
-    };
-    if (gateway) {
-      requestPayload.gateway = gateway;
-    }
-    const response = await fetch("https://my.kudisms.net/api/sms", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      },
-      body: JSON.stringify(requestPayload)
-    });
-    const responseText = await response.text();
-    let responseData;
+  const gatewaysToTry = gateway ? [gateway, gateway === "2" ? "1" : "2"] : ["2", "1"];
+  let lastError = "";
+  let lastData = null;
+  for (let attempt = 0; attempt < gatewaysToTry.length; attempt++) {
+    const activeGateway = gatewaysToTry[attempt];
+    const startTime = Date.now();
     try {
-      responseData = JSON.parse(responseText);
-    } catch {
-      responseData = { raw: responseText };
-    }
-    if (!response.ok) {
-      console.error(`[KudiSMS HTTP Error] Status ${response.status}:`, responseData);
+      const requestPayload = {
+        token: apiKey2,
+        senderID,
+        recipients: recipientsJoined,
+        message
+      };
+      if (activeGateway) {
+        requestPayload.gateway = activeGateway;
+      }
+      const response = await fetch("https://my.kudisms.net/api/sms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify(requestPayload),
+        signal: AbortSignal.timeout(7e3)
+      });
+      const responseText = await response.text();
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch {
+        responseData = { raw: responseText };
+      }
+      if (!response.ok) {
+        lastError = `HTTP ${response.status}: ${responseData?.msg || responseData?.message || responseText}`;
+        lastData = responseData;
+        console.warn(`[KudiSMS Gateway ${activeGateway} HTTP ${response.status}] Attempt ${attempt + 1}:`, lastError);
+        if (attempt < gatewaysToTry.length - 1) {
+          await new Promise((r) => setTimeout(r, 200));
+          continue;
+        }
+        return {
+          success: false,
+          error: lastError,
+          messageText: message,
+          recipients: recipientsJoined,
+          data: responseData
+        };
+      }
+      const status = (responseData?.status || "").toString().toLowerCase();
+      const isSuccess = status === "success" || responseData?.error_code === "000" || responseData?.code === 100 || responseData?.code === 200 || !status.includes("error") && !responseData?.error_code;
+      if (!isSuccess && status.includes("error")) {
+        lastError = responseData?.msg || responseData?.message || "KudiSMS rejected request";
+        lastData = responseData;
+        console.warn(`[KudiSMS Gateway ${activeGateway} Rejected] Attempt ${attempt + 1}:`, lastError);
+        if (attempt < gatewaysToTry.length - 1) {
+          await new Promise((r) => setTimeout(r, 200));
+          continue;
+        }
+        return {
+          success: false,
+          error: lastError,
+          messageText: message,
+          recipients: recipientsJoined,
+          data: responseData
+        };
+      }
+      const messageId = responseData?.data?.[0]?.split("|")[1] || responseData?.batch_id || responseData?.id || `kudi-${Date.now()}`;
+      const durationMs = Date.now() - startTime;
+      console.log(`[KudiSMS High-Speed] Delivered to ${recipientsJoined} in ${durationMs}ms via Gateway ${activeGateway} (MsgID: ${messageId}) for ${bookingRef || "SMS"}`);
       return {
-        success: false,
-        error: `HTTP ${response.status}: ${responseData?.msg || responseData?.message || responseText}`,
+        success: true,
+        messageId,
         messageText: message,
         recipients: recipientsJoined,
         data: responseData
       };
+    } catch (error) {
+      lastError = error.message || "Network exception communicating with KudiSMS API";
+      console.warn(`[KudiSMS Gateway ${activeGateway} Exception] Attempt ${attempt + 1}:`, lastError);
+      if (attempt < gatewaysToTry.length - 1) {
+        await new Promise((r) => setTimeout(r, 200));
+      }
     }
-    const status = (responseData?.status || "").toString().toLowerCase();
-    const isSuccess = status === "success" || responseData?.error_code === "000" || responseData?.code === 100 || responseData?.code === 200 || !status.includes("error") && !responseData?.error_code;
-    if (!isSuccess && status.includes("error")) {
-      console.error("[KudiSMS API Error]:", responseData);
-      return {
-        success: false,
-        error: responseData?.msg || responseData?.message || "KudiSMS rejected request",
-        messageText: message,
-        recipients: recipientsJoined,
-        data: responseData
-      };
-    }
-    const messageId = responseData?.data?.[0]?.split("|")[1] || responseData?.batch_id || responseData?.id || `kudi-${Date.now()}`;
-    console.log(`[KudiSMS Success] Message dispatched to ${recipientsJoined} (MsgID: ${messageId}) for ${bookingRef || "SMS"}`);
-    return {
-      success: true,
-      messageId,
-      messageText: message,
-      recipients: recipientsJoined,
-      data: responseData
-    };
-  } catch (error) {
-    console.error("[KudiSMS Network Exception]:", error.message || error);
-    return {
-      success: false,
-      error: error.message || "Network exception communicating with KudiSMS API",
-      messageText: message,
-      recipients: recipientsJoined
-    };
   }
+  return {
+    success: false,
+    error: lastError || "KudiSMS dispatch failed across all route gateways.",
+    messageText: message,
+    recipients: recipientsJoined,
+    data: lastData
+  };
 }
 var kudiSmsService = {
   /**
@@ -2477,83 +2520,58 @@ app.post("/api/bookings", async (req, res) => {
       rEmail,
       instructions
     };
-    emailService.sendSenderConfirmation(emailPayload).then((res2) => {
-      BookingModel.updateOne(
-        { ref: bookingRef },
-        { $push: { notificationLogs: { channel: "email", recipientType: "sender", recipientEmail: sEmail, subject: "Booking Confirmation", status: res2.success ? "sent" : "failed", error: res2.error, sentAt: /* @__PURE__ */ new Date() } } }
-      ).exec();
-    }).catch(() => {
-    });
-    emailService.sendReceiverDeliveryNotice({ ...emailPayload, otpCode: rawOtp }).then((res2) => {
-      BookingModel.updateOne(
-        { ref: bookingRef },
-        { $push: { notificationLogs: { channel: "email", recipientType: "receiver", recipientEmail: rEmail, subject: "Delivery Notice & OTP", status: res2.success ? "sent" : "failed", error: res2.error, sentAt: /* @__PURE__ */ new Date() } } }
-      ).exec();
-    }).catch(() => {
-    });
-    kudiSmsService.sendBookingSenderSms({
-      senderPhone: sPhone,
-      senderName: sName,
-      bookingRef,
-      pickupAddress: pLoc,
-      deliveryAddress: dLoc,
-      receiverName: rName,
-      receiverPhone: rPhone,
-      packageDescription: pDetails || `${sType} parcel`,
-      serviceType: sType,
-      totalAmount: calculatedFee
-    }).then((smsRes) => {
-      BookingModel.updateOne(
-        { ref: bookingRef },
-        {
-          $push: {
-            notificationLogs: {
-              channel: "sms",
-              recipientType: "sender",
-              recipientPhone: sPhone,
-              subject: "SMS Booking Confirmation",
-              message: smsRes.messageText,
-              status: smsRes.success ? "sent" : "failed",
-              error: smsRes.error,
-              sentAt: /* @__PURE__ */ new Date()
-            }
-          }
-        }
-      ).exec();
-    }).catch((err) => {
-      console.error("[KudiSMS Error] Sender booking SMS error:", err);
-    });
-    kudiSmsService.sendBookingReceiverSms({
-      receiverPhone: rPhone,
-      receiverName: rName,
-      senderName: sName,
-      senderPhone: sPhone,
-      bookingRef,
-      deliveryAddress: dLoc,
-      packageDescription: pDetails || `${sType} parcel`,
-      otpCode: rawOtp
-    }).then((smsRes) => {
-      BookingModel.updateOne(
-        { ref: bookingRef },
-        {
-          $push: {
-            notificationLogs: {
-              channel: "sms",
-              recipientType: "receiver",
-              recipientPhone: rPhone,
-              subject: "SMS Delivery OTP Notice",
-              message: smsRes.messageText,
-              status: smsRes.success ? "sent" : "failed",
-              error: smsRes.error,
-              sentAt: /* @__PURE__ */ new Date()
-            }
-          }
-        }
-      ).exec();
-    }).catch((err) => {
-      console.error("[KudiSMS Error] Receiver OTP SMS error:", err);
-    });
-    emailService.sendAdminAlert(emailPayload).catch(() => {
+    (async () => {
+      const results = await Promise.allSettled([
+        emailService.sendSenderConfirmation(emailPayload),
+        emailService.sendReceiverDeliveryNotice({ ...emailPayload, otpCode: rawOtp }),
+        kudiSmsService.sendBookingSenderSms({
+          senderPhone: sPhone,
+          senderName: sName,
+          bookingRef,
+          pickupAddress: pLoc,
+          deliveryAddress: dLoc,
+          receiverName: rName,
+          receiverPhone: rPhone,
+          packageDescription: pDetails || `${sType} parcel`,
+          serviceType: sType,
+          totalAmount: calculatedFee
+        }),
+        kudiSmsService.sendBookingReceiverSms({
+          receiverPhone: rPhone,
+          receiverName: rName,
+          senderName: sName,
+          senderPhone: sPhone,
+          bookingRef,
+          deliveryAddress: dLoc,
+          packageDescription: pDetails || `${sType} parcel`,
+          otpCode: rawOtp
+        }),
+        emailService.sendAdminAlert(emailPayload)
+      ]);
+      const logs = [];
+      const [senderEmailRes, receiverEmailRes, senderSmsRes, receiverSmsRes] = results;
+      if (senderEmailRes.status === "fulfilled") {
+        const val = senderEmailRes.value;
+        logs.push({ channel: "email", recipientType: "sender", recipientEmail: sEmail, subject: "Booking Confirmation", status: val.success ? "sent" : "failed", error: val.error, sentAt: /* @__PURE__ */ new Date() });
+      }
+      if (receiverEmailRes.status === "fulfilled") {
+        const val = receiverEmailRes.value;
+        logs.push({ channel: "email", recipientType: "receiver", recipientEmail: rEmail, subject: "Delivery Notice & OTP", status: val.success ? "sent" : "failed", error: val.error, sentAt: /* @__PURE__ */ new Date() });
+      }
+      if (senderSmsRes.status === "fulfilled") {
+        const val = senderSmsRes.value;
+        logs.push({ channel: "sms", recipientType: "sender", recipientPhone: sPhone, subject: "SMS Booking Confirmation", message: val.messageText, status: val.success ? "sent" : "failed", error: val.error, sentAt: /* @__PURE__ */ new Date() });
+      }
+      if (receiverSmsRes.status === "fulfilled") {
+        const val = receiverSmsRes.value;
+        logs.push({ channel: "sms", recipientType: "receiver", recipientPhone: rPhone, subject: "SMS Delivery OTP Notice", message: val.messageText, status: val.success ? "sent" : "failed", error: val.error, sentAt: /* @__PURE__ */ new Date() });
+      }
+      if (logs.length > 0) {
+        BookingModel.updateOne({ ref: bookingRef }, { $push: { notificationLogs: { $each: logs } } }).exec().catch(() => {
+        });
+      }
+    })().catch((err) => {
+      console.error("[Notification Pipeline Exception]:", err);
     });
     createAdminNotification({
       title: "New Delivery Booking",
@@ -2750,71 +2768,57 @@ app.post("/api/portal/bookings/:ref/assign", async (req, res) => {
       dispatchNote: note || booking.deliveryInstructions,
       portalUrl: `${process.env.APP_URL || "https://bbdmobility.com.ng"}/rider`
     };
-    emailService.sendRiderAssignmentNotice(riderEmailPayload).then((emailResult) => {
-      BookingModel.updateOne(
-        { ref: booking.ref },
-        {
-          $push: {
-            notificationLogs: {
-              channel: "email",
-              recipientType: "rider",
-              recipientEmail: rider.email,
-              subject: `New Assignment Alert: ${booking.ref}`,
-              status: emailResult.success ? "sent" : "failed",
-              error: emailResult.error,
-              sentAt: /* @__PURE__ */ new Date()
-            }
-          }
+    (async () => {
+      const results = await Promise.allSettled([
+        emailService.sendRiderAssignmentNotice(riderEmailPayload),
+        kudiSmsService.sendRiderAssignmentSms({
+          riderPhone: rider.phone,
+          riderName: rider.name,
+          bookingRef: booking.ref,
+          pickupAddress: booking.pickupAddress,
+          deliveryAddress: booking.deliveryAddress,
+          senderName: booking.senderName,
+          senderPhone: booking.senderPhone,
+          receiverName: booking.receiverName,
+          receiverPhone: booking.receiverPhone,
+          packageDescription: booking.packageDescription || "Parcel",
+          dispatchNote: note || booking.deliveryInstructions,
+          portalUrl: `${process.env.APP_URL || "https://bbdmobility.com.ng"}/rider`
+        }),
+        kudiSmsService.sendRiderAssignedToCustomerSms({
+          senderPhone: booking.senderPhone,
+          receiverPhone: booking.receiverPhone,
+          senderName: booking.senderName,
+          receiverName: booking.receiverName,
+          bookingRef: booking.ref,
+          riderName: rider.name,
+          riderPhone: rider.phone
+        })
+      ]);
+      const logs = [];
+      const [emailRes, riderSmsRes, custSmsRes] = results;
+      if (emailRes.status === "fulfilled") {
+        const val = emailRes.value;
+        logs.push({ channel: "email", recipientType: "rider", recipientEmail: rider.email, subject: `New Assignment Alert: ${booking.ref}`, status: val.success ? "sent" : "failed", error: val.error, sentAt: /* @__PURE__ */ new Date() });
+      }
+      if (riderSmsRes.status === "fulfilled") {
+        const val = riderSmsRes.value;
+        logs.push({ channel: "sms", recipientType: "rider", recipientPhone: rider.phone, subject: "SMS Rider Assignment Notice", message: val.messageText, status: val.success ? "sent" : "failed", error: val.error, sentAt: /* @__PURE__ */ new Date() });
+      }
+      if (custSmsRes.status === "fulfilled") {
+        const val = custSmsRes.value;
+        if (val.senderResult) {
+          logs.push({ channel: "sms", recipientType: "sender", recipientPhone: booking.senderPhone, subject: "SMS Rider Assigned (Sender)", message: val.senderResult.messageText, status: val.senderResult.success ? "sent" : "failed", error: val.senderResult.error, sentAt: /* @__PURE__ */ new Date() });
         }
-      ).exec();
-    }).catch((err) => {
-      console.error("Rider assignment email dispatch error:", err);
-    });
-    kudiSmsService.sendRiderAssignmentSms({
-      riderPhone: rider.phone,
-      riderName: rider.name,
-      bookingRef: booking.ref,
-      pickupAddress: booking.pickupAddress,
-      deliveryAddress: booking.deliveryAddress,
-      senderName: booking.senderName,
-      senderPhone: booking.senderPhone,
-      receiverName: booking.receiverName,
-      receiverPhone: booking.receiverPhone,
-      packageDescription: booking.packageDescription || "Parcel",
-      dispatchNote: note || booking.deliveryInstructions,
-      portalUrl: `${process.env.APP_URL || "https://bbdmobility.com.ng"}/rider`
-    }).then((smsResult) => {
-      BookingModel.updateOne(
-        { ref: booking.ref },
-        {
-          $push: {
-            notificationLogs: {
-              channel: "sms",
-              recipientType: "rider",
-              recipientPhone: rider.phone,
-              subject: "SMS Rider Assignment Notice",
-              message: smsResult.messageText,
-              status: smsResult.success ? "sent" : "failed",
-              error: smsResult.error,
-              sentAt: /* @__PURE__ */ new Date()
-            }
-          }
+        if (val.receiverResult) {
+          logs.push({ channel: "sms", recipientType: "receiver", recipientPhone: booking.receiverPhone, subject: "SMS Rider Assigned (Receiver)", message: val.receiverResult.messageText, status: val.receiverResult.success ? "sent" : "failed", error: val.receiverResult.error, sentAt: /* @__PURE__ */ new Date() });
         }
-      ).exec();
-    }).catch((err) => {
-      console.error("[KudiSMS Error] Rider assignment SMS dispatch error:", err);
-    });
-    kudiSmsService.sendRiderAssignedToCustomerSms({
-      senderPhone: booking.senderPhone,
-      receiverPhone: booking.receiverPhone,
-      senderName: booking.senderName,
-      receiverName: booking.receiverName,
-      bookingRef: booking.ref,
-      riderName: rider.name,
-      riderPhone: rider.phone
-    }).catch((err) => {
-      console.error("[KudiSMS Error] Customer rider assignment SMS error:", err);
-    });
+      }
+      if (logs.length > 0) {
+        BookingModel.updateOne({ ref: booking.ref }, { $push: { notificationLogs: { $each: logs } } }).exec().catch(() => {
+        });
+      }
+    })().catch((err) => console.error("[Rider Notification Pipeline Exception]:", err));
     createAdminNotification({
       title: "Rider Assigned & Notified",
       message: `Booking ${booking.ref} assigned to courier ${rider.name} (${rider.riderId}). SMS & email alerts dispatched.`,
