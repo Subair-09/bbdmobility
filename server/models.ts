@@ -17,25 +17,38 @@ if (!cached) {
 
 export async function connectToDatabase(retries = 2): Promise<mongoose.Connection | null> {
   // 1. If active connected instance already exists, reuse it immediately
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
+  }
   if (mongoose.connection.readyState === 1) {
-    return mongoose.connection;
+    cached.conn = mongoose.connection;
+    return cached.conn;
   }
 
   // 2. If connection is currently in progress, await the ongoing promise
-  if (mongoose.connection.readyState === 2 && cached.promise) {
+  if (cached.promise) {
     try {
       const conn = await cached.promise;
       if (conn && mongoose.connection.readyState === 1) {
+        cached.conn = conn;
         return conn;
       }
     } catch {
-      // Proceed to fresh connection attempt below
+      cached.promise = null;
     }
   }
 
   const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/bbdmobility';
 
-  // 3. Reset any stale/failed cached connection objects
+  // Serverless detection (Vercel, AWS Lambda, Netlify)
+  const isServerless = !!(
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.NETLIFY ||
+    process.env.VERCEL_ENV
+  );
+
+  // 3. Reset stale cached connection objects before retry
   cached.promise = null;
   cached.conn = null;
 
@@ -43,15 +56,17 @@ export async function connectToDatabase(retries = 2): Promise<mongoose.Connectio
     try {
       cached.promise = mongoose.connect(uri, {
         bufferCommands: true,
-        serverSelectionTimeoutMS: 30000, // 30 seconds for mobile/remote Atlas latency
-        connectTimeoutMS: 30000,
-        socketTimeoutMS: 45000,
+        serverSelectionTimeoutMS: 10000, // 10 seconds for remote Atlas latency
+        connectTimeoutMS: 10000,
+        socketTimeoutMS: 30000,
         family: 4, // Force IPv4 to avoid broken IPv6 resolution timeouts on Nigerian ISPs
-        maxPoolSize: 10,
-        minPoolSize: 1,
+        maxPoolSize: isServerless ? 2 : 5, // Strict limit: 2 connections per serverless container to prevent Atlas M0 (500 limit) exhaustion
+        minPoolSize: 0, // Allow idle connections to close completely instead of holding open sockets
+        maxIdleTimeMS: 10000, // Close sockets that are idle for 10 seconds
+        waitQueueTimeoutMS: 5000,
         retryWrites: true,
       }).then((m) => {
-        console.log(`[MongoDB] Connected to database: ${m.connection.name}`);
+        console.log(`[MongoDB] Connected to database: ${m.connection.name} (pool: ${isServerless ? 2 : 5})`);
         return m.connection;
       });
 
@@ -65,8 +80,8 @@ export async function connectToDatabase(retries = 2): Promise<mongoose.Connectio
       console.warn(`[MongoDB] Connection attempt ${attempt}/${retries} failed:`, error.message);
       
       if (attempt < retries) {
-        // Wait 1.5 seconds before retrying
-        await new Promise(r => setTimeout(r, 1500));
+        // Wait 1 second before retrying
+        await new Promise(r => setTimeout(r, 1000));
       } else {
         console.error('[MongoDB Atlas Warning] Connection timed out. Please ensure 0.0.0.0/0 is whitelisted in MongoDB Atlas -> Network Access.');
       }

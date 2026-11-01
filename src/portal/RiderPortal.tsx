@@ -139,10 +139,42 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
   useEffect(() => {
     loadDeliveries(false);
 
-    // Low-latency live polling every 3.5 seconds
-    const interval = setInterval(() => {
-      loadDeliveries(true);
-    }, 3500);
+    // Smart adaptive live polling:
+    // - Polls every 20s ONLY when the tab is actively visible to preserve MongoDB Atlas M0 connections
+    // - Completely pauses when the tab is hidden / minimized
+    // - Immediately triggers live refresh on tab focus / visibility return or cross-tab booking events
+    let interval: any = null;
+
+    const startPolling = () => {
+      if (interval) clearInterval(interval);
+      interval = setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+          loadDeliveries(true);
+        }
+      }, 20000);
+    };
+
+    const stopPolling = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadDeliveries(true);
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+
+    const handleFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadDeliveries(true);
+      }
+    };
 
     // Cross-tab immediate sync event
     const handleStorageChange = (e: StorageEvent) => {
@@ -150,10 +182,19 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
         loadDeliveries(true);
       }
     };
+
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      startPolling();
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
-      clearInterval(interval);
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [riderData.riderId]);

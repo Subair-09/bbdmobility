@@ -185,11 +185,43 @@ export function AdminPortal({ onLogout, onNavigateHome, initialTab = 'dashboard'
     }
   }, []);
 
-  // Low-latency live polling every 3.5 seconds so new orders appear immediately
+  // Smart adaptive live polling:
+  // - Polls every 20s ONLY when the tab is actively visible to preserve MongoDB Atlas M0 connections
+  // - Completely pauses when the tab is hidden / minimized
+  // - Immediately triggers live refresh on tab focus / visibility return or cross-tab booking events
   useEffect(() => {
-    const interval = setInterval(() => {
-      handleRefresh(true);
-    }, 3500);
+    let interval: any = null;
+
+    const startPolling = () => {
+      if (interval) clearInterval(interval);
+      interval = setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+          handleRefresh(true);
+        }
+      }, 20000);
+    };
+
+    const stopPolling = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        handleRefresh(true);
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+
+    const handleFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        handleRefresh(true);
+      }
+    };
 
     // Cross-tab immediate sync event
     const handleStorageChange = (e: StorageEvent) => {
@@ -197,10 +229,19 @@ export function AdminPortal({ onLogout, onNavigateHome, initialTab = 'dashboard'
         handleRefresh(true);
       }
     };
+
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      startPolling();
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
-      clearInterval(interval);
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [selectedBooking?.ref]);
