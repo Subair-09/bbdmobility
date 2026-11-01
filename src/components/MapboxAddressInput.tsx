@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Loader2, X, Compass } from 'lucide-react';
-import { searchMapboxPlaces, MapboxPlaceSuggestion } from '../services/mapboxService';
+import { MapPin, Navigation, Loader2, X, Compass, CheckCircle } from 'lucide-react';
+import { 
+  searchMapboxPlaces, 
+  MapboxPlaceSuggestion,
+  getLagosAreaCoordinates
+} from '../services/mapboxService';
 
 interface MapboxAddressInputProps {
   label: string;
@@ -80,7 +84,26 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
     const text = e.target.value;
     setQuery(text);
     setIsOpen(true);
-    onChange(text); // update text in parent, coords undefined until selected
+    // Link coordinates immediately so distance calculates in real time
+    const coords = getLagosAreaCoordinates(text);
+    onChange(text, { lat: coords[1], lng: coords[0] });
+  };
+
+  const handleBlur = () => {
+    // On blur, if user typed a custom street address, ensure valid coordinates are linked
+    if (query.trim().length >= 2) {
+      const coords = getLagosAreaCoordinates(query);
+      onChange(query, { lat: coords[1], lng: coords[0] });
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && suggestions.length > 0) {
+      e.preventDefault();
+      handleSelectSuggestion(suggestions[0]);
+    } else if (e.key === 'Escape') {
+      setIsOpen(false);
+    }
   };
 
   const handleClear = () => {
@@ -174,6 +197,8 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
             if (query.trim().length >= 2) setIsOpen(true);
           }}
           onChange={handleInputChange}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className={`w-full pl-3.5 pr-14 py-3 sm:py-2.5 bg-slate-50 text-slate-800 text-xs sm:text-sm rounded-xl border focus:outline-none transition-all placeholder:text-slate-400 ${
             error
@@ -209,7 +234,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
 
       {/* Autocomplete Dropdown */}
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden max-h-60 overflow-y-auto">
+        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden max-h-64 overflow-y-auto">
           {loading && suggestions.length === 0 ? (
             <div className="p-3 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-bbd-navy" />
@@ -221,14 +246,34 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
                 <li key={item.id}>
                   <button
                     type="button"
-                    onClick={() => handleSelectSuggestion(item)}
-                    className="w-full text-left px-3.5 py-2.5 hover:bg-blue-50/70 flex items-start gap-2.5 transition-colors group"
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // Prevents input blur before selection
+                      handleSelectSuggestion(item);
+                    }}
+                    className={`w-full text-left px-3.5 py-2.5 flex items-start gap-2.5 transition-colors group ${
+                      item.isExactUserAddress ? 'bg-emerald-50/50 hover:bg-emerald-50' : 'hover:bg-blue-50/70'
+                    }`}
                   >
-                    <Compass className="w-4 h-4 text-slate-400 group-hover:text-bbd-navy flex-shrink-0 mt-0.5 transition-colors" />
+                    {item.isExactUserAddress ? (
+                      <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <Compass className="w-4 h-4 text-slate-400 group-hover:text-bbd-navy flex-shrink-0 mt-0.5 transition-colors" />
+                    )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-800 truncate group-hover:text-bbd-navy">
-                        {item.text}
-                      </p>
+                      {item.isExactUserAddress ? (
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                            Exact Address
+                          </span>
+                          <span className="text-xs font-bold text-gray-900 truncate">
+                            {item.text}
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-xs font-semibold text-gray-800 truncate group-hover:text-bbd-navy">
+                          {item.text}
+                        </p>
+                      )}
                       <p className="text-[11px] text-slate-500 truncate">
                         {item.placeName}
                       </p>
@@ -239,7 +284,18 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
             </ul>
           ) : query.trim().length >= 2 ? (
             <div className="p-3 text-center text-xs text-slate-500">
-              <p>Press continue with custom address: &ldquo;{query}&rdquo;</p>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const coords = getLagosAreaCoordinates(query);
+                  onChange(query, { lat: coords[1], lng: coords[0] });
+                  setIsOpen(false);
+                }}
+                className="text-bbd-navy font-semibold hover:underline"
+              >
+                Use custom address: &ldquo;{query}&rdquo;
+              </button>
             </div>
           ) : null}
         </div>
