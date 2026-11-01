@@ -3,6 +3,12 @@
  * Comprehensive coverage for Lagos (all 20 LGAs), Ogun corridor & Nigeria nationwide.
  */
 
+import { 
+  searchGooglePlaces, 
+  calculateGoogleDrivingRoute, 
+  geocodeGoogleAddress 
+} from './googleMapsService';
+
 export interface MapboxPlaceSuggestion {
   id: string;
   placeName: string;
@@ -11,7 +17,7 @@ export interface MapboxPlaceSuggestion {
   context?: string;
   isExactUserAddress?: boolean;
   isVerified?: boolean;
-  category?: 'hub' | 'mapbox' | 'osm' | 'exact';
+  category?: 'hub' | 'mapbox' | 'osm' | 'exact' | 'google';
 }
 
 export interface RouteCalculationResult {
@@ -246,17 +252,27 @@ export function getLagosAreaCoordinates(text: string): [number, number] {
  */
 export async function resolveAddressCoordinates(
   query: string,
-  token?: string
+  token?: string,
+  googleKey?: string
 ): Promise<[number, number] | null> {
   const trimmed = query.trim();
   if (!trimmed || trimmed.length < 2) return null;
+
+  // 1. Google Geocoding lookup if key provided or present in env
+  const gKey = googleKey || (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || '';
+  if (gKey && gKey.startsWith('AIzaSy')) {
+    try {
+      const gCoords = await geocodeGoogleAddress(trimmed, gKey);
+      if (gCoords) return gCoords;
+    } catch {}
+  }
 
   const qLower = trimmed.toLowerCase();
   const words = qLower.split(/[\s,.-]+/).filter(w => w.length > 2);
   const houseNumMatch = trimmed.match(/^(\d+[\w-]*)\s+(.+)/i);
   const streetPart = houseNumMatch ? houseNumMatch[2].toLowerCase() : qLower;
 
-  // 1. Direct local hub match
+  // 2. Direct local hub match
   for (const h of LAGOS_FALLBACK_HUBS) {
     const hName = h.name.toLowerCase();
     const hArea = h.area.toLowerCase();
@@ -312,10 +328,22 @@ export async function resolveAddressCoordinates(
  */
 export async function searchMapboxPlaces(
   query: string,
-  token?: string
+  token?: string,
+  googleKey?: string
 ): Promise<MapboxPlaceSuggestion[]> {
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
+
+  // 1. Google Places API (New) - Highest accuracy for Nigerian house numbers & streets
+  const gKey = googleKey || (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || '';
+  let googleSuggestions: MapboxPlaceSuggestion[] = [];
+  if (gKey && gKey.startsWith('AIzaSy')) {
+    try {
+      googleSuggestions = await searchGooglePlaces(trimmed, gKey);
+    } catch (gErr) {
+      console.warn('[Google Places Search Error]:', gErr);
+    }
+  }
 
   const mapboxToken = token || (import.meta as any).env?.VITE_MAPBOX_TOKEN || '';
   const qLower = trimmed.toLowerCase();
@@ -324,7 +352,7 @@ export async function searchMapboxPlaces(
   const houseNum = houseNumMatch ? houseNumMatch[1] : '';
   const streetPart = houseNumMatch ? houseNumMatch[2].toLowerCase() : qLower;
 
-  // 1. Search our comprehensive Nigerian / Lagos database
+  // 2. Search our comprehensive Nigerian / Lagos database
   const localMatches: Array<{ score: number; item: MapboxPlaceSuggestion }> = [];
   for (const h of LAGOS_FALLBACK_HUBS) {
     const hName = h.name.toLowerCase();
@@ -460,8 +488,9 @@ export async function searchMapboxPlaces(
     category: 'exact'
   };
 
-  // Combine and deduplicate
+  // Combine and deduplicate (Google first, followed by local hubs, Mapbox, OSM, and exact address)
   const combined = [
+    ...googleSuggestions,
     ...localSuggestions,
     ...mapboxSuggestions,
     ...photonSuggestions,
@@ -499,7 +528,8 @@ const ROUTE_CACHE_TTL_MS = 1000 * 60 * 60;
 export async function calculateDrivingRoute(
   pickupCoords: [number, number],
   dropoffCoords: [number, number],
-  token?: string
+  token?: string,
+  googleKey?: string
 ): Promise<RouteCalculationResult> {
   // Check identical locations (< 0.05 km)
   const isSameLocation =
@@ -513,6 +543,19 @@ export async function calculateDrivingRoute(
       polyline: null,
       source: 'mapbox-directions-api'
     };
+  }
+
+  // 1. Compute via Google Routes API v2 first if Google Key is provided or present in env
+  const gKey = googleKey || (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || '';
+  if (gKey && gKey.startsWith('AIzaSy')) {
+    try {
+      const googleRoute = await calculateGoogleDrivingRoute(pickupCoords, dropoffCoords, gKey);
+      if (googleRoute && googleRoute.distanceKm > 0) {
+        return googleRoute;
+      }
+    } catch (gErr) {
+      console.warn('[Google Routes Calculation Fallback]:', gErr);
+    }
   }
 
   const cacheKey = `${pickupCoords[0].toFixed(3)},${pickupCoords[1].toFixed(3)}->${dropoffCoords[0].toFixed(3)},${dropoffCoords[1].toFixed(3)}`;

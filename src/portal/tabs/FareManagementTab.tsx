@@ -68,6 +68,7 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
   const [distancePricingEnabled, setDistancePricingEnabled] = useState<boolean>(settings.distancePricingEnabled ?? true);
   const [fareRoundingIncrement, setFareRoundingIncrement] = useState<number>(settings.fareRoundingIncrement ?? 50);
   const [mapboxPublicKey, setMapboxPublicKey] = useState<string>(settings.mapboxPublicKey ?? '');
+  const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>(settings.googleMapsApiKey ?? '');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // Interactive Test Calculator States
@@ -102,7 +103,8 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
     calculateDrivingRoute(
       [testPickupCoords.lng, testPickupCoords.lat],
       [testDropoffCoords.lng, testDropoffCoords.lat],
-      mapboxPublicKey
+      mapboxPublicKey,
+      googleMapsApiKey
     )
       .then((route) => {
         if (!isMounted) return;
@@ -118,7 +120,7 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [testPickupCoords, testDropoffCoords, mapboxPublicKey]);
+  }, [testPickupCoords, testDropoffCoords, mapboxPublicKey, googleMapsApiKey]);
 
   // Compute live test fare breakdown
   const testFareBreakdown: PricingBreakdown = computeDeliveryFareBreakdown({
@@ -153,6 +155,7 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
         distancePricingEnabled,
         fareRoundingIncrement: Math.max(1, Number(fareRoundingIncrement) || 50),
         mapboxPublicKey: mapboxPublicKey.trim(),
+        googleMapsApiKey: googleMapsApiKey.trim(),
       };
 
       await onUpdateSettings(payload);
@@ -378,6 +381,28 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
                 />
                 <p className="text-[10px] text-gray-400 mt-0.5">Used for road directions &amp; address search</p>
               </div>
+
+              {/* Google Maps API Key */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-gray-700">
+                    Google Maps API Key (Recommended)
+                  </label>
+                  {googleMapsApiKey && googleMapsApiKey.startsWith('AIzaSy') && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                      Active: Places &amp; Routes API
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="password"
+                  placeholder="AIzaSy... (leave blank to use .env key)"
+                  value={googleMapsApiKey}
+                  onChange={(e) => setGoogleMapsApiKey(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 rounded-xl border border-gray-200 focus:border-[#0B1B3D] focus:bg-white focus:outline-none font-medium text-gray-900"
+                />
+                <p className="text-[10px] text-gray-400 mt-0.5">High-accuracy Nigerian street search &amp; live traffic distance</p>
+              </div>
             </div>
 
             {/* Feature Toggles */}
@@ -485,6 +510,7 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
                 }
               }}
               mapboxToken={mapboxPublicKey}
+              googleApiKey={googleMapsApiKey}
               showGpsButton={false}
             />
 
@@ -503,6 +529,7 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
                 }
               }}
               mapboxToken={mapboxPublicKey}
+              googleApiKey={googleMapsApiKey}
               showGpsButton={false}
             />
 

@@ -182,4 +182,5 @@ export interface GeneralSettings {
   distancePricingEnabled?: boolean;
   fareRoundingIncrement?: number;
   mapboxPublicKey?: string;
+  googleMapsApiKey?: string;
 }

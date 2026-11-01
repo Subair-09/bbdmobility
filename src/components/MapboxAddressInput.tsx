@@ -13,6 +13,7 @@ interface MapboxAddressInputProps {
   onChange: (address: string, coords?: { lat: number; lng: number }) => void;
   error?: string;
   mapboxToken?: string;
+  googleApiKey?: string;
   iconType?: 'pickup' | 'dropoff';
   showGpsButton?: boolean;
 }
@@ -24,6 +25,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
   onChange,
   error,
   mapboxToken,
+  googleApiKey,
   iconType = 'pickup',
   showGpsButton = true
 }) => {
@@ -57,7 +59,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const results = await searchMapboxPlaces(query, mapboxToken);
+        const results = await searchMapboxPlaces(query, mapboxToken, googleApiKey);
         setSuggestions(results);
       } catch (err) {
         setSuggestions([]);
@@ -67,7 +69,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [query, isOpen, mapboxToken]);
+  }, [query, isOpen, mapboxToken, googleApiKey]);
 
   // Click outside listener
   useEffect(() => {
@@ -118,7 +120,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
 
       // Resolve address coordinates asynchronously
       try {
-        const resolved = await resolveAddressCoordinates(trimmed, mapboxToken);
+        const resolved = await resolveAddressCoordinates(trimmed, mapboxToken, googleApiKey);
         if (resolved) {
           const coords = { lat: resolved[1], lng: resolved[0] };
           setSelectedCoords(coords);
@@ -137,7 +139,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
       if (suggestions.length > 0) {
         handleSelectSuggestion(suggestions[0]);
       } else if (query.trim().length >= 2) {
-        resolveAddressCoordinates(query, mapboxToken).then((resolved) => {
+        resolveAddressCoordinates(query, mapboxToken, googleApiKey).then((resolved) => {
           if (resolved) {
             const coords = { lat: resolved[1], lng: resolved[0] };
             setSelectedCoords(coords);
@@ -302,7 +304,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
           {loading && suggestions.length === 0 ? (
             <div className="p-3 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-bbd-navy" />
-              <span>Searching Nigerian Mapbox addresses & landmarks...</span>
+              <span>Searching Google Places & verified Nigerian addresses...</span>
             </div>
           ) : suggestions.length > 0 ? (
             <ul className="divide-y divide-gray-50">
@@ -320,6 +322,8 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
                   >
                     {item.isExactUserAddress ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    ) : item.category === 'google' ? (
+                      <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
                     ) : item.category === 'hub' ? (
                       <MapPin className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
                     ) : item.category === 'osm' ? (
@@ -330,13 +334,18 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">
+                        {item.category === 'google' && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-blue-100 text-blue-800">
+                            Google Places
+                          </span>
+                        )}
                         {item.category === 'hub' && (
                           <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-emerald-100 text-emerald-800">
                             Local Hub
                           </span>
                         )}
                         {item.category === 'mapbox' && (
-                          <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-blue-100 text-blue-800">
+                          <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-slate-100 text-slate-700">
                             Mapbox Road
                           </span>
                         )}

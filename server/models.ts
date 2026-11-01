@@ -614,6 +614,7 @@ export interface ISettings extends Document {
   distancePricingEnabled: boolean;
   fareRoundingIncrement: number;
   mapboxPublicKey?: string;
+  googleMapsApiKey?: string;
 
   notifications: {
     newBookings: boolean;
@@ -650,6 +651,7 @@ const SettingsSchema = new Schema<ISettings>({
   distancePricingEnabled: { type: Boolean, default: true },
   fareRoundingIncrement: { type: Number, default: 50 },
   mapboxPublicKey: { type: String, default: '' },
+  googleMapsApiKey: { type: String, default: '' },
   notifications: {
     newBookings: { type: Boolean, default: true },
     payments: { type: Boolean, default: true },

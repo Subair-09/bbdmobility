@@ -312,6 +312,7 @@ var SettingsSchema = new Schema({
   distancePricingEnabled: { type: Boolean, default: true },
   fareRoundingIncrement: { type: Number, default: 50 },
   mapboxPublicKey: { type: String, default: "" },
+  googleMapsApiKey: { type: String, default: "" },
   notifications: {
     newBookings: { type: Boolean, default: true },
     payments: { type: Boolean, default: true },
@@ -4908,6 +4909,7 @@ app.get("/api/pricing-config", async (_req, res) => {
     await connectToDatabase();
     const settings = await SettingsModel.findOne().lean();
     const mapboxKey = settings?.mapboxPublicKey || process.env.VITE_MAPBOX_TOKEN || process.env.MAPBOX_ACCESS_TOKEN || "";
+    const googleKey = settings?.googleMapsApiKey || process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "";
     return res.json({
       baseFare: typeof settings?.baseFare === "number" ? settings.baseFare : DEFAULT_PRICING_CONFIG.baseFare,
       pricePerKm: typeof settings?.pricePerKm === "number" ? settings.pricePerKm : DEFAULT_PRICING_CONFIG.pricePerKm,
@@ -4920,7 +4922,8 @@ app.get("/api/pricing-config", async (_req, res) => {
       timePricingEnabled: settings?.timePricingEnabled !== void 0 ? settings.timePricingEnabled : DEFAULT_PRICING_CONFIG.timePricingEnabled,
       distancePricingEnabled: settings?.distancePricingEnabled !== void 0 ? settings.distancePricingEnabled : DEFAULT_PRICING_CONFIG.distancePricingEnabled,
       fareRoundingIncrement: typeof settings?.fareRoundingIncrement === "number" ? settings.fareRoundingIncrement : DEFAULT_PRICING_CONFIG.fareRoundingIncrement,
-      mapboxPublicKey: mapboxKey
+      mapboxPublicKey: mapboxKey,
+      googleMapsApiKey: googleKey
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -4931,6 +4934,7 @@ app.post("/api/calculate-fare", async (req, res) => {
     await connectToDatabase();
     const settings = await SettingsModel.findOne().lean();
     const mapboxKey = settings?.mapboxPublicKey || process.env.VITE_MAPBOX_TOKEN || process.env.MAPBOX_ACCESS_TOKEN || "";
+    const googleKey = settings?.googleMapsApiKey || process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "";
     let distanceKm = Math.max(0, Number(req.body.distanceKm) || 0);
     let durationMinutes = Math.max(0, Number(req.body.durationMinutes) || 0);
     const waitingMinutes = Math.max(0, Number(req.body.waitingMinutes) || 0);
@@ -4944,7 +4948,36 @@ app.post("/api/calculate-fare", async (req, res) => {
       if (cached2) {
         distanceKm = cached2.distanceKm;
         durationMinutes = cached2.durationMinutes;
-      } else if (mapboxKey && mapboxKey.startsWith("pk.")) {
+      } else if (googleKey && googleKey.startsWith("AIzaSy")) {
+        try {
+          const gRes = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Goog-Api-Key": googleKey,
+              "X-Goog-FieldMask": "routes.duration,routes.distanceMeters"
+            },
+            body: JSON.stringify({
+              origin: { location: { latLng: { latitude: p[1], longitude: p[0] } } },
+              destination: { location: { latLng: { latitude: d[1], longitude: d[0] } } },
+              travelMode: "DRIVE",
+              routingPreference: "TRAFFIC_AWARE"
+            })
+          });
+          if (gRes.ok) {
+            const gData = await gRes.json();
+            if (gData.routes && gData.routes[0]) {
+              const r = gData.routes[0];
+              distanceKm = Number((r.distanceMeters / 1e3).toFixed(1));
+              durationMinutes = Math.max(1, Math.round(parseInt(r.duration) / 60));
+              setCachedServerRoute(p, d, { distanceKm, durationMinutes });
+            }
+          }
+        } catch (gErr) {
+          console.warn("[Google Routes API Server Fallback]:", gErr);
+        }
+      }
+      if (distanceKm === 0 && mapboxKey && mapboxKey.startsWith("pk.")) {
         try {
           const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${p[0]},${p[1]};${d[0]},${d[1]}?geometries=geojson&overview=simplified&access_token=${mapboxKey}`;
           const mRes = await fetch(url);
@@ -5009,12 +5042,14 @@ app.get("/api/portal/settings", async (_req, res) => {
         timePricingEnabled: DEFAULT_PRICING_CONFIG.timePricingEnabled,
         distancePricingEnabled: DEFAULT_PRICING_CONFIG.distancePricingEnabled,
         fareRoundingIncrement: DEFAULT_PRICING_CONFIG.fareRoundingIncrement,
-        mapboxPublicKey: envToken
+        mapboxPublicKey: envToken,
+        googleMapsApiKey: process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || ""
       });
       settings = created.toObject();
     } else {
       let needsUpdate = false;
       const updates = {};
+      const envGoogleKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "";
       if (settings.riderCommissionPercent === void 0) {
         updates.riderCommissionPercent = 25;
         needsUpdate = true;
@@ -5065,6 +5100,10 @@ app.get("/api/portal/settings", async (_req, res) => {
       }
       if (!settings.mapboxPublicKey && envToken) {
         updates.mapboxPublicKey = envToken;
+        needsUpdate = true;
+      }
+      if (!settings.googleMapsApiKey && envGoogleKey) {
+        updates.googleMapsApiKey = envGoogleKey;
         needsUpdate = true;
       }
       if (needsUpdate) {
@@ -5140,6 +5179,9 @@ app.put("/api/portal/settings", async (req, res) => {
     }
     if (typeof payload.mapboxPublicKey === "string") {
       payload.mapboxPublicKey = sanitizeString(payload.mapboxPublicKey.trim());
+    }
+    if (typeof payload.googleMapsApiKey === "string") {
+      payload.googleMapsApiKey = sanitizeString(payload.googleMapsApiKey.trim());
     }
     const updated = await SettingsModel.findOneAndUpdate({}, { $set: payload }, { upsert: true, new: true });
     return res.json({ success: true, settings: updated });

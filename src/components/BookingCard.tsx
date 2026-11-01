@@ -62,6 +62,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
     distancePricingEnabled: boolean;
     fareRoundingIncrement: number;
     mapboxPublicKey?: string;
+    googleMapsApiKey?: string;
   }>({
     baseFare: 300,
     pricePerKm: 250,
@@ -75,6 +76,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
     distancePricingEnabled: true,
     fareRoundingIncrement: 50,
     mapboxPublicKey: '',
+    googleMapsApiKey: '',
   });
 
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | undefined>();
@@ -151,7 +153,8 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
     calculateDrivingRoute(
       [pickupCoords.lng, pickupCoords.lat],
       [dropoffCoords.lng, dropoffCoords.lat],
-      pricingConfig.mapboxPublicKey
+      pricingConfig.mapboxPublicKey,
+      pricingConfig.googleMapsApiKey
     )
       .then((route) => {
         if (!isMounted) return;
@@ -178,7 +181,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
     return () => {
       isMounted = false;
     };
-  }, [pickupCoords, dropoffCoords, pricingConfig.mapboxPublicKey]);
+  }, [pickupCoords, dropoffCoords, pricingConfig.mapboxPublicKey, pricingConfig.googleMapsApiKey]);
 
   // Dynamic Fare Breakdown based on Admin Pricing Formula
   const fareBreakdown: PricingBreakdown = computeDeliveryFareBreakdown({
@@ -240,13 +243,13 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
     // Ensure coordinates are resolved if user typed custom addresses without clicking suggestions
     if (!pickupCoords && formData.pickupLocation.trim()) {
       try {
-        const p = await resolveAddressCoordinates(formData.pickupLocation, pricingConfig.mapboxPublicKey);
+        const p = await resolveAddressCoordinates(formData.pickupLocation, pricingConfig.mapboxPublicKey, pricingConfig.googleMapsApiKey);
         if (p) setPickupCoords({ lat: p[1], lng: p[0] });
       } catch {}
     }
     if (!dropoffCoords && formData.dropoffLocation.trim()) {
       try {
-        const d = await resolveAddressCoordinates(formData.dropoffLocation, pricingConfig.mapboxPublicKey);
+        const d = await resolveAddressCoordinates(formData.dropoffLocation, pricingConfig.mapboxPublicKey, pricingConfig.googleMapsApiKey);
         if (d) setDropoffCoords({ lat: d[1], lng: d[0] });
       } catch {}
     }
@@ -468,7 +471,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               {errors.serviceType && <p className="text-[11px] text-red-600 mt-1">{errors.serviceType}</p>}
             </div>
 
-            {/* Mapbox Pickup Location Autocomplete */}
+            {/* Mapbox / Google Pickup Location Autocomplete */}
             <MapboxAddressInput
               label="Pickup Location"
               iconType="pickup"
@@ -484,10 +487,11 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               }}
               error={errors.pickupLocation}
               mapboxToken={pricingConfig.mapboxPublicKey}
+              googleApiKey={pricingConfig.googleMapsApiKey}
               showGpsButton={true}
             />
 
-            {/* Mapbox Drop-off Location Autocomplete */}
+            {/* Mapbox / Google Drop-off Location Autocomplete */}
             <MapboxAddressInput
               label="Drop-off Location"
               iconType="dropoff"
@@ -503,6 +507,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               }}
               error={errors.dropoffLocation}
               mapboxToken={pricingConfig.mapboxPublicKey}
+              googleApiKey={pricingConfig.googleMapsApiKey}
               showGpsButton={false}
             />
 
