@@ -29,7 +29,7 @@ import {
 import { Booking } from './types';
 import { portalApi, normalizeBooking } from './api';
 import { useNigerianGreeting } from './timeGreeting';
-import { MapboxRouteMap } from '../components/MapboxRouteMap';
+import { GoogleRouteMap } from '../components/GoogleRouteMap';
 import { getLagosAreaCoordinates } from '../services/mapboxService';
 
 interface RiderPortalProps {
@@ -1448,7 +1448,7 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
 
                 {/* Rider Visual Route Map */}
                 <div className="pt-2">
-                  <MapboxRouteMap
+                  <GoogleRouteMap
                     pickup={
                       activeBooking.pickupCoordinates ||
                       (activeBooking.pickupLocation ? (() => {

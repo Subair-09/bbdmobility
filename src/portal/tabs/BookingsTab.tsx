@@ -29,7 +29,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { Booking, Rider, PaymentRecord, PaymentMethod } from '../types';
-import { MapboxRouteMap } from '../../components/MapboxRouteMap';
+import { GoogleRouteMap } from '../../components/GoogleRouteMap';
 import { getLagosAreaCoordinates } from '../../services/mapboxService';
 
 interface BookingsTabProps {
@@ -752,7 +752,7 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
                 )}
                 {/* Visual Route Map for Admin */}
                 <div className="pt-1.5">
-                  <MapboxRouteMap
+                  <GoogleRouteMap
                     pickup={
                       selectedBooking.pickupCoordinates ||
                       (selectedBooking.pickupLocation ? (() => {

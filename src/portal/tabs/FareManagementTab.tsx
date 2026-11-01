@@ -6,8 +6,8 @@ import {
   Sliders 
 } from 'lucide-react';
 import { GeneralSettings } from '../types';
-import { MapboxAddressInput } from '../../components/MapboxAddressInput';
-import { MapboxRouteMap } from '../../components/MapboxRouteMap';
+import { GoogleAddressInput } from '../../components/GoogleAddressInput';
+import { GoogleRouteMap } from '../../components/GoogleRouteMap';
 import { 
   calculateDrivingRoute, 
   computeDeliveryFareBreakdown, 
@@ -67,7 +67,7 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
   const [timePricingEnabled, setTimePricingEnabled] = useState<boolean>(settings.timePricingEnabled ?? true);
   const [distancePricingEnabled, setDistancePricingEnabled] = useState<boolean>(settings.distancePricingEnabled ?? true);
   const [fareRoundingIncrement, setFareRoundingIncrement] = useState<number>(settings.fareRoundingIncrement ?? 50);
-  const [mapboxPublicKey, setMapboxPublicKey] = useState<string>(settings.mapboxPublicKey ?? '');
+  const mapboxPublicKey = settings.mapboxPublicKey ?? '';
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>(settings.googleMapsApiKey ?? '');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
@@ -367,26 +367,11 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
                 <p className="text-[10px] text-gray-400 mt-0.5">Rounds final customer price cleanly</p>
               </div>
 
-              {/* Mapbox Public Token Override */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Mapbox Access Key (Optional)
-                </label>
-                <input
-                  type="password"
-                  placeholder="Leave blank to use environment key"
-                  value={mapboxPublicKey}
-                  onChange={(e) => setMapboxPublicKey(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 rounded-xl border border-gray-200 focus:border-[#0B1B3D] focus:bg-white focus:outline-none font-medium text-gray-900"
-                />
-                <p className="text-[10px] text-gray-400 mt-0.5">Used for road directions &amp; address search</p>
-              </div>
-
               {/* Google Maps API Key */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-semibold text-gray-700">
-                    Google Maps API Key (Recommended)
+                    Google Maps API Key
                   </label>
                   {googleMapsApiKey && googleMapsApiKey.startsWith('AIzaSy') && (
                     <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
@@ -401,7 +386,7 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
                   onChange={(e) => setGoogleMapsApiKey(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-slate-50 rounded-xl border border-gray-200 focus:border-[#0B1B3D] focus:bg-white focus:outline-none font-medium text-gray-900"
                 />
-                <p className="text-[10px] text-gray-400 mt-0.5">High-accuracy Nigerian street search &amp; live traffic distance</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">Powers pinpoint Nigerian street search &amp; live traffic distance</p>
               </div>
             </div>
 
@@ -496,7 +481,7 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
             </div>
 
             {/* Test Pickup Input */}
-            <MapboxAddressInput
+            <GoogleAddressInput
               label="Test Pickup Location"
               iconType="pickup"
               placeholder="Search pickup address..."
@@ -509,13 +494,12 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
                   setTestPickupCoords(undefined);
                 }
               }}
-              mapboxToken={mapboxPublicKey}
               googleApiKey={googleMapsApiKey}
               showGpsButton={false}
             />
 
             {/* Test Destination Input */}
-            <MapboxAddressInput
+            <GoogleAddressInput
               label="Test Destination"
               iconType="dropoff"
               placeholder="Search drop-off address..."
@@ -528,7 +512,6 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
                   setTestDropoffCoords(undefined);
                 }
               }}
-              mapboxToken={mapboxPublicKey}
               googleApiKey={googleMapsApiKey}
               showGpsButton={false}
             />
@@ -553,7 +536,7 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
             {/* Route Map Preview */}
             {(testPickupCoords || testDropoffCoords) && (
               <div className="pt-1">
-                <MapboxRouteMap
+                <GoogleRouteMap
                   pickup={testPickupCoords}
                   dropoff={testDropoffCoords}
                   pickupAddress={testPickup}
@@ -561,7 +544,7 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
                   routeGeometry={routeGeometry}
                   distanceKm={testDistanceKm}
                   durationMinutes={testDurationMins}
-                  mapboxToken={mapboxPublicKey}
+                  googleApiKey={googleMapsApiKey}
                   height="160px"
                 />
               </div>

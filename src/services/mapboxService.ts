@@ -1,6 +1,7 @@
 /**
- * Mapbox Geocoding, Driving Directions & Automatic Fare Pricing Service
+ * Google Maps Geocoding, Driving Directions & Automatic Fare Pricing Service
  * Comprehensive coverage for Lagos (all 20 LGAs), Ogun corridor & Nigeria nationwide.
+ * Powered exclusively by Google Places API (New) & Google Routes API v2.
  */
 
 import { 
@@ -17,14 +18,14 @@ export interface MapboxPlaceSuggestion {
   context?: string;
   isExactUserAddress?: boolean;
   isVerified?: boolean;
-  category?: 'hub' | 'mapbox' | 'osm' | 'exact' | 'google';
+  category?: 'google' | 'hub' | 'exact';
 }
 
 export interface RouteCalculationResult {
   distanceKm: number;
   durationMinutes: number;
   polyline?: any;
-  source: 'mapbox-directions-api' | 'haversine-road-fallback';
+  source: 'google-routes-api' | 'haversine-road-fallback' | 'mapbox-directions-api';
 }
 
 export interface PricingBreakdown {
@@ -48,7 +49,7 @@ export interface PricingBreakdown {
   finalFare: number;
 }
 
-// Exhaustive Lagos and Nigeria residential, commercial, transport & landmark hubs
+// Curated high-accuracy Lagos hubs, residential streets & commercial zones
 export const LAGOS_FALLBACK_HUBS: Array<{ name: string; area: string; lng: number; lat: number }> = [
   // User street & Egbe / Ikotun / Alimosho area
   { name: '35 Hammed Oghere Street', area: 'Egbe, Ikotun, Alimosho, Lagos', lng: 3.2842, lat: 6.5458 },
@@ -248,17 +249,17 @@ export function getLagosAreaCoordinates(text: string): [number, number] {
 }
 
 /**
- * High-reliability address coordinate resolver for blur events, programmaticLookups, and verification
+ * High-reliability address coordinate resolver for blur events, programmatic lookups, and verification
  */
 export async function resolveAddressCoordinates(
   query: string,
-  token?: string,
+  _token?: string,
   googleKey?: string
 ): Promise<[number, number] | null> {
   const trimmed = query.trim();
   if (!trimmed || trimmed.length < 2) return null;
 
-  // 1. Google Geocoding lookup if key provided or present in env
+  // 1. Google Geocoding lookup
   const gKey = googleKey || (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || '';
   if (gKey && gKey.startsWith('AIzaSy')) {
     try {
@@ -285,56 +286,22 @@ export async function resolveAddressCoordinates(
     }
   }
 
-  // 2. Mapbox Geocoding lookup
-  const mapboxToken = token || (import.meta as any).env?.VITE_MAPBOX_TOKEN || '';
-  if (mapboxToken && mapboxToken.startsWith('pk.')) {
-    try {
-      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(trimmed)}.json?country=ng&proximity=3.3792,6.5244&limit=3&access_token=${mapboxToken}`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.features) && data.features.length > 0) {
-          const center = data.features[0].center;
-          if (Array.isArray(center) && center.length === 2) {
-            return center as [number, number];
-          }
-        }
-      }
-    } catch {}
-  }
-
-  // 3. Photon OSM fallback lookup
-  try {
-    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(trimmed)}&lat=6.5244&lon=3.3792&limit=3`;
-    const res = await fetch(url);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.features) && data.features.length > 0) {
-        const coords = data.features[0].geometry?.coordinates;
-        if (Array.isArray(coords) && coords.length === 2) {
-          return coords as [number, number];
-        }
-      }
-    }
-  } catch {}
-
-  // 4. Area heuristic match
+  // 3. Area heuristic match
   return getLagosAreaCoordinates(trimmed);
 }
 
 /**
- * Search Mapbox Geocoding Places with autocomplete for Nigeria / Lagos
- * Multi-tiered search: Smart Local Nigerian Database + Mapbox Places API + Photon OSM Fallback.
+ * Search Google Places API (New) with fallback to curated Nigerian landmarks
  */
 export async function searchMapboxPlaces(
   query: string,
-  token?: string,
+  _token?: string,
   googleKey?: string
 ): Promise<MapboxPlaceSuggestion[]> {
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
 
-  // 1. Google Places API (New) - Highest accuracy for Nigerian house numbers & streets
+  // 1. Google Places API (New)
   const gKey = googleKey || (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || '';
   let googleSuggestions: MapboxPlaceSuggestion[] = [];
   if (gKey && gKey.startsWith('AIzaSy')) {
@@ -345,14 +312,13 @@ export async function searchMapboxPlaces(
     }
   }
 
-  const mapboxToken = token || (import.meta as any).env?.VITE_MAPBOX_TOKEN || '';
   const qLower = trimmed.toLowerCase();
   const words = qLower.split(/[\s,.-]+/).filter(w => w.length > 2);
   const houseNumMatch = trimmed.match(/^(\d+[\w-]*)\s+(.+)/i);
   const houseNum = houseNumMatch ? houseNumMatch[1] : '';
   const streetPart = houseNumMatch ? houseNumMatch[2].toLowerCase() : qLower;
 
-  // 2. Search our comprehensive Nigerian / Lagos database
+  // 2. Curated Nigerian local database match
   const localMatches: Array<{ score: number; item: MapboxPlaceSuggestion }> = [];
   for (const h of LAGOS_FALLBACK_HUBS) {
     const hName = h.name.toLowerCase();
@@ -400,80 +366,10 @@ export async function searchMapboxPlaces(
   localMatches.sort((a, b) => b.score - a.score);
   const localSuggestions = localMatches.slice(0, 4).map(m => m.item);
 
-  // 2. Query Mapbox Geocoding API (Nigeria nationwide biased to Lagos)
-  const mapboxSuggestions: MapboxPlaceSuggestion[] = [];
-  if (mapboxToken && mapboxToken.startsWith('pk.')) {
-    try {
-      const searchTerms = [trimmed];
-      if (streetPart && streetPart !== qLower && streetPart.length > 2) {
-        searchTerms.push(streetPart);
-      }
-
-      for (const term of searchTerms) {
-        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(term)}.json?country=ng&proximity=3.3792,6.5244&limit=5&access_token=${mapboxToken}`;
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data.features) && data.features.length > 0) {
-            const parsed: MapboxPlaceSuggestion[] = data.features.map((feat: any) => ({
-              id: feat.id,
-              placeName: feat.place_name,
-              text: feat.text || feat.place_name.split(',')[0],
-              coordinates: feat.center as [number, number],
-              context: feat.context ? feat.context.map((c: any) => c.text).join(', ') : 'Lagos, Nigeria',
-              isVerified: true,
-              category: 'mapbox'
-            }));
-
-            mapboxSuggestions.push(...parsed);
-            if (mapboxSuggestions.length >= 4) break;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('[Mapbox] Geocoding API lookup:', err);
-    }
-  }
-
-  // 3. Fallback to OpenStreetMap / Photon if Mapbox + local have few results
-  const photonSuggestions: MapboxPlaceSuggestion[] = [];
-  if (localSuggestions.length + mapboxSuggestions.length < 3) {
-    try {
-      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(trimmed)}&lat=6.5244&lon=3.3792&limit=4`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.features)) {
-          for (const feat of data.features) {
-            const p = feat.properties || {};
-            const country = (p.country || '').toLowerCase();
-            if (country && country !== 'nigeria' && country !== 'ng') continue;
-
-            const name = p.name || p.street || trimmed;
-            const areaParts = [p.street, p.district, p.city, p.state || 'Lagos', 'Nigeria'].filter(Boolean);
-            const fullPlace = [name, ...areaParts.filter((x: string) => x !== name)].join(', ');
-
-            if (feat.geometry?.coordinates) {
-              photonSuggestions.push({
-                id: `osm-${p.osm_id || Math.random().toString(36).substring(7)}`,
-                placeName: fullPlace,
-                text: name,
-                coordinates: feat.geometry.coordinates as [number, number],
-                context: areaParts.join(', '),
-                isVerified: true,
-                category: 'osm'
-              });
-            }
-          }
-        }
-      }
-    } catch {}
-  }
-
-  // 4. Determine coordinates for exact typed input card
-  const bestReferenceCoords = localSuggestions.length > 0 
-    ? localSuggestions[0].coordinates 
-    : (mapboxSuggestions.length > 0 ? mapboxSuggestions[0].coordinates : getLagosAreaCoordinates(trimmed));
+  // 3. User custom address option
+  const bestReferenceCoords = googleSuggestions.length > 0 
+    ? googleSuggestions[0].coordinates 
+    : (localSuggestions.length > 0 ? localSuggestions[0].coordinates : getLagosAreaCoordinates(trimmed));
 
   const exactAddressItem: MapboxPlaceSuggestion = {
     id: `exact-user-input-${Date.now()}`,
@@ -488,12 +384,10 @@ export async function searchMapboxPlaces(
     category: 'exact'
   };
 
-  // Combine and deduplicate (Google first, followed by local hubs, Mapbox, OSM, and exact address)
+  // Combine and deduplicate (Google results first, followed by local hubs and exact address)
   const combined = [
     ...googleSuggestions,
     ...localSuggestions,
-    ...mapboxSuggestions,
-    ...photonSuggestions,
     exactAddressItem
   ];
 
@@ -511,24 +405,14 @@ export async function searchMapboxPlaces(
   return deduplicated.slice(0, 7);
 }
 
-// Client-Side Mapbox Route Cache (1 Hour TTL to avoid redundant billing)
-interface CachedRoute {
-  distanceKm: number;
-  durationMinutes: number;
-  polyline?: any;
-  cachedAt: number;
-}
-const clientRouteCache = new Map<string, CachedRoute>();
-const ROUTE_CACHE_TTL_MS = 1000 * 60 * 60;
-
 /**
  * Calculates exact driving distance (km) and driving time (minutes) between 2 coordinates
- * Checks memory cache first to avoid repeat billing for identical queries.
+ * Powered by Google Routes API v2 with live Lagos traffic awareness.
  */
 export async function calculateDrivingRoute(
   pickupCoords: [number, number],
   dropoffCoords: [number, number],
-  token?: string,
+  _token?: string,
   googleKey?: string
 ): Promise<RouteCalculationResult> {
   // Check identical locations (< 0.05 km)
@@ -541,11 +425,11 @@ export async function calculateDrivingRoute(
       distanceKm: 0,
       durationMinutes: 0,
       polyline: null,
-      source: 'mapbox-directions-api'
+      source: 'google-routes-api'
     };
   }
 
-  // 1. Compute via Google Routes API v2 first if Google Key is provided or present in env
+  // 1. Compute via Google Routes API v2
   const gKey = googleKey || (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || '';
   if (gKey && gKey.startsWith('AIzaSy')) {
     try {
@@ -558,51 +442,7 @@ export async function calculateDrivingRoute(
     }
   }
 
-  const cacheKey = `${pickupCoords[0].toFixed(3)},${pickupCoords[1].toFixed(3)}->${dropoffCoords[0].toFixed(3)},${dropoffCoords[1].toFixed(3)}`;
-  const cached = clientRouteCache.get(cacheKey);
-  if (cached && Date.now() - cached.cachedAt < ROUTE_CACHE_TTL_MS) {
-    return {
-      distanceKm: cached.distanceKm,
-      durationMinutes: cached.durationMinutes,
-      polyline: cached.polyline,
-      source: 'mapbox-directions-api'
-    };
-  }
-
-  const mapboxToken = token || (import.meta as any).env?.VITE_MAPBOX_TOKEN || '';
-
-  if (mapboxToken && mapboxToken.startsWith('pk.')) {
-    try {
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupCoords[0]},${pickupCoords[1]};${dropoffCoords[0]},${dropoffCoords[1]}?geometries=geojson&overview=full&access_token=${mapboxToken}`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.routes && data.routes.length > 0) {
-          const route = data.routes[0];
-          const distanceKm = Number((route.distance / 1000).toFixed(1));
-          const durationMinutes = Math.max(1, Math.round(route.duration / 60));
-          
-          clientRouteCache.set(cacheKey, {
-            distanceKm: Math.max(0.5, distanceKm),
-            durationMinutes,
-            polyline: route.geometry,
-            cachedAt: Date.now()
-          });
-
-          return {
-            distanceKm: Math.max(0.5, distanceKm),
-            durationMinutes,
-            polyline: route.geometry,
-            source: 'mapbox-directions-api'
-          };
-        }
-      }
-    } catch (err) {
-      console.warn('[Mapbox] Directions API fallback to road Haversine:', err);
-    }
-  }
-
-  // Fallback: Road-network adjusted Haversine calculation
+  // Fallback: Road-network adjusted calculation (1.32x urban curvature factor)
   const distanceKm = calculateHaversineDistanceKm(
     pickupCoords[1],
     pickupCoords[0],
@@ -610,7 +450,7 @@ export async function calculateDrivingRoute(
     dropoffCoords[0]
   );
   // Average Lagos driving speed with city traffic ~22 km/h
-  const durationMinutes = Math.max(12, Math.round((distanceKm / 22) * 60));
+  const durationMinutes = Math.max(10, Math.round((distanceKm / 22) * 60));
 
   return {
     distanceKm,

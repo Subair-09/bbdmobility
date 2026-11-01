@@ -17,8 +17,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookingFormData } from '../types';
-import { MapboxAddressInput } from './MapboxAddressInput';
-import { MapboxRouteMap } from './MapboxRouteMap';
+import { GoogleAddressInput } from './GoogleAddressInput';
+import { GoogleRouteMap } from './GoogleRouteMap';
 import { RideReceiptModal, RideReceiptData } from './RideReceiptModal';
 import { 
   calculateDrivingRoute, 
@@ -174,7 +174,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
       .catch(() => {
         if (isMounted) {
           setIsCalculatingRoute(false);
-          setRouteError('Could not connect actual road route via Mapbox. Standard minimum fare applies.');
+          setRouteError('Could not connect actual road route via Google Maps. Standard minimum fare applies.');
         }
       });
 
@@ -471,8 +471,8 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               {errors.serviceType && <p className="text-[11px] text-red-600 mt-1">{errors.serviceType}</p>}
             </div>
 
-            {/* Mapbox / Google Pickup Location Autocomplete */}
-            <MapboxAddressInput
+            {/* Google Places Pickup Location Autocomplete */}
+            <GoogleAddressInput
               label="Pickup Location"
               iconType="pickup"
               placeholder="Search pickup address, street or landmark..."
@@ -486,13 +486,12 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
                 }
               }}
               error={errors.pickupLocation}
-              mapboxToken={pricingConfig.mapboxPublicKey}
               googleApiKey={pricingConfig.googleMapsApiKey}
               showGpsButton={true}
             />
 
-            {/* Mapbox / Google Drop-off Location Autocomplete */}
-            <MapboxAddressInput
+            {/* Google Places Drop-off Location Autocomplete */}
+            <GoogleAddressInput
               label="Drop-off Location"
               iconType="dropoff"
               placeholder="Search destination, street or receiver address..."
@@ -506,15 +505,14 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
                 }
               }}
               error={errors.dropoffLocation}
-              mapboxToken={pricingConfig.mapboxPublicKey}
               googleApiKey={pricingConfig.googleMapsApiKey}
               showGpsButton={false}
             />
 
-            {/* Interactive Mapbox Map with Pins & Route Line */}
+            {/* Interactive Google Map with Pins & Route Line */}
             {(pickupCoords || dropoffCoords) && (
               <div className="pt-0.5">
-                <MapboxRouteMap
+                <GoogleRouteMap
                   pickup={pickupCoords}
                   dropoff={dropoffCoords}
                   pickupAddress={formData.pickupLocation}
@@ -522,7 +520,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
                   routeGeometry={routeGeometry}
                   distanceKm={routeDistanceKm}
                   durationMinutes={routeDurationMins}
-                  mapboxToken={pricingConfig.mapboxPublicKey}
+                  googleApiKey={pricingConfig.googleMapsApiKey}
                   height="180px"
                 />
               </div>
@@ -536,7 +534,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               </div>
             )}
 
-            {/* Live Mapbox Distance & Automatic Dynamic Price Breakdown Banner */}
+            {/* Live Google Maps Distance & Automatic Dynamic Price Breakdown Banner */}
             <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3.5 space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
@@ -555,7 +553,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               {isCalculatingRoute ? (
                 <div className="py-2.5 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin text-bbd-navy" />
-                  <span>Calculating actual road distance & travel time via Mapbox Directions API...</span>
+                  <span>Calculating actual road distance & travel time via Google Maps Routes API...</span>
                 </div>
               ) : routeDistanceKm > 0 ? (
                 <div className="space-y-1.5 text-xs text-slate-600">
@@ -833,7 +831,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
           >
             {/* Interactive Route Map Preview */}
             {(pickupCoords || dropoffCoords) && (
-              <MapboxRouteMap
+              <GoogleRouteMap
                 pickup={pickupCoords}
                 dropoff={dropoffCoords}
                 pickupAddress={formData.pickupLocation}
@@ -841,7 +839,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
                 routeGeometry={routeGeometry}
                 distanceKm={routeDistanceKm}
                 durationMinutes={routeDurationMins}
-                mapboxToken={pricingConfig.mapboxPublicKey}
+                googleApiKey={pricingConfig.googleMapsApiKey}
                 height="165px"
               />
             )}

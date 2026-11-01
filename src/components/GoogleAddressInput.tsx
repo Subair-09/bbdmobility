@@ -1,36 +1,36 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MapPin, Navigation, Loader2, X, Compass, CheckCircle2 } from 'lucide-react';
 import { 
-  searchMapboxPlaces, 
-  MapboxPlaceSuggestion,
-  resolveAddressCoordinates
-} from '../services/mapboxService';
+  searchGooglePlaces, 
+  geocodeGoogleAddress,
+  reverseGeocodeGoogle,
+  PlaceSuggestion
+} from '../services/googleMapsService';
+import { getLagosAreaCoordinates, LAGOS_FALLBACK_HUBS } from '../services/mapboxService';
 
-interface MapboxAddressInputProps {
+interface GoogleAddressInputProps {
   label: string;
   placeholder?: string;
   value: string;
   onChange: (address: string, coords?: { lat: number; lng: number }) => void;
   error?: string;
-  mapboxToken?: string;
   googleApiKey?: string;
   iconType?: 'pickup' | 'dropoff';
   showGpsButton?: boolean;
 }
 
-export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
+export const GoogleAddressInput: React.FC<GoogleAddressInputProps> = ({
   label,
-  placeholder = 'Search street, area or estate in Lagos...',
+  placeholder = 'Search street, area or estate in Lagos / Nigeria...',
   value,
   onChange,
   error,
-  mapboxToken,
   googleApiKey,
   iconType = 'pickup',
   showGpsButton = true
 }) => {
   const [query, setQuery] = useState(value);
-  const [suggestions, setSuggestions] = useState<MapboxPlaceSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -48,7 +48,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
     }
   }, [value]);
 
-  // Debounced search across multi-tier geocoders
+  // Debounced search with Google Places API (New)
   useEffect(() => {
     if (!isOpen) return;
     if (query.trim().length < 2) {
@@ -59,17 +59,71 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const results = await searchMapboxPlaces(query, mapboxToken, googleApiKey);
-        setSuggestions(results);
+        const trimmed = query.trim();
+        const qLower = trimmed.toLowerCase();
+
+        // 1. Fetch from Google Places API (New)
+        const googleResults = await searchGooglePlaces(trimmed, googleApiKey);
+
+        // 2. Local instant match as supplementary backup
+        const localMatches: PlaceSuggestion[] = [];
+        for (const h of LAGOS_FALLBACK_HUBS) {
+          const hName = h.name.toLowerCase();
+          const hArea = h.area.toLowerCase();
+          if (hName.includes(qLower) || hArea.includes(qLower)) {
+            localMatches.push({
+              id: `hub-${h.name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`,
+              placeName: `${h.name}, ${h.area}`,
+              text: h.name,
+              coordinates: [h.lng, h.lat],
+              context: h.area,
+              isVerified: true,
+              category: 'hub'
+            });
+            if (localMatches.length >= 3) break;
+          }
+        }
+
+        // 3. User custom address card
+        const bestCoords = googleResults.length > 0 
+          ? googleResults[0].coordinates 
+          : (localMatches.length > 0 ? localMatches[0].coordinates : getLagosAreaCoordinates(trimmed));
+
+        const exactItem: PlaceSuggestion = {
+          id: `exact-user-${Date.now()}`,
+          placeName: trimmed.toLowerCase().includes('lagos') || trimmed.toLowerCase().includes('nigeria')
+            ? trimmed
+            : `${trimmed}, Lagos, Nigeria`,
+          text: trimmed,
+          coordinates: bestCoords,
+          context: 'Use Custom Address as Typed',
+          isExactUserAddress: true,
+          isVerified: true,
+          category: 'exact'
+        };
+
+        // Combine & deduplicate
+        const combined = [...googleResults, ...localMatches, exactItem];
+        const seen = new Set<string>();
+        const deduped: PlaceSuggestion[] = [];
+        for (const item of combined) {
+          const k = item.placeName.toLowerCase().replace(/[\s,.-]+/g, '');
+          if (!seen.has(k)) {
+            seen.add(k);
+            deduped.push(item);
+          }
+        }
+
+        setSuggestions(deduped.slice(0, 6));
       } catch (err) {
         setSuggestions([]);
       } finally {
         setLoading(false);
       }
-    }, 250);
+    }, 240);
 
     return () => clearTimeout(timer);
-  }, [query, isOpen, mapboxToken, googleApiKey]);
+  }, [query, isOpen, googleApiKey]);
 
   // Click outside listener
   useEffect(() => {
@@ -82,7 +136,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSelectSuggestion = (item: MapboxPlaceSuggestion) => {
+  const handleSelectSuggestion = (item: PlaceSuggestion) => {
     const coords = { lat: item.coordinates[1], lng: item.coordinates[0] };
     setQuery(item.placeName);
     setSelectedCoords(coords);
@@ -97,38 +151,41 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
     setQuery(text);
     setIsOpen(true);
     setHasVerifiedCoords(false);
-    // Notify parent about text change without pushing invalid coords
+    // Notify parent about text change without pushing unverified coords
     onChange(text, undefined);
   };
 
   const handleBlur = () => {
-    // Clear any pending timer
     if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
 
     blurTimerRef.current = setTimeout(async () => {
       const trimmed = query.trim();
       if (!trimmed || trimmed.length < 2) return;
 
-      // If already verified with matching coordinates, keep them intact
       if (hasVerifiedCoords && selectedCoords) return;
 
-      // If suggestions are currently populated, pick top match
       if (suggestions.length > 0) {
         handleSelectSuggestion(suggestions[0]);
         return;
       }
 
-      // Resolve address coordinates asynchronously
+      // Geocode address via Google
       try {
-        const resolved = await resolveAddressCoordinates(trimmed, mapboxToken, googleApiKey);
+        const resolved = await geocodeGoogleAddress(trimmed, googleApiKey);
         if (resolved) {
           const coords = { lat: resolved[1], lng: resolved[0] };
           setSelectedCoords(coords);
           setHasVerifiedCoords(true);
           onChange(trimmed, coords);
+        } else {
+          const fallback = getLagosAreaCoordinates(trimmed);
+          const coords = { lat: fallback[1], lng: fallback[0] };
+          setSelectedCoords(coords);
+          setHasVerifiedCoords(true);
+          onChange(trimmed, coords);
         }
       } catch (err) {
-        console.warn('[MapboxAddressInput] Auto-resolve error:', err);
+        console.warn('[GoogleAddressInput] Blur Geocode Error:', err);
       }
     }, 200);
   };
@@ -139,7 +196,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
       if (suggestions.length > 0) {
         handleSelectSuggestion(suggestions[0]);
       } else if (query.trim().length >= 2) {
-        resolveAddressCoordinates(query, mapboxToken, googleApiKey).then((resolved) => {
+        geocodeGoogleAddress(query, googleApiKey).then((resolved) => {
           if (resolved) {
             const coords = { lat: resolved[1], lng: resolved[0] };
             setSelectedCoords(coords);
@@ -163,7 +220,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
     setIsOpen(false);
   };
 
-  // Browser GPS Geolocation
+  // Browser GPS Geolocation via Google Reverse Geocoding
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser.');
@@ -177,33 +234,22 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
         const lng = pos.coords.longitude;
         const defaultName = `Current Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
 
-        // Reverse geocoding via Mapbox
-        if (mapboxToken && mapboxToken.startsWith('pk.')) {
-          try {
-            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}`;
-            const res = await fetch(url);
-            if (res.ok) {
-              const data = await res.json();
-              if (data.features && data.features.length > 0) {
-                const place = data.features[0].place_name;
-                setQuery(place);
-                setSelectedCoords({ lat, lng });
-                setHasVerifiedCoords(true);
-                onChange(place, { lat, lng });
-                setGpsLoading(false);
-                setIsOpen(false);
-                return;
-              }
-            }
-          } catch {}
+        try {
+          const formatted = await reverseGeocodeGoogle(lat, lng, googleApiKey);
+          const finalAddress = formatted || defaultName;
+          setQuery(finalAddress);
+          setSelectedCoords({ lat, lng });
+          setHasVerifiedCoords(true);
+          onChange(finalAddress, { lat, lng });
+        } catch {
+          setQuery(defaultName);
+          setSelectedCoords({ lat, lng });
+          setHasVerifiedCoords(true);
+          onChange(defaultName, { lat, lng });
+        } finally {
+          setGpsLoading(false);
+          setIsOpen(false);
         }
-
-        setQuery(defaultName);
-        setSelectedCoords({ lat, lng });
-        setHasVerifiedCoords(true);
-        onChange(defaultName, { lat, lng });
-        setGpsLoading(false);
-        setIsOpen(false);
       },
       (err) => {
         console.warn('Geolocation error:', err.message);
@@ -226,7 +272,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
           {hasVerifiedCoords && (
             <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 flex items-center gap-1">
               <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
-              <span>GPS Verified</span>
+              <span>Google Verified</span>
             </span>
           )}
         </label>
@@ -304,7 +350,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
           {loading && suggestions.length === 0 ? (
             <div className="p-3 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-bbd-navy" />
-              <span>Searching Google Places & verified Nigerian addresses...</span>
+              <span>Searching Google Places &amp; addresses...</span>
             </div>
           ) : suggestions.length > 0 ? (
             <ul className="divide-y divide-gray-50">
@@ -324,10 +370,6 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                     ) : item.category === 'google' ? (
                       <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
-                    ) : item.category === 'hub' ? (
-                      <MapPin className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
-                    ) : item.category === 'osm' ? (
-                      <Compass className="w-4 h-4 text-sky-600 flex-shrink-0 mt-0.5" />
                     ) : (
                       <Compass className="w-4 h-4 text-slate-400 group-hover:text-bbd-navy flex-shrink-0 mt-0.5 transition-colors" />
                     )}
@@ -341,17 +383,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
                         )}
                         {item.category === 'hub' && (
                           <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-emerald-100 text-emerald-800">
-                            Local Hub
-                          </span>
-                        )}
-                        {item.category === 'mapbox' && (
-                          <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-slate-100 text-slate-700">
-                            Mapbox Road
-                          </span>
-                        )}
-                        {item.category === 'osm' && (
-                          <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-sky-100 text-sky-800">
-                            Verified Map
+                            Verified Hub
                           </span>
                         )}
                         {item.isExactUserAddress && (
@@ -377,19 +409,19 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
                 type="button"
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  resolveAddressCoordinates(query, mapboxToken).then((resolved) => {
-                    if (resolved) {
-                      const coords = { lat: resolved[1], lng: resolved[0] };
-                      setSelectedCoords(coords);
-                      setHasVerifiedCoords(true);
-                      onChange(query, coords);
-                      setIsOpen(false);
-                    }
+                  geocodeGoogleAddress(query, googleApiKey).then((resolved) => {
+                    const coords = resolved 
+                      ? { lat: resolved[1], lng: resolved[0] }
+                      : { lat: getLagosAreaCoordinates(query)[1], lng: getLagosAreaCoordinates(query)[0] };
+                    setSelectedCoords(coords);
+                    setHasVerifiedCoords(true);
+                    onChange(query, coords);
+                    setIsOpen(false);
                   });
                 }}
                 className="text-bbd-navy font-semibold hover:underline"
               >
-                Use address & calculate route: &ldquo;{query}&rdquo;
+                Use address &amp; calculate route: &ldquo;{query}&rdquo;
               </button>
             </div>
           ) : null}

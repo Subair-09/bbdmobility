@@ -53,12 +53,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [defaultService, setDefaultService] = useState(settings.defaultServiceType || 'Standard Delivery');
   const [commissionPercent, setCommissionPercent] = useState<number>(settings.riderCommissionPercent ?? 25);
 
-  // Mapbox & Distance-Based Pricing Settings State
+  // Google Maps & Distance-Based Pricing Settings State
   const [baseFare, setBaseFare] = useState<number>(settings.baseFare ?? 300);
   const [pricePerKm, setPricePerKm] = useState<number>(settings.pricePerKm ?? 250);
   const [minimumFare, setMinimumFare] = useState<number>(settings.minimumFare ?? 1000);
   const [waitingFee, setWaitingFee] = useState<number>(settings.waitingChargePerMinute ?? settings.waitingFee ?? 50);
-  const [mapboxPublicKey, setMapboxPublicKey] = useState<string>(settings.mapboxPublicKey ?? '');
+  const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>(settings.googleMapsApiKey ?? '');
+  const [mapboxPublicKey] = useState<string>(settings.mapboxPublicKey ?? '');
   const [testDistanceKm, setTestDistanceKm] = useState<number>(8);
 
   // Security
@@ -93,16 +94,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     const pKm = Math.max(0, Number(pricePerKm) || 0);
     const mFare = Math.max(0, Number(minimumFare) || 0);
     const wFee = Math.max(0, Number(waitingFee) || 0);
-    const mbKey = mapboxPublicKey.trim();
+    const gKey = googleMapsApiKey.trim();
 
     onUpdateSettings({
       baseFare: bFare,
       pricePerKm: pKm,
       minimumFare: mFare,
       waitingFee: wFee,
-      mapboxPublicKey: mbKey,
+      googleMapsApiKey: gKey,
+      mapboxPublicKey: mapboxPublicKey.trim(),
     });
-    onShowToast('Distance-based pricing and Mapbox configuration updated in database.');
+    onShowToast('Distance-based pricing and Google Maps configuration updated in database.');
   };
 
   const handleSaveDeliveryRules = () => {
@@ -481,7 +483,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             </div>
           </div>
 
-          {/* Mapbox Distance-Based Pricing & Route Fare System (Configurable Admin Pricing) */}
+          {/* Google Maps Distance-Based Pricing & Route Fare System (Configurable Admin Pricing) */}
           <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
@@ -489,9 +491,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   <Compass className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900">Mapbox Distance-Based Pricing System</h3>
+                  <h3 className="text-sm font-bold text-gray-900">Google Maps Distance-Based Pricing System</h3>
                   <p className="text-xs text-gray-500">
-                    Configure automated distance tariffs, base fare, minimum fare thresholds, and Mapbox API credentials.
+                    Configure automated distance tariffs, base fare, minimum fare thresholds, and Google Maps API credentials.
                   </p>
                 </div>
               </div>
@@ -554,7 +556,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                         placeholder="250"
                       />
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-0.5">Charge multiplied by Mapbox distance (e.g. ₦250/km)</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Charge multiplied by Google Maps driving distance (e.g. ₦250/km)</p>
                   </div>
                 </div>
 
@@ -598,31 +600,31 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   </div>
                 </div>
 
-                {/* Mapbox Token Configuration */}
+                {/* Google Maps API Key Configuration */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-[11px] font-bold text-gray-700">
-                      Mapbox Public Access Token (Optional)
+                      Google Maps API Key (Places & Routes API)
                     </label>
                     <a
-                      href="https://account.mapbox.com/access-tokens/"
+                      href="https://console.cloud.google.com/google/maps-apis/credentials"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5"
                     >
-                      <span>Get Free Token</span>
+                      <span>Google Cloud Console</span>
                       <ExternalLink className="w-2.5 h-2.5" />
                     </a>
                   </div>
                   <input
-                    type="text"
-                    value={mapboxPublicKey}
-                    onChange={(e) => setMapboxPublicKey(e.target.value)}
-                    placeholder="pk.eyJ1IjoieW91cm5hbWUi..."
+                    type="password"
+                    value={googleMapsApiKey}
+                    onChange={(e) => setGoogleMapsApiKey(e.target.value)}
+                    placeholder="AIzaSy..."
                     className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy text-xs font-mono"
                   />
                   <p className="text-[10px] text-gray-400 mt-0.5">
-                    If left blank, the system automatically uses the high-accuracy built-in Lagos street & hub database fallback.
+                    Powers real-time Google Places address autocomplete and Google Routes road calculations. If blank, uses built-in Lagos street & hub fallback.
                   </p>
                 </div>
               </div>
