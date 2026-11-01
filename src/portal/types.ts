@@ -47,6 +47,12 @@ export interface Booking {
   verificationOtp: string;
   date: string;
   time: string;
+  distanceKm?: number;
+  durationMinutes?: number;
+  pickupCoordinates?: { lat: number; lng: number };
+  deliveryCoordinates?: { lat: number; lng: number };
+  baseFare?: number;
+  pricePerKm?: number;
   timeline?: {
     booked?: string;
     accepted?: string;

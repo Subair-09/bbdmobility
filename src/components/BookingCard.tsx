@@ -17,6 +17,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookingFormData } from '../types';
 import { MapboxAddressInput } from './MapboxAddressInput';
+import { MapboxRouteMap } from './MapboxRouteMap';
 import { 
   calculateDrivingRoute, 
   computeDeliveryFareBreakdown, 
@@ -61,6 +62,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
 
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | undefined>();
   const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | undefined>();
+  const [routeGeometry, setRouteGeometry] = useState<any>(null);
   const [routeDistanceKm, setRouteDistanceKm] = useState<number>(0);
   const [routeDurationMins, setRouteDurationMins] = useState<number>(0);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState<boolean>(false);
@@ -119,6 +121,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
         if (!isMounted) return;
         setRouteDistanceKm(route.distanceKm);
         setRouteDurationMins(route.durationMinutes);
+        setRouteGeometry(route.polyline);
         setIsCalculatingRoute(false);
         setFormData((prev) => ({
           ...prev,
@@ -274,6 +277,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
     });
     setPickupCoords(undefined);
     setDropoffCoords(undefined);
+    setRouteGeometry(null);
     setRouteDistanceKm(0);
     setRouteDurationMins(0);
     setIncludeWaitingFee(false);
@@ -403,6 +407,23 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               mapboxToken={pricingConfig.mapboxPublicKey}
               showGpsButton={false}
             />
+
+            {/* Interactive Mapbox Map with Pins & Route Line */}
+            {(pickupCoords || dropoffCoords) && (
+              <div className="pt-0.5">
+                <MapboxRouteMap
+                  pickup={pickupCoords}
+                  dropoff={dropoffCoords}
+                  pickupAddress={formData.pickupLocation}
+                  dropoffAddress={formData.dropoffLocation}
+                  routeGeometry={routeGeometry}
+                  distanceKm={routeDistanceKm}
+                  durationMinutes={routeDurationMins}
+                  mapboxToken={pricingConfig.mapboxPublicKey}
+                  height="180px"
+                />
+              </div>
+            )}
 
             {/* Live Mapbox Distance & Dynamic Price Breakdown Banner */}
             <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-2.5">
@@ -664,6 +685,21 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
             transition={{ duration: 0.2 }}
             className="space-y-4"
           >
+            {/* Interactive Route Map Preview */}
+            {(pickupCoords || dropoffCoords) && (
+              <MapboxRouteMap
+                pickup={pickupCoords}
+                dropoff={dropoffCoords}
+                pickupAddress={formData.pickupLocation}
+                dropoffAddress={formData.dropoffLocation}
+                routeGeometry={routeGeometry}
+                distanceKm={routeDistanceKm}
+                durationMinutes={routeDurationMins}
+                mapboxToken={pricingConfig.mapboxPublicKey}
+                height="165px"
+              />
+            )}
+
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/80 text-xs space-y-2.5">
               <div className="flex justify-between border-b border-slate-200 pb-2">
                 <span className="text-slate-500">Service:</span>

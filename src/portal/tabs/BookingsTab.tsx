@@ -29,6 +29,8 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { Booking, Rider, PaymentRecord, PaymentMethod } from '../types';
+import { MapboxRouteMap } from '../../components/MapboxRouteMap';
+import { getLagosAreaCoordinates } from '../../services/mapboxService';
 
 interface BookingsTabProps {
   bookings: Booking[];
@@ -741,6 +743,36 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase">Drop-off Location</span>
                   <p className="font-medium text-gray-800">{selectedBooking.dropoffLocation || (selectedBooking as any).deliveryAddress || '—'}</p>
+                </div>
+                {selectedBooking.distanceKm && (
+                  <div className="flex justify-between pt-1 border-t border-slate-200 text-xs">
+                    <span className="text-gray-500 font-semibold">Distance & Est. Time</span>
+                    <span className="font-bold text-bbd-navy">{selectedBooking.distanceKm} km {selectedBooking.durationMinutes ? `(~${selectedBooking.durationMinutes} mins)` : ''}</span>
+                  </div>
+                )}
+                {/* Visual Route Map for Admin */}
+                <div className="pt-1.5">
+                  <MapboxRouteMap
+                    pickup={
+                      selectedBooking.pickupCoordinates ||
+                      (selectedBooking.pickupLocation ? (() => {
+                        const [lng, lat] = getLagosAreaCoordinates(selectedBooking.pickupLocation);
+                        return { lng, lat };
+                      })() : undefined)
+                    }
+                    dropoff={
+                      selectedBooking.deliveryCoordinates ||
+                      (selectedBooking.dropoffLocation ? (() => {
+                        const [lng, lat] = getLagosAreaCoordinates(selectedBooking.dropoffLocation);
+                        return { lng, lat };
+                      })() : undefined)
+                    }
+                    pickupAddress={selectedBooking.pickupLocation}
+                    dropoffAddress={selectedBooking.dropoffLocation}
+                    distanceKm={selectedBooking.distanceKm}
+                    durationMinutes={selectedBooking.durationMinutes}
+                    height="160px"
+                  />
                 </div>
               </div>
             </div>

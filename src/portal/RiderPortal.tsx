@@ -29,6 +29,8 @@ import {
 import { Booking } from './types';
 import { portalApi, normalizeBooking } from './api';
 import { useNigerianGreeting } from './timeGreeting';
+import { MapboxRouteMap } from '../components/MapboxRouteMap';
+import { getLagosAreaCoordinates } from '../services/mapboxService';
 
 interface RiderPortalProps {
   riderData: {
@@ -1442,6 +1444,31 @@ export function RiderPortal({ riderData, onLogout, onNavigateHome }: RiderPortal
                     <Phone className="w-3.5 h-3.5" />
                     <span>Call Receiver</span>
                   </a>
+                </div>
+
+                {/* Rider Visual Route Map */}
+                <div className="pt-2">
+                  <MapboxRouteMap
+                    pickup={
+                      activeBooking.pickupCoordinates ||
+                      (activeBooking.pickupLocation ? (() => {
+                        const [lng, lat] = getLagosAreaCoordinates(activeBooking.pickupLocation);
+                        return { lng, lat };
+                      })() : undefined)
+                    }
+                    dropoff={
+                      activeBooking.deliveryCoordinates ||
+                      (activeBooking.dropoffLocation ? (() => {
+                        const [lng, lat] = getLagosAreaCoordinates(activeBooking.dropoffLocation);
+                        return { lng, lat };
+                      })() : undefined)
+                    }
+                    pickupAddress={activeBooking.pickupLocation}
+                    dropoffAddress={activeBooking.dropoffLocation}
+                    distanceKm={activeBooking.distanceKm}
+                    durationMinutes={activeBooking.durationMinutes}
+                    height="170px"
+                  />
                 </div>
               </div>
 
