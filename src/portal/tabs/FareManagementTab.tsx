@@ -478,7 +478,11 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
               value={testPickup}
               onChange={(addr, coords) => {
                 setTestPickup(addr);
-                if (coords) setTestPickupCoords(coords);
+                if (coords) {
+                  setTestPickupCoords(coords);
+                } else if (!addr.trim()) {
+                  setTestPickupCoords(undefined);
+                }
               }}
               mapboxToken={mapboxPublicKey}
               showGpsButton={false}
@@ -492,7 +496,11 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
               value={testDropoff}
               onChange={(addr, coords) => {
                 setTestDropoff(addr);
-                if (coords) setTestDropoffCoords(coords);
+                if (coords) {
+                  setTestDropoffCoords(coords);
+                } else if (!addr.trim()) {
+                  setTestDropoffCoords(undefined);
+                }
               }}
               mapboxToken={mapboxPublicKey}
               showGpsButton={false}

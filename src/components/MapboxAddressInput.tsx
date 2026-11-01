@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Loader2, X, Compass, CheckCircle } from 'lucide-react';
+import { MapPin, Navigation, Loader2, X, Compass, CheckCircle2 } from 'lucide-react';
 import { 
   searchMapboxPlaces, 
   MapboxPlaceSuggestion,
-  getLagosAreaCoordinates
+  resolveAddressCoordinates
 } from '../services/mapboxService';
 
 interface MapboxAddressInputProps {
@@ -32,14 +32,21 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [hasVerifiedCoords, setHasVerifiedCoords] = useState(false);
+  const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lng: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const blurTimerRef = useRef<any>(null);
 
   // Sync internal state when external value changes
   useEffect(() => {
     setQuery(value);
+    if (!value.trim()) {
+      setHasVerifiedCoords(false);
+      setSelectedCoords(null);
+    }
   }, [value]);
 
-  // Debounced search
+  // Debounced search across multi-tier geocoders
   useEffect(() => {
     if (!isOpen) return;
     if (query.trim().length < 2) {
@@ -57,7 +64,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
       } finally {
         setLoading(false);
       }
-    }, 280);
+    }, 250);
 
     return () => clearTimeout(timer);
   }, [query, isOpen, mapboxToken]);
@@ -74,8 +81,11 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
   }, []);
 
   const handleSelectSuggestion = (item: MapboxPlaceSuggestion) => {
+    const coords = { lat: item.coordinates[1], lng: item.coordinates[0] };
     setQuery(item.placeName);
-    onChange(item.placeName, { lat: item.coordinates[1], lng: item.coordinates[0] });
+    setSelectedCoords(coords);
+    setHasVerifiedCoords(true);
+    onChange(item.placeName, coords);
     setIsOpen(false);
     setSuggestions([]);
   };
@@ -84,23 +94,59 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
     const text = e.target.value;
     setQuery(text);
     setIsOpen(true);
-    // Link coordinates immediately so distance calculates in real time
-    const coords = getLagosAreaCoordinates(text);
-    onChange(text, { lat: coords[1], lng: coords[0] });
+    setHasVerifiedCoords(false);
+    // Notify parent about text change without pushing invalid coords
+    onChange(text, undefined);
   };
 
   const handleBlur = () => {
-    // On blur, if user typed a custom street address, ensure valid coordinates are linked
-    if (query.trim().length >= 2) {
-      const coords = getLagosAreaCoordinates(query);
-      onChange(query, { lat: coords[1], lng: coords[0] });
-    }
+    // Clear any pending timer
+    if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+
+    blurTimerRef.current = setTimeout(async () => {
+      const trimmed = query.trim();
+      if (!trimmed || trimmed.length < 2) return;
+
+      // If already verified with matching coordinates, keep them intact
+      if (hasVerifiedCoords && selectedCoords) return;
+
+      // If suggestions are currently populated, pick top match
+      if (suggestions.length > 0) {
+        handleSelectSuggestion(suggestions[0]);
+        return;
+      }
+
+      // Resolve address coordinates asynchronously
+      try {
+        const resolved = await resolveAddressCoordinates(trimmed, mapboxToken);
+        if (resolved) {
+          const coords = { lat: resolved[1], lng: resolved[0] };
+          setSelectedCoords(coords);
+          setHasVerifiedCoords(true);
+          onChange(trimmed, coords);
+        }
+      } catch (err) {
+        console.warn('[MapboxAddressInput] Auto-resolve error:', err);
+      }
+    }, 200);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && suggestions.length > 0) {
+    if (e.key === 'Enter') {
       e.preventDefault();
-      handleSelectSuggestion(suggestions[0]);
+      if (suggestions.length > 0) {
+        handleSelectSuggestion(suggestions[0]);
+      } else if (query.trim().length >= 2) {
+        resolveAddressCoordinates(query, mapboxToken).then((resolved) => {
+          if (resolved) {
+            const coords = { lat: resolved[1], lng: resolved[0] };
+            setSelectedCoords(coords);
+            setHasVerifiedCoords(true);
+            onChange(query, coords);
+            setIsOpen(false);
+          }
+        });
+      }
     } else if (e.key === 'Escape') {
       setIsOpen(false);
     }
@@ -109,6 +155,8 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
   const handleClear = () => {
     setQuery('');
     setSuggestions([]);
+    setHasVerifiedCoords(false);
+    setSelectedCoords(null);
     onChange('', undefined);
     setIsOpen(false);
   };
@@ -127,7 +175,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
         const lng = pos.coords.longitude;
         const defaultName = `Current Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
 
-        // Attempt reverse geocoding via Mapbox
+        // Reverse geocoding via Mapbox
         if (mapboxToken && mapboxToken.startsWith('pk.')) {
           try {
             const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}`;
@@ -137,6 +185,8 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
               if (data.features && data.features.length > 0) {
                 const place = data.features[0].place_name;
                 setQuery(place);
+                setSelectedCoords({ lat, lng });
+                setHasVerifiedCoords(true);
                 onChange(place, { lat, lng });
                 setGpsLoading(false);
                 setIsOpen(false);
@@ -147,6 +197,8 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
         }
 
         setQuery(defaultName);
+        setSelectedCoords({ lat, lng });
+        setHasVerifiedCoords(true);
         onChange(defaultName, { lat, lng });
         setGpsLoading(false);
         setIsOpen(false);
@@ -169,6 +221,12 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
             }`}
           />
           <span>{label}</span>
+          {hasVerifiedCoords && (
+            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 flex items-center gap-1">
+              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+              <span>GPS Verified</span>
+            </span>
+          )}
         </label>
 
         {showGpsButton && (
@@ -203,6 +261,8 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
           className={`w-full pl-3.5 pr-14 py-3 sm:py-2.5 bg-slate-50 text-slate-800 text-xs sm:text-sm rounded-xl border focus:outline-none transition-all placeholder:text-slate-400 ${
             error
               ? 'border-red-400 bg-red-50/30'
+              : hasVerifiedCoords
+              ? 'border-emerald-300 bg-white focus:border-emerald-500'
               : 'border-gray-200 focus:border-bbd-navy focus:bg-white'
           }`}
         />
@@ -224,7 +284,11 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
 
           <div
             className={`w-2 h-2 rounded-full ${
-              iconType === 'pickup' ? 'bg-emerald-500' : 'bg-bbd-red'
+              hasVerifiedCoords 
+                ? 'bg-emerald-500 ring-2 ring-emerald-200' 
+                : iconType === 'pickup' 
+                ? 'bg-emerald-400' 
+                : 'bg-bbd-red'
             }`}
           />
         </div>
@@ -238,7 +302,7 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
           {loading && suggestions.length === 0 ? (
             <div className="p-3 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-bbd-navy" />
-              <span>Searching Lagos Mapbox addresses...</span>
+              <span>Searching Nigerian Mapbox addresses & landmarks...</span>
             </div>
           ) : suggestions.length > 0 ? (
             <ul className="divide-y divide-gray-50">
@@ -251,29 +315,45 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
                       handleSelectSuggestion(item);
                     }}
                     className={`w-full text-left px-3.5 py-2.5 flex items-start gap-2.5 transition-colors group ${
-                      item.isExactUserAddress ? 'bg-emerald-50/50 hover:bg-emerald-50' : 'hover:bg-blue-50/70'
+                      item.isExactUserAddress ? 'bg-emerald-50/40 hover:bg-emerald-50' : 'hover:bg-blue-50/70'
                     }`}
                   >
                     {item.isExactUserAddress ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    ) : item.category === 'hub' ? (
+                      <MapPin className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                    ) : item.category === 'osm' ? (
+                      <Compass className="w-4 h-4 text-sky-600 flex-shrink-0 mt-0.5" />
                     ) : (
                       <Compass className="w-4 h-4 text-slate-400 group-hover:text-bbd-navy flex-shrink-0 mt-0.5 transition-colors" />
                     )}
+
                     <div className="flex-1 min-w-0">
-                      {item.isExactUserAddress ? (
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        {item.category === 'hub' && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                            Local Hub
+                          </span>
+                        )}
+                        {item.category === 'mapbox' && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-blue-100 text-blue-800">
+                            Mapbox Road
+                          </span>
+                        )}
+                        {item.category === 'osm' && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-sky-100 text-sky-800">
+                            Verified Map
+                          </span>
+                        )}
+                        {item.isExactUserAddress && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-emerald-100 text-emerald-800">
                             Exact Address
                           </span>
-                          <span className="text-xs font-bold text-gray-900 truncate">
-                            {item.text}
-                          </span>
-                        </div>
-                      ) : (
-                        <p className="text-xs font-semibold text-gray-800 truncate group-hover:text-bbd-navy">
+                        )}
+                        <span className="text-xs font-bold text-gray-900 truncate">
                           {item.text}
-                        </p>
-                      )}
+                        </span>
+                      </div>
                       <p className="text-[11px] text-slate-500 truncate">
                         {item.placeName}
                       </p>
@@ -288,13 +368,19 @@ export const MapboxAddressInput: React.FC<MapboxAddressInputProps> = ({
                 type="button"
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  const coords = getLagosAreaCoordinates(query);
-                  onChange(query, { lat: coords[1], lng: coords[0] });
-                  setIsOpen(false);
+                  resolveAddressCoordinates(query, mapboxToken).then((resolved) => {
+                    if (resolved) {
+                      const coords = { lat: resolved[1], lng: resolved[0] };
+                      setSelectedCoords(coords);
+                      setHasVerifiedCoords(true);
+                      onChange(query, coords);
+                      setIsOpen(false);
+                    }
+                  });
                 }}
                 className="text-bbd-navy font-semibold hover:underline"
               >
-                Use custom address: &ldquo;{query}&rdquo;
+                Use address & calculate route: &ldquo;{query}&rdquo;
               </button>
             </div>
           ) : null}

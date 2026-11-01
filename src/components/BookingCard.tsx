@@ -23,7 +23,8 @@ import { RideReceiptModal, RideReceiptData } from './RideReceiptModal';
 import { 
   calculateDrivingRoute, 
   computeDeliveryFareBreakdown, 
-  PricingBreakdown 
+  PricingBreakdown,
+  resolveAddressCoordinates
 } from '../services/mapboxService';
 
 interface BookingCardProps {
@@ -232,11 +233,25 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleContinueStep1 = (e: React.FormEvent) => {
+  const handleContinueStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateStep1()) {
-      setStep(2);
+    if (!validateStep1()) return;
+
+    // Ensure coordinates are resolved if user typed custom addresses without clicking suggestions
+    if (!pickupCoords && formData.pickupLocation.trim()) {
+      try {
+        const p = await resolveAddressCoordinates(formData.pickupLocation, pricingConfig.mapboxPublicKey);
+        if (p) setPickupCoords({ lat: p[1], lng: p[0] });
+      } catch {}
     }
+    if (!dropoffCoords && formData.dropoffLocation.trim()) {
+      try {
+        const d = await resolveAddressCoordinates(formData.dropoffLocation, pricingConfig.mapboxPublicKey);
+        if (d) setDropoffCoords({ lat: d[1], lng: d[0] });
+      } catch {}
+    }
+
+    setStep(2);
   };
 
   const handleContinueStep2 = (e: React.FormEvent) => {
@@ -461,7 +476,11 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               value={formData.pickupLocation}
               onChange={(addr, coords) => {
                 handleChange('pickupLocation', addr);
-                if (coords) setPickupCoords(coords);
+                if (coords) {
+                  setPickupCoords(coords);
+                } else if (!addr.trim()) {
+                  setPickupCoords(undefined);
+                }
               }}
               error={errors.pickupLocation}
               mapboxToken={pricingConfig.mapboxPublicKey}
@@ -476,7 +495,11 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               value={formData.dropoffLocation}
               onChange={(addr, coords) => {
                 handleChange('dropoffLocation', addr);
-                if (coords) setDropoffCoords(coords);
+                if (coords) {
+                  setDropoffCoords(coords);
+                } else if (!addr.trim()) {
+                  setDropoffCoords(undefined);
+                }
               }}
               error={errors.dropoffLocation}
               mapboxToken={pricingConfig.mapboxPublicKey}
