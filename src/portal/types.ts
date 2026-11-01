@@ -22,6 +22,14 @@ export interface Booking {
   customerName: string;
   customerPhone: string;
   customerEmail?: string;
+  senderName?: string;
+  senderPhone?: string;
+  senderEmail?: string;
+  receiverName?: string;
+  receiverPhone?: string;
+  receiverEmail?: string;
+  deliveryInstructions?: string;
+  serviceType?: string;
   pickupLocation: string;
   dropoffLocation: string;
   amount: number;

@@ -12,14 +12,12 @@ import {
   Loader2,
   Clock,
   Copy,
-  Check,
-  Printer
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookingFormData } from '../types';
 import { GoogleAddressInput } from './GoogleAddressInput';
 import { GoogleRouteMap } from './GoogleRouteMap';
-import { RideReceiptModal, RideReceiptData } from './RideReceiptModal';
 import { 
   calculateDrivingRoute, 
   computeDeliveryFareBreakdown, 
@@ -87,8 +85,6 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
   const [isCalculatingRoute, setIsCalculatingRoute] = useState<boolean>(false);
   const [includeWaitingFee, setIncludeWaitingFee] = useState<boolean>(false);
   const [routeError, setRouteError] = useState<string | null>(null);
-  const [receiptModalOpen, setReceiptModalOpen] = useState<boolean>(false);
-  const [confirmedReceipt, setConfirmedReceipt] = useState<RideReceiptData | null>(null);
 
   const [formData, setFormData] = useState<BookingFormData>({
     serviceType: initialServiceType || 'Documents & Files',
@@ -320,23 +316,6 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
         }));
       } catch {}
 
-      const now = new Date();
-      setConfirmedReceipt({
-        bookingRef: data.bookingReference,
-        senderName: formData.senderName,
-        senderPhone: formData.senderPhone,
-        receiverName: formData.receiverName,
-        receiverPhone: formData.receiverPhone,
-        pickupLocation: formData.pickupLocation,
-        dropoffLocation: formData.dropoffLocation,
-        packageDetails: formData.packageDetails,
-        serviceType: formData.serviceType,
-        date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        verificationOtp: data.verificationOtp,
-        fareBreakdown,
-      });
-
       setConfirmedRef(data.bookingReference);
       setStep(4);
     } catch (err: any) {
@@ -377,8 +356,6 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
     setRouteDurationMins(0);
     setIncludeWaitingFee(false);
     setRouteError(null);
-    setConfirmedReceipt(null);
-    setReceiptModalOpen(false);
     setErrors({});
     setServerError(null);
     setConfirmedRef(null);
@@ -1040,27 +1017,17 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
             </div>
 
             <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
-              {confirmedReceipt && (
-                <button
-                  type="button"
-                  onClick={() => setReceiptModalOpen(true)}
-                  className="flex-1 py-2.5 px-4 bg-[#0B1B3D] hover:bg-[#122b5e] text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all"
-                >
-                  <Printer className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>View &amp; Print Ride Receipt</span>
-                </button>
-              )}
               <a
                 href="tel:+2347087531148"
-                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                className="flex-1 py-3 px-4 bg-[#0B1B3D] hover:bg-[#122b5e] text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all"
               >
-                <Phone className="w-3.5 h-3.5 text-slate-500" />
+                <Phone className="w-3.5 h-3.5 text-slate-300" />
                 <span>Call Dispatch Desk</span>
               </a>
               <button
                 type="button"
                 onClick={resetForm}
-                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors"
+                className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors"
               >
                 Book Another
               </button>
@@ -1068,14 +1035,6 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Official Ride Receipt Modal */}
-      {receiptModalOpen && confirmedReceipt && (
-        <RideReceiptModal
-          receipt={confirmedReceipt}
-          onClose={() => setReceiptModalOpen(false)}
-        />
-      )}
     </div>
   );
 };

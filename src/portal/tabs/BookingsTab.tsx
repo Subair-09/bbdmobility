@@ -26,7 +26,9 @@ import {
   CreditCard,
   Camera,
   Maximize2,
-  ExternalLink
+  ExternalLink,
+  Phone,
+  UserCheck
 } from 'lucide-react';
 import { Booking, Rider, PaymentRecord, PaymentMethod } from '../types';
 import { GoogleRouteMap } from '../../components/GoogleRouteMap';
@@ -707,25 +709,81 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
               <p className="text-[11px] text-gray-400">{selectedBooking.date} • {selectedBooking.time}</p>
             </div>
 
-            {/* Customer Information */}
+            {/* Sender / Customer Information */}
             <div className="space-y-2 pt-2 border-t border-gray-100">
               <div className="flex items-center gap-2 text-gray-900 font-bold">
                 <User className="w-3.5 h-3.5 text-blue-600" />
-                <span>Customer Information</span>
+                <span>Sender Information</span>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1.5">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 text-xs">
                 <div className="flex justify-between">
                   <span className="text-gray-500">Name</span>
-                  <span className="font-bold text-gray-800">{selectedBooking.customerName || (selectedBooking as any).senderName || 'Customer'}</span>
+                  <span className="font-bold text-gray-800">{selectedBooking.customerName || selectedBooking.senderName || 'Customer'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Phone</span>
-                  <span className="font-medium text-gray-800">{selectedBooking.customerPhone || (selectedBooking as any).senderPhone || '—'}</span>
+                  {selectedBooking.customerPhone || selectedBooking.senderPhone ? (
+                    <a
+                      href={`tel:${selectedBooking.customerPhone || selectedBooking.senderPhone}`}
+                      className="font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      <Phone className="w-3 h-3 text-blue-500" />
+                      <span>{selectedBooking.customerPhone || selectedBooking.senderPhone}</span>
+                    </a>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
+                </div>
+                {(selectedBooking.customerEmail || selectedBooking.senderEmail) && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Email</span>
+                    <span className="font-medium text-gray-800">{selectedBooking.customerEmail || selectedBooking.senderEmail}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Recipient / Receiver Information */}
+            <div className="space-y-2 pt-2 border-t border-gray-100">
+              <div className="flex items-center gap-2 text-gray-900 font-bold">
+                <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Receiver / Recipient Information</span>
+              </div>
+              <div className="p-3 bg-emerald-50/50 rounded-xl space-y-1.5 text-xs border border-emerald-100/70">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Receiver Name</span>
+                  <span className="font-bold text-gray-900">
+                    {selectedBooking.receiverName || (selectedBooking as any).recipientName || '—'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Email</span>
-                  <span className="font-medium text-gray-800">{selectedBooking.customerEmail || (selectedBooking as any).senderEmail || '—'}</span>
+                  <span className="text-gray-500">Receiver Phone</span>
+                  {selectedBooking.receiverPhone || (selectedBooking as any).recipientPhone ? (
+                    <a
+                      href={`tel:${selectedBooking.receiverPhone || (selectedBooking as any).recipientPhone}`}
+                      className="font-bold text-emerald-700 hover:underline flex items-center gap-1"
+                    >
+                      <Phone className="w-3 h-3 text-emerald-600" />
+                      <span>{selectedBooking.receiverPhone || (selectedBooking as any).recipientPhone}</span>
+                    </a>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
                 </div>
+                {(selectedBooking.receiverEmail || (selectedBooking as any).recipientEmail) && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Receiver Email</span>
+                    <span className="font-medium text-gray-800">
+                      {selectedBooking.receiverEmail || (selectedBooking as any).recipientEmail}
+                    </span>
+                  </div>
+                )}
+                {selectedBooking.deliveryInstructions && (
+                  <div className="pt-1.5 border-t border-emerald-100">
+                    <span className="text-[10px] font-bold text-emerald-800 uppercase block">Delivery Note / Instructions</span>
+                    <p className="text-gray-700 italic mt-0.5">{selectedBooking.deliveryInstructions}</p>
+                  </div>
+                )}
               </div>
             </div>
 

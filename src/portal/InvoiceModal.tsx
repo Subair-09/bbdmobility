@@ -80,12 +80,19 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ booking, onClose }) 
           </div>
 
           {/* Billed To / Delivery Info */}
-          <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl text-xs border border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-slate-50 rounded-xl text-xs border border-slate-100">
             <div>
-              <p className="font-bold text-gray-400 uppercase text-[10px] tracking-wider mb-1">Customer / Shipper</p>
-              <p className="font-bold text-gray-900 text-sm">{booking.customerName}</p>
-              <p className="text-gray-600 mt-0.5">{booking.customerPhone}</p>
-              <p className="text-gray-600">{booking.customerEmail}</p>
+              <p className="font-bold text-gray-400 uppercase text-[10px] tracking-wider mb-1">Sender / Shipper</p>
+              <p className="font-bold text-gray-900 text-sm">{booking.customerName || booking.senderName || 'Customer'}</p>
+              <p className="text-gray-600 mt-0.5">{booking.customerPhone || booking.senderPhone}</p>
+              <p className="text-gray-600">{booking.customerEmail || booking.senderEmail}</p>
+            </div>
+
+            <div>
+              <p className="font-bold text-gray-400 uppercase text-[10px] tracking-wider mb-1">Recipient / Receiver</p>
+              <p className="font-bold text-gray-900 text-sm">{booking.receiverName || (booking as any).recipientName || '—'}</p>
+              <p className="text-gray-600 mt-0.5">{booking.receiverPhone || (booking as any).recipientPhone || '—'}</p>
+              <p className="text-gray-600">{booking.receiverEmail || (booking as any).recipientEmail || ''}</p>
             </div>
 
             <div>
