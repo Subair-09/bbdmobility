@@ -3051,6 +3051,7 @@ app.get('/api/portal/settings', async (_req: Request, res: Response) => {
   try {
     await connectToDatabase();
     let settings = await SettingsModel.findOne().lean();
+    const envToken = process.env.VITE_MAPBOX_TOKEN || process.env.MAPBOX_ACCESS_TOKEN || '';
     if (!settings) {
       const created = await SettingsModel.create({
         riderCommissionPercent: 25,
@@ -3058,6 +3059,7 @@ app.get('/api/portal/settings', async (_req: Request, res: Response) => {
         pricePerKm: 250,
         minimumFare: 1500,
         waitingFee: 200,
+        mapboxPublicKey: envToken,
       });
       settings = created.toObject();
     } else {
@@ -3068,6 +3070,7 @@ app.get('/api/portal/settings', async (_req: Request, res: Response) => {
       if (settings.pricePerKm === undefined) { updates.pricePerKm = 250; needsUpdate = true; }
       if (settings.minimumFare === undefined) { updates.minimumFare = 1500; needsUpdate = true; }
       if (settings.waitingFee === undefined) { updates.waitingFee = 200; needsUpdate = true; }
+      if (!settings.mapboxPublicKey && envToken) { updates.mapboxPublicKey = envToken; needsUpdate = true; }
       if (needsUpdate) {
         await SettingsModel.updateOne({ _id: settings._id }, { $set: updates });
         Object.assign(settings, updates);

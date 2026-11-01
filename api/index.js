@@ -4772,13 +4772,15 @@ app.get("/api/portal/settings", async (_req, res) => {
   try {
     await connectToDatabase();
     let settings = await SettingsModel.findOne().lean();
+    const envToken = process.env.VITE_MAPBOX_TOKEN || process.env.MAPBOX_ACCESS_TOKEN || "";
     if (!settings) {
       const created = await SettingsModel.create({
         riderCommissionPercent: 25,
         baseFare: 500,
         pricePerKm: 250,
         minimumFare: 1500,
-        waitingFee: 200
+        waitingFee: 200,
+        mapboxPublicKey: envToken
       });
       settings = created.toObject();
     } else {
@@ -4802,6 +4804,10 @@ app.get("/api/portal/settings", async (_req, res) => {
       }
       if (settings.waitingFee === void 0) {
         updates.waitingFee = 200;
+        needsUpdate = true;
+      }
+      if (!settings.mapboxPublicKey && envToken) {
+        updates.mapboxPublicKey = envToken;
         needsUpdate = true;
       }
       if (needsUpdate) {
