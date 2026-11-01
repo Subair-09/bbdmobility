@@ -302,8 +302,40 @@ export async function calculateGoogleDrivingRoute(
         }
       }
     } catch (err) {
-      console.warn('[Google Routes API Error]:', err);
+      console.warn('[Google Routes API Direct Error]:', err);
     }
+  }
+
+  // 2. High-reliability Backend Route Proxy Fallback (satisfies server-side Referer and avoids client CORS/Referer blocks)
+  try {
+    const backendRes = await fetch('/api/calculate-fare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pickupCoordinates: { lat: pickupCoords[1], lng: pickupCoords[0] },
+        dropoffCoordinates: { lat: dropoffCoords[1], lng: dropoffCoords[0] }
+      })
+    });
+    if (backendRes.ok) {
+      const bData = await backendRes.json();
+      if (bData.success && bData.calculation?.distanceKm > 0) {
+        const result: RouteCalculationResult = {
+          distanceKm: bData.calculation.distanceKm,
+          durationMinutes: bData.calculation.durationMinutes,
+          polyline: null,
+          source: 'google-routes-api'
+        };
+        routeCache.set(cacheKey, {
+          distanceKm: result.distanceKm,
+          durationMinutes: result.durationMinutes,
+          polyline: null,
+          cachedAt: Date.now()
+        });
+        return result;
+      }
+    }
+  } catch (bErr) {
+    console.warn('[Backend Route Proxy Fallback Error]:', bErr);
   }
 
   // Fallback: Road-network adjusted calculation (1.32x urban curvature factor)
@@ -339,14 +371,49 @@ export async function geocodeGoogleAddress(
   const key = apiKey || (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || '';
   if (!key || !key.startsWith('AIzaSy')) return null;
 
+  // 1. Google Places API (New) Text Search (Fully supports website referrer restrictions)
+  try {
+    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': key,
+        'X-Goog-FieldMask': 'places.formattedAddress,places.location'
+      },
+      body: JSON.stringify({
+        textQuery: trimmed,
+        regionCode: 'NG',
+        locationBias: {
+          circle: {
+            center: { latitude: 6.5244, longitude: 3.3792 },
+            radius: 50000.0
+          }
+        }
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.places) && data.places.length > 0) {
+        const loc = data.places[0].location;
+        if (loc?.latitude && loc?.longitude) {
+          return [loc.longitude, loc.latitude]; // [lng, lat]
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Google Places SearchText Geocode Error]:', err);
+  }
+
+  // 2. Legacy Geocoding API web service (for server-side or unrestricted keys)
   try {
     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(trimmed)}&components=country:NG&key=${key}`;
     const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.status === 'OK' && Array.isArray(data.results) && data.results.length > 0) {
-      const loc = data.results[0].geometry.location;
-      return [loc.lng, loc.lat];
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === 'OK' && Array.isArray(data.results) && data.results.length > 0) {
+        const loc = data.results[0].geometry.location;
+        return [loc.lng, loc.lat];
+      }
     }
   } catch {}
   return null;
