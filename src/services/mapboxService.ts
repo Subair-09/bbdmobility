@@ -20,15 +20,24 @@ export interface RouteCalculationResult {
 }
 
 export interface PricingBreakdown {
+  distanceKm: number;
+  durationMinutes: number;
   baseFare: number;
   pricePerKm: number;
-  distanceKm: number;
   distanceCost: number;
+  distanceCharge: number;
+  pricePerMinute: number;
+  timeCharge: number;
+  waitingCharge: number;
   waitingFee: number;
   subtotal: number;
-  minimumFare: number;
-  finalFare: number;
   isMinimumFareApplied: boolean;
+  subtotalBeforeVat: number;
+  vatPercentage: number;
+  vatAmount: number;
+  totalBeforeRounding: number;
+  fareRoundingIncrement: number;
+  finalFare: number;
 }
 
 // Curated high-accuracy Lagos hubs, residential streets & commercial zones
@@ -230,14 +239,36 @@ export async function searchMapboxPlaces(
   return deduplicated.slice(0, 6);
 }
 
+// Client-Side Mapbox Route Cache (1 Hour TTL to avoid redundant billing)
+interface CachedRoute {
+  distanceKm: number;
+  durationMinutes: number;
+  polyline?: any;
+  cachedAt: number;
+}
+const clientRouteCache = new Map<string, CachedRoute>();
+const ROUTE_CACHE_TTL_MS = 1000 * 60 * 60;
+
 /**
  * Calculates exact driving distance (km) and driving time (minutes) between 2 coordinates
+ * Checks memory cache first to avoid repeat billing for identical queries.
  */
 export async function calculateDrivingRoute(
   pickupCoords: [number, number],
   dropoffCoords: [number, number],
   token?: string
 ): Promise<RouteCalculationResult> {
+  const cacheKey = `${pickupCoords[0].toFixed(3)},${pickupCoords[1].toFixed(3)}->${dropoffCoords[0].toFixed(3)},${dropoffCoords[1].toFixed(3)}`;
+  const cached = clientRouteCache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAt < ROUTE_CACHE_TTL_MS) {
+    return {
+      distanceKm: cached.distanceKm,
+      durationMinutes: cached.durationMinutes,
+      polyline: cached.polyline,
+      source: 'mapbox-directions-api'
+    };
+  }
+
   const mapboxToken = token || (import.meta as any).env?.VITE_MAPBOX_TOKEN || '';
 
   if (mapboxToken && mapboxToken.startsWith('pk.')) {
@@ -249,7 +280,15 @@ export async function calculateDrivingRoute(
         if (data.routes && data.routes.length > 0) {
           const route = data.routes[0];
           const distanceKm = Number((route.distance / 1000).toFixed(1));
-          const durationMinutes = Math.max(10, Math.round(route.duration / 60));
+          const durationMinutes = Math.max(1, Math.round(route.duration / 60));
+          
+          clientRouteCache.set(cacheKey, {
+            distanceKm: Math.max(0.5, distanceKm),
+            durationMinutes,
+            polyline: route.geometry,
+            cachedAt: Date.now()
+          });
+
           return {
             distanceKm: Math.max(0.5, distanceKm),
             durationMinutes,
@@ -281,36 +320,84 @@ export async function calculateDrivingRoute(
 }
 
 /**
- * Calculates the complete delivery fare breakdown using the admin pricing model:
- * Base Fare + (Distance × Price per km) + Waiting Fee -> compared with Minimum Fare
+ * Calculates the complete delivery fare breakdown using the automatic pricing formula:
+ * - Distance Charge = Distance in KM × Price per KM (if distance pricing enabled)
+ * - Time Charge = Estimated Duration in Minutes × Price per Minute (if time pricing enabled)
+ * - Subtotal = Base Fee + Distance Charge + Time Charge + Waiting Charge
+ * - SubtotalBeforeVat = Math.max(Subtotal, Minimum Fare)
+ * - Final Fare = SubtotalBeforeVat + Applicable VAT
+ * - Rounded to nearest fareRoundingIncrement (e.g. ₦50)
  */
 export function computeDeliveryFareBreakdown(params: {
   distanceKm: number;
+  durationMinutes?: number;
   baseFare?: number;
   pricePerKm?: number;
+  pricePerMinute?: number;
   minimumFare?: number;
+  waitingChargePerMinute?: number;
   waitingFee?: number;
+  waitingMinutes?: number;
   includeWaitingFee?: boolean;
+  vatPercentage?: number;
+  vatEnabled?: boolean;
+  timePricingEnabled?: boolean;
+  distancePricingEnabled?: boolean;
+  fareRoundingIncrement?: number;
 }): PricingBreakdown {
-  const baseFare = Number(params.baseFare ?? 500);
+  const baseFare = Number(params.baseFare ?? 300);
   const pricePerKm = Number(params.pricePerKm ?? 250);
-  const minimumFare = Number(params.minimumFare ?? 1500);
-  const waitingFee = params.includeWaitingFee ? Number(params.waitingFee ?? 200) : 0;
+  const pricePerMinute = Number(params.pricePerMinute ?? 30);
+  const minimumFare = Number(params.minimumFare ?? 1000);
+  const waitingChargePerMinute = Number(params.waitingChargePerMinute ?? params.waitingFee ?? 50);
+  const vatPercentage = Number(params.vatPercentage ?? 7.5);
+  const vatEnabled = params.vatEnabled !== undefined ? Boolean(params.vatEnabled) : true;
+  const timePricingEnabled = params.timePricingEnabled !== undefined ? Boolean(params.timePricingEnabled) : true;
+  const distancePricingEnabled = params.distancePricingEnabled !== undefined ? Boolean(params.distancePricingEnabled) : true;
+  const fareRoundingIncrement = Math.max(1, Number(params.fareRoundingIncrement ?? 50));
 
   const validDistance = Math.max(0, Number(params.distanceKm) || 0);
-  const distanceCost = Math.round(validDistance * pricePerKm);
-  const subtotal = baseFare + distanceCost + waitingFee;
-  const finalFare = Math.max(subtotal, minimumFare);
+  const validDuration = Math.max(0, Number(params.durationMinutes) || 0);
+
+  let waitingMins = Math.max(0, Number(params.waitingMinutes) || 0);
+  if (params.includeWaitingFee && waitingMins === 0) {
+    waitingMins = 1;
+  }
+
+  const distanceCharge = distancePricingEnabled ? Math.round(validDistance * pricePerKm) : 0;
+  const timeCharge = timePricingEnabled ? Math.round(validDuration * pricePerMinute) : 0;
+  const waitingCharge = waitingMins > 0 ? Math.round(waitingMins * waitingChargePerMinute) : 0;
+
+  const subtotal = baseFare + distanceCharge + timeCharge + waitingCharge;
+  const isMinimumFareApplied = subtotal < minimumFare;
+  const subtotalBeforeVat = Math.max(subtotal, minimumFare);
+
+  const vatAmount = vatEnabled ? Number(((subtotalBeforeVat * vatPercentage) / 100).toFixed(2)) : 0;
+  const totalBeforeRounding = subtotalBeforeVat + vatAmount;
+
+  const finalFare = Math.max(
+    minimumFare,
+    Math.round(totalBeforeRounding / fareRoundingIncrement) * fareRoundingIncrement
+  );
 
   return {
+    distanceKm: validDistance,
+    durationMinutes: validDuration,
     baseFare,
     pricePerKm,
-    distanceKm: validDistance,
-    distanceCost,
-    waitingFee,
+    distanceCost: distanceCharge,
+    distanceCharge,
+    pricePerMinute,
+    timeCharge,
+    waitingCharge,
+    waitingFee: waitingCharge,
     subtotal,
-    minimumFare,
+    isMinimumFareApplied,
+    subtotalBeforeVat,
+    vatPercentage: vatEnabled ? vatPercentage : 0,
+    vatAmount,
+    totalBeforeRounding,
+    fareRoundingIncrement,
     finalFare,
-    isMinimumFareApplied: finalFare > subtotal
   };
 }

@@ -12,12 +12,14 @@ import {
   Loader2,
   Clock,
   Copy,
-  Check
+  Check,
+  Printer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookingFormData } from '../types';
 import { MapboxAddressInput } from './MapboxAddressInput';
 import { MapboxRouteMap } from './MapboxRouteMap';
+import { RideReceiptModal, RideReceiptData } from './RideReceiptModal';
 import { 
   calculateDrivingRoute, 
   computeDeliveryFareBreakdown, 
@@ -45,18 +47,32 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
   const [confirmedRef, setConfirmedRef] = useState<string | null>(null);
   const [copiedRef, setCopiedRef] = useState(false);
 
-  // Dynamic Mapbox Distance & Pricing Settings State
+  // Dynamic Mapbox Distance & Configurable Pricing Settings State
   const [pricingConfig, setPricingConfig] = useState<{
     baseFare: number;
     pricePerKm: number;
+    pricePerMinute: number;
     minimumFare: number;
+    waitingChargePerMinute: number;
     waitingFee: number;
+    vatPercentage: number;
+    vatEnabled: boolean;
+    timePricingEnabled: boolean;
+    distancePricingEnabled: boolean;
+    fareRoundingIncrement: number;
     mapboxPublicKey?: string;
   }>({
-    baseFare: 500,
+    baseFare: 300,
     pricePerKm: 250,
-    minimumFare: 1500,
-    waitingFee: 200,
+    pricePerMinute: 30,
+    minimumFare: 1000,
+    waitingChargePerMinute: 50,
+    waitingFee: 50,
+    vatPercentage: 7.5,
+    vatEnabled: true,
+    timePricingEnabled: true,
+    distancePricingEnabled: true,
+    fareRoundingIncrement: 50,
     mapboxPublicKey: '',
   });
 
@@ -67,6 +83,9 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
   const [routeDurationMins, setRouteDurationMins] = useState<number>(0);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState<boolean>(false);
   const [includeWaitingFee, setIncludeWaitingFee] = useState<boolean>(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [receiptModalOpen, setReceiptModalOpen] = useState<boolean>(false);
+  const [confirmedReceipt, setConfirmedReceipt] = useState<RideReceiptData | null>(null);
 
   const [formData, setFormData] = useState<BookingFormData>({
     serviceType: initialServiceType || 'Documents & Files',
@@ -106,11 +125,27 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
   // Recalculate route distance when pickup and dropoff coordinates are available
   useEffect(() => {
     if (!pickupCoords || !dropoffCoords) {
+      setRouteError(null);
+      return;
+    }
+
+    // Check same pickup and destination
+    const isSameLocation =
+      Math.abs(pickupCoords.lat - dropoffCoords.lat) < 0.0001 &&
+      Math.abs(pickupCoords.lng - dropoffCoords.lng) < 0.0001;
+
+    if (isSameLocation) {
+      setRouteDistanceKm(0);
+      setRouteDurationMins(0);
+      setRouteGeometry(null);
+      setRouteError('Pickup and destination locations appear to be identical. Standard minimum fare applies.');
+      setIsCalculatingRoute(false);
       return;
     }
 
     let isMounted = true;
     setIsCalculatingRoute(true);
+    setRouteError(null);
 
     calculateDrivingRoute(
       [pickupCoords.lng, pickupCoords.lat],
@@ -123,6 +158,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
         setRouteDurationMins(route.durationMinutes);
         setRouteGeometry(route.polyline);
         setIsCalculatingRoute(false);
+        setRouteError(null);
         setFormData((prev) => ({
           ...prev,
           distanceKm: route.distanceKm,
@@ -132,7 +168,10 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
         }));
       })
       .catch(() => {
-        if (isMounted) setIsCalculatingRoute(false);
+        if (isMounted) {
+          setIsCalculatingRoute(false);
+          setRouteError('Could not connect actual road route via Mapbox. Standard minimum fare applies.');
+        }
       });
 
     return () => {
@@ -143,10 +182,18 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
   // Dynamic Fare Breakdown based on Admin Pricing Formula
   const fareBreakdown: PricingBreakdown = computeDeliveryFareBreakdown({
     distanceKm: routeDistanceKm,
+    durationMinutes: routeDurationMins,
     baseFare: pricingConfig.baseFare,
     pricePerKm: pricingConfig.pricePerKm,
+    pricePerMinute: pricingConfig.pricePerMinute,
     minimumFare: pricingConfig.minimumFare,
+    waitingChargePerMinute: pricingConfig.waitingChargePerMinute,
     waitingFee: pricingConfig.waitingFee,
+    vatPercentage: pricingConfig.vatPercentage,
+    vatEnabled: pricingConfig.vatEnabled,
+    timePricingEnabled: pricingConfig.timePricingEnabled,
+    distancePricingEnabled: pricingConfig.distancePricingEnabled,
+    fareRoundingIncrement: pricingConfig.fareRoundingIncrement,
     includeWaitingFee,
   });
 
@@ -211,6 +258,14 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
         pickupCoordinates: pickupCoords,
         dropoffCoordinates: dropoffCoords,
         waitingFeeApplied: includeWaitingFee,
+        baseFareApplied: fareBreakdown.baseFare,
+        distanceChargeApplied: fareBreakdown.distanceCost,
+        timeChargeApplied: fareBreakdown.timeCharge,
+        waitingChargeApplied: fareBreakdown.waitingCharge,
+        subtotalBeforeVat: fareBreakdown.subtotalBeforeVat,
+        vatPercentageApplied: fareBreakdown.vatPercentage,
+        vatAmount: fareBreakdown.vatAmount,
+        finalFare: fareBreakdown.finalFare,
         estimatedDeliveryFee: fareBreakdown.finalFare,
       };
 
@@ -241,6 +296,23 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
           timestamp: Date.now()
         }));
       } catch {}
+
+      const now = new Date();
+      setConfirmedReceipt({
+        bookingRef: data.bookingReference,
+        senderName: formData.senderName,
+        senderPhone: formData.senderPhone,
+        receiverName: formData.receiverName,
+        receiverPhone: formData.receiverPhone,
+        pickupLocation: formData.pickupLocation,
+        dropoffLocation: formData.dropoffLocation,
+        packageDetails: formData.packageDetails,
+        serviceType: formData.serviceType,
+        date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        verificationOtp: data.verificationOtp,
+        fareBreakdown,
+      });
 
       setConfirmedRef(data.bookingReference);
       setStep(4);
@@ -281,6 +353,9 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
     setRouteDistanceKm(0);
     setRouteDurationMins(0);
     setIncludeWaitingFee(false);
+    setRouteError(null);
+    setConfirmedReceipt(null);
+    setReceiptModalOpen(false);
     setErrors({});
     setServerError(null);
     setConfirmedRef(null);
@@ -425,8 +500,16 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               </div>
             )}
 
-            {/* Live Mapbox Distance & Dynamic Price Breakdown Banner */}
-            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-2.5">
+            {/* Route Calculation Alert / Notice */}
+            {routeError && (
+              <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{routeError}</span>
+              </div>
+            )}
+
+            {/* Live Mapbox Distance & Automatic Dynamic Price Breakdown Banner */}
+            <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3.5 space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -442,24 +525,34 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               </div>
 
               {isCalculatingRoute ? (
-                <div className="py-2 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-bbd-navy" />
-                  <span>Calculating driving route via Mapbox...</span>
+                <div className="py-2.5 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-bbd-navy" />
+                  <span>Calculating actual road distance & travel time via Mapbox Directions API...</span>
                 </div>
               ) : routeDistanceKm > 0 ? (
                 <div className="space-y-1.5 text-xs text-slate-600">
                   <div className="flex justify-between">
-                    <span>Base Fare:</span>
-                    <span className="font-semibold text-slate-800">₦{pricingConfig.baseFare.toLocaleString()}</span>
+                    <span>Base Booking Fee:</span>
+                    <span className="font-semibold text-slate-800">₦{fareBreakdown.baseFare.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Distance ({routeDistanceKm} km × ₦{pricingConfig.pricePerKm}/km):</span>
-                    <span className="font-semibold text-slate-800">₦{fareBreakdown.distanceCost.toLocaleString()}</span>
-                  </div>
+                  {pricingConfig.distancePricingEnabled && (
+                    <div className="flex justify-between">
+                      <span>Distance Charge ({routeDistanceKm} km × ₦{fareBreakdown.pricePerKm}/km):</span>
+                      <span className="font-semibold text-slate-800">₦{fareBreakdown.distanceCost.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {pricingConfig.timePricingEnabled && (
+                    <div className="flex justify-between">
+                      <span>Time Charge (~{routeDurationMins} mins × ₦{fareBreakdown.pricePerMinute}/min):</span>
+                      <span className="font-semibold text-slate-800">₦{fareBreakdown.timeCharge.toLocaleString()}</span>
+                    </div>
+                  )}
                   
-                  {/* Optional Waiting Fee Toggle */}
+                  {/* Optional Waiting Service Toggle */}
                   <label className="flex items-center justify-between pt-1 border-t border-slate-200/60 cursor-pointer">
-                    <span className="text-[11px] text-slate-600">Additional Waiting Service (+₦{pricingConfig.waitingFee.toLocaleString()})</span>
+                    <span className="text-[11px] text-slate-600">
+                      Additional Waiting Service (+₦{pricingConfig.waitingChargePerMinute.toLocaleString()})
+                    </span>
                     <input
                       type="checkbox"
                       checked={includeWaitingFee}
@@ -471,22 +564,47 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
                     />
                   </label>
 
+                  {fareBreakdown.isMinimumFareApplied && (
+                    <div className="p-1.5 bg-amber-50/80 border border-amber-200/60 rounded text-[10px] text-amber-700">
+                      Minimum fare of ₦{pricingConfig.minimumFare.toLocaleString()} applies for short-distance trips.
+                    </div>
+                  )}
+
+                  {pricingConfig.vatEnabled && fareBreakdown.vatAmount > 0 && (
+                    <div className="flex justify-between pt-1 border-t border-slate-200/50 text-[11px] text-slate-500">
+                      <span>Applicable VAT ({fareBreakdown.vatPercentage}%):</span>
+                      <span className="font-semibold text-slate-700">₦{fareBreakdown.vatAmount.toLocaleString()}</span>
+                    </div>
+                  )}
+
                   <div className="flex items-baseline justify-between pt-2 border-t border-slate-200 font-bold">
-                    <span className="text-xs text-bbd-navy">Total Delivery Fare:</span>
+                    <span className="text-xs text-bbd-navy">Total Amount Payable:</span>
                     <div className="text-right">
                       <span className="text-base text-bbd-navy font-black">₦{fareBreakdown.finalFare.toLocaleString()}</span>
-                      {fareBreakdown.isMinimumFareApplied && (
-                        <p className="text-[10px] text-amber-600 font-normal">
-                          Minimum fare of ₦{pricingConfig.minimumFare.toLocaleString()} applies
+                      {pricingConfig.fareRoundingIncrement > 1 && (
+                        <p className="text-[9px] text-slate-400 font-normal">
+                          Rounded to nearest ₦{pricingConfig.fareRoundingIncrement}
                         </p>
                       )}
                     </div>
                   </div>
+
+                  {/* Standard System Message */}
+                  <div className="pt-1 border-t border-slate-200/60">
+                    <p className="text-[10px] text-slate-500 italic leading-snug">
+                      Your fare has been automatically calculated based on the driving distance and estimated journey time.
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Enter pickup & drop-off locations to compute exact distance (₦{pricingConfig.pricePerKm}/km) + ₦{pricingConfig.baseFare} base fare.
-                </p>
+                <div className="space-y-1">
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Enter pickup &amp; destination addresses to automatically calculate exact road distance (₦{pricingConfig.pricePerKm}/km) + journey time (₦{pricingConfig.pricePerMinute}/min) + ₦{pricingConfig.baseFare} base fee.
+                  </p>
+                  <p className="text-[10px] text-slate-400 italic">
+                    Your fare has been automatically calculated based on the driving distance and estimated journey time.
+                  </p>
+                </div>
               )}
             </div>
 
@@ -741,17 +859,47 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
                   {routeDistanceKm > 0 ? `${routeDistanceKm} km (~${routeDurationMins} mins driving)` : 'Standard Dispatch'}
                 </span>
               </div>
-              <div className="flex items-center justify-between p-2.5 bg-emerald-50/70 border border-emerald-100 rounded-lg">
-                <span className="font-bold text-slate-700">Total Delivery Fare:</span>
-                <div className="text-right">
-                  <span className="font-black text-emerald-800 text-base">
-                    ₦{fareBreakdown.finalFare.toLocaleString()}
-                  </span>
-                  {fareBreakdown.isMinimumFareApplied && (
-                    <span className="block text-[10px] text-emerald-600 font-normal">
-                      (Minimum fare threshold applied)
+              <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-lg space-y-1.5">
+                <div className="flex justify-between text-[11px] text-slate-600">
+                  <span>Base Fee:</span>
+                  <span className="font-semibold text-slate-800">₦{fareBreakdown.baseFare.toLocaleString()}</span>
+                </div>
+                {pricingConfig.distancePricingEnabled && routeDistanceKm > 0 && (
+                  <div className="flex justify-between text-[11px] text-slate-600">
+                    <span>Distance Charge ({routeDistanceKm} km):</span>
+                    <span className="font-semibold text-slate-800">₦{fareBreakdown.distanceCost.toLocaleString()}</span>
+                  </div>
+                )}
+                {pricingConfig.timePricingEnabled && routeDurationMins > 0 && (
+                  <div className="flex justify-between text-[11px] text-slate-600">
+                    <span>Time Charge (~{routeDurationMins} mins):</span>
+                    <span className="font-semibold text-slate-800">₦{fareBreakdown.timeCharge.toLocaleString()}</span>
+                  </div>
+                )}
+                {fareBreakdown.waitingCharge > 0 && (
+                  <div className="flex justify-between text-[11px] text-slate-600">
+                    <span>Waiting Service:</span>
+                    <span className="font-semibold text-slate-800">₦{fareBreakdown.waitingCharge.toLocaleString()}</span>
+                  </div>
+                )}
+                {pricingConfig.vatEnabled && fareBreakdown.vatAmount > 0 && (
+                  <div className="flex justify-between text-[11px] text-slate-600">
+                    <span>VAT ({fareBreakdown.vatPercentage}%):</span>
+                    <span className="font-semibold text-slate-800">₦{fareBreakdown.vatAmount.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-1.5 border-t border-emerald-200/60 font-bold">
+                  <span className="text-slate-700">Total Delivery Fare:</span>
+                  <div className="text-right">
+                    <span className="font-black text-emerald-800 text-base">
+                      ₦{fareBreakdown.finalFare.toLocaleString()}
                     </span>
-                  )}
+                    {fareBreakdown.isMinimumFareApplied && (
+                      <span className="block text-[10px] text-emerald-600 font-normal">
+                        (Minimum fare threshold applied)
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -861,11 +1009,21 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
             </div>
 
             <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
+              {confirmedReceipt && (
+                <button
+                  type="button"
+                  onClick={() => setReceiptModalOpen(true)}
+                  className="flex-1 py-2.5 px-4 bg-[#0B1B3D] hover:bg-[#122b5e] text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                >
+                  <Printer className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>View &amp; Print Ride Receipt</span>
+                </button>
+              )}
               <a
                 href="tel:+2347087531148"
-                className="flex-1 py-2.5 px-4 bg-bbd-navy hover:bg-bbd-navy-light text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors"
               >
-                <Phone className="w-3.5 h-3.5" />
+                <Phone className="w-3.5 h-3.5 text-slate-500" />
                 <span>Call Dispatch Desk</span>
               </a>
               <button
@@ -873,12 +1031,20 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
                 onClick={resetForm}
                 className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors"
               >
-                Book Another Delivery
+                Book Another
               </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Official Ride Receipt Modal */}
+      {receiptModalOpen && confirmedReceipt && (
+        <RideReceiptModal
+          receipt={confirmedReceipt}
+          onClose={() => setReceiptModalOpen(false)}
+        />
+      )}
     </div>
   );
 };

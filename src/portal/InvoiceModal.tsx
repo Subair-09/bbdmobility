@@ -115,33 +115,50 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ booking, onClose }) 
             </div>
           </div>
 
-          {/* Charges Table */}
-          <div className="border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full text-xs">
-              <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold text-left">
-                <tr>
-                  <th className="py-2.5 px-3">Description</th>
-                  <th className="py-2.5 px-3">Weight</th>
-                  <th className="py-2.5 px-3 text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                <tr>
-                  <td className="py-3 px-3">
-                    <span className="font-semibold text-gray-800 block">Direct Urban Courier Service</span>
-                    <span className="text-gray-500 text-[11px]">{booking.packageDescription}</span>
-                  </td>
-                  <td className="py-3 px-3 text-gray-600 font-medium">{booking.packageWeight}</td>
-                  <td className="py-3 px-3 text-right font-bold text-gray-800">₦{Number(booking.amount || 5000).toLocaleString()}</td>
-                </tr>
-              </tbody>
-              <tfoot className="bg-slate-50 font-bold border-t border-gray-200">
-                <tr>
-                  <td colSpan={2} className="py-3 px-3 text-right text-gray-600">Total Charged:</td>
-                  <td className="py-3 px-3 text-right text-base text-bbd-navy">₦{Number(booking.amount || 5000).toLocaleString()}</td>
-                </tr>
-              </tfoot>
-            </table>
+          {/* Charges Table - Professional Fare Breakdown */}
+          <div className="border border-gray-200 rounded-xl overflow-hidden shadow-2xs">
+            <div className="bg-[#0B1B3D] text-white px-3.5 py-2.5 flex justify-between text-xs font-bold uppercase tracking-wider">
+              <span>Automatic Fare Breakdown</span>
+              <span>Amount</span>
+            </div>
+            <div className="divide-y divide-gray-100 text-xs p-3.5 space-y-1.5 bg-white">
+              <div className="flex justify-between items-center text-gray-600">
+                <span>Distance:</span>
+                <span className="font-bold text-gray-900">{booking.distanceKm || 0} KM</span>
+              </div>
+              <div className="flex justify-between items-center text-gray-600 pt-1.5">
+                <span>Estimated Duration:</span>
+                <span className="font-bold text-gray-900">{booking.durationMinutes || 0} Minutes</span>
+              </div>
+              <div className="flex justify-between items-center text-gray-600 pt-1.5">
+                <span>Base Fee:</span>
+                <span className="font-bold text-gray-900">₦{Number(booking.baseFareApplied ?? booking.baseFare ?? 300).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center text-gray-600 pt-1.5">
+                <span>Distance Charge:</span>
+                <span className="font-bold text-gray-900">₦{Number(booking.distanceChargeApplied ?? (Math.round((booking.distanceKm || 0) * (booking.pricePerKm ?? 250)))).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center text-gray-600 pt-1.5">
+                <span>Time Charge:</span>
+                <span className="font-bold text-gray-900">₦{Number(booking.timeChargeApplied ?? (Math.round((booking.durationMinutes || 0) * (booking.pricePerMinuteApplied ?? 30)))).toLocaleString()}</span>
+              </div>
+              {booking.waitingChargeApplied ? (
+                <div className="flex justify-between items-center text-gray-600 pt-1.5">
+                  <span>Waiting Charge:</span>
+                  <span className="font-bold text-gray-900">₦{Number(booking.waitingChargeApplied).toLocaleString()}</span>
+                </div>
+              ) : null}
+              {booking.vatAmount ? (
+                <div className="flex justify-between items-center text-gray-600 pt-1.5">
+                  <span>VAT ({booking.vatPercentageApplied ?? 7.5}%):</span>
+                  <span className="font-bold text-gray-900">₦{Number(booking.vatAmount).toLocaleString()}</span>
+                </div>
+              ) : null}
+            </div>
+            <div className="bg-slate-50 border-t border-gray-200 p-3.5 flex items-baseline justify-between font-black">
+              <span className="text-xs uppercase tracking-wider text-[#0B1B3D]">TOTAL AMOUNT:</span>
+              <span className="text-base text-[#0B1B3D]">₦{Number(booking.finalFare ?? booking.amount ?? 0).toLocaleString()}</span>
+            </div>
           </div>
 
           {/* Footer Note */}

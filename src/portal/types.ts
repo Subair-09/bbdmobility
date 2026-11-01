@@ -1,6 +1,7 @@
 export type PortalTab = 
   | 'dashboard' 
   | 'bookings' 
+  | 'fare-management'
   | 'riders' 
   | 'customers' 
   | 'users' 
@@ -53,6 +54,16 @@ export interface Booking {
   deliveryCoordinates?: { lat: number; lng: number };
   baseFare?: number;
   pricePerKm?: number;
+  baseFareApplied?: number;
+  distanceChargeApplied?: number;
+  pricePerMinuteApplied?: number;
+  timeChargeApplied?: number;
+  waitingChargeApplied?: number;
+  subtotalBeforeVat?: number;
+  vatPercentageApplied?: number;
+  vatAmount?: number;
+  finalFare?: number;
+  pricingConfigSnapshot?: any;
   timeline?: {
     booked?: string;
     accepted?: string;
@@ -158,10 +169,17 @@ export interface GeneralSettings {
   sessionTimeout: string;
   riderCommissionPercent?: number;
 
-  // Mapbox & Distance-Based Pricing Structure
+  // Configurable Fare Management Pricing Engine
   baseFare?: number;
   pricePerKm?: number;
+  pricePerMinute?: number;
   minimumFare?: number;
+  waitingChargePerMinute?: number;
   waitingFee?: number;
+  vatPercentage?: number;
+  vatEnabled?: boolean;
+  timePricingEnabled?: boolean;
+  distancePricingEnabled?: boolean;
+  fareRoundingIncrement?: number;
   mapboxPublicKey?: string;
 }

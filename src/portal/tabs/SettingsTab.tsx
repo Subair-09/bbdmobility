@@ -54,10 +54,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [commissionPercent, setCommissionPercent] = useState<number>(settings.riderCommissionPercent ?? 25);
 
   // Mapbox & Distance-Based Pricing Settings State
-  const [baseFare, setBaseFare] = useState<number>(settings.baseFare ?? 500);
+  const [baseFare, setBaseFare] = useState<number>(settings.baseFare ?? 300);
   const [pricePerKm, setPricePerKm] = useState<number>(settings.pricePerKm ?? 250);
-  const [minimumFare, setMinimumFare] = useState<number>(settings.minimumFare ?? 1500);
-  const [waitingFee, setWaitingFee] = useState<number>(settings.waitingFee ?? 200);
+  const [minimumFare, setMinimumFare] = useState<number>(settings.minimumFare ?? 1000);
+  const [waitingFee, setWaitingFee] = useState<number>(settings.waitingChargePerMinute ?? settings.waitingFee ?? 50);
   const [mapboxPublicKey, setMapboxPublicKey] = useState<string>(settings.mapboxPublicKey ?? '');
   const [testDistanceKm, setTestDistanceKm] = useState<number>(8);
 
@@ -495,14 +495,24 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={handleSavePricing}
-                className="px-4 py-2 bg-[#0B1B3D] hover:bg-[#07132c] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all self-start sm:self-auto"
-              >
-                <Save className="w-3.5 h-3.5" />
-                <span>Save Pricing Rules</span>
-              </button>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab('fare-management')}
+                  className="px-3.5 py-2 bg-[#E30620] hover:bg-[#c9051b] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all"
+                >
+                  <Calculator className="w-3.5 h-3.5" />
+                  <span>Fare Management</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSavePricing}
+                  className="px-3.5 py-2 bg-[#0B1B3D] hover:bg-[#07132c] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-1 text-xs">

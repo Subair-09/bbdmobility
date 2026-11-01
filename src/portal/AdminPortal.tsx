@@ -8,6 +8,7 @@ import { UsersTab } from './tabs/UsersTab';
 import { PaymentsTab } from './tabs/PaymentsTab';
 import { ReportsTab } from './tabs/ReportsTab';
 import { SettingsTab } from './tabs/SettingsTab';
+import { FareManagementTab } from './tabs/FareManagementTab';
 import { InvoiceModal } from './InvoiceModal';
 import { 
   PortalTab, 
@@ -541,6 +542,14 @@ export function AdminPortal({ onLogout, onNavigateHome, initialTab = 'dashboard'
               onDeleteBooking={handleDeleteBooking}
               onRecordPayment={handleRecordPayment}
               onViewInvoice={(b) => setInvoiceBooking(b)}
+              onShowToast={showToast}
+            />
+          )}
+
+          {currentTab === 'fare-management' && (
+            <FareManagementTab
+              settings={settings}
+              onUpdateSettings={handleUpdateSettings}
               onShowToast={showToast}
             />
           )}

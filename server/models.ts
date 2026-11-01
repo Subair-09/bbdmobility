@@ -198,14 +198,35 @@ export interface IBooking extends Document {
   companyCommission?: number;
   riderEarnings?: number;
 
-  // Mapbox & Distance-Based Pricing Details
+  // Mapbox & Distance/Time-Based Pricing Details
   distanceKm?: number;
   durationMinutes?: number;
   pickupCoordinates?: { lat: number; lng: number };
   deliveryCoordinates?: { lat: number; lng: number };
   baseFareApplied?: number;
   pricePerKmApplied?: number;
+  distanceChargeApplied?: number;
+  pricePerMinuteApplied?: number;
+  timeChargeApplied?: number;
+  waitingChargeApplied?: number;
   waitingFeeApplied?: number;
+  subtotalBeforeVat?: number;
+  vatPercentageApplied?: number;
+  vatAmount?: number;
+  finalFare?: number;
+  pricingConfigSnapshot?: {
+    baseFare: number;
+    pricePerKm: number;
+    pricePerMinute: number;
+    minimumFare: number;
+    waitingChargePerMinute: number;
+    vatPercentage: number;
+    vatEnabled: boolean;
+    timePricingEnabled: boolean;
+    distancePricingEnabled: boolean;
+    fareRoundingIncrement: number;
+    version?: string;
+  };
 
   assignedRiderId?: string;
   assignedRiderName?: string;
@@ -287,7 +308,7 @@ const BookingSchema = new Schema<IBooking>({
   companyCommission: { type: Number, default: 0 },
   riderEarnings: { type: Number, default: 0 },
 
-  // Mapbox & Distance-Based Pricing Details
+  // Mapbox & Distance/Time-Based Pricing Details
   distanceKm: { type: Number, default: 0 },
   durationMinutes: { type: Number, default: 0 },
   pickupCoordinates: {
@@ -298,9 +319,18 @@ const BookingSchema = new Schema<IBooking>({
     lat: { type: Number },
     lng: { type: Number }
   },
-  baseFareApplied: { type: Number, default: 500 },
+  baseFareApplied: { type: Number, default: 300 },
   pricePerKmApplied: { type: Number, default: 250 },
+  distanceChargeApplied: { type: Number, default: 0 },
+  pricePerMinuteApplied: { type: Number, default: 30 },
+  timeChargeApplied: { type: Number, default: 0 },
+  waitingChargeApplied: { type: Number, default: 0 },
   waitingFeeApplied: { type: Number, default: 0 },
+  subtotalBeforeVat: { type: Number, default: 0 },
+  vatPercentageApplied: { type: Number, default: 7.5 },
+  vatAmount: { type: Number, default: 0 },
+  finalFare: { type: Number, default: 0 },
+  pricingConfigSnapshot: { type: Schema.Types.Mixed },
   paymentStatus: { 
     type: String, 
     enum: ['Unpaid', 'Partially Paid', 'Paid', 'Overpaid', 'Refunded'], 
@@ -571,11 +601,18 @@ export interface ISettings extends Document {
   defaultServiceType: string;
   riderCommissionPercent?: number;
 
-  // Mapbox & Distance-Based Pricing Structure
+  // Configurable Fare Management Pricing Engine
   baseFare: number;
   pricePerKm: number;
+  pricePerMinute: number;
   minimumFare: number;
-  waitingFee: number;
+  waitingChargePerMinute: number;
+  waitingFee: number; // backward compatibility
+  vatPercentage: number;
+  vatEnabled: boolean;
+  timePricingEnabled: boolean;
+  distancePricingEnabled: boolean;
+  fareRoundingIncrement: number;
   mapboxPublicKey?: string;
 
   notifications: {
@@ -601,10 +638,17 @@ const SettingsSchema = new Schema<ISettings>({
   maxDeliveryTimeMinutes: { type: Number, default: 180 },
   defaultServiceType: { type: String, default: 'Standard Delivery' },
   riderCommissionPercent: { type: Number, default: 25 },
-  baseFare: { type: Number, default: 500 },
+  baseFare: { type: Number, default: 300 },
   pricePerKm: { type: Number, default: 250 },
-  minimumFare: { type: Number, default: 1500 },
-  waitingFee: { type: Number, default: 200 },
+  pricePerMinute: { type: Number, default: 30 },
+  minimumFare: { type: Number, default: 1000 },
+  waitingChargePerMinute: { type: Number, default: 50 },
+  waitingFee: { type: Number, default: 50 },
+  vatPercentage: { type: Number, default: 7.5 },
+  vatEnabled: { type: Boolean, default: true },
+  timePricingEnabled: { type: Boolean, default: true },
+  distancePricingEnabled: { type: Boolean, default: true },
+  fareRoundingIncrement: { type: Number, default: 50 },
   mapboxPublicKey: { type: String, default: '' },
   notifications: {
     newBookings: { type: Boolean, default: true },

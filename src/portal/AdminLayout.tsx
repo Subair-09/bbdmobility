@@ -8,6 +8,7 @@ import {
   CreditCard, 
   BarChart3, 
   Settings, 
+  Calculator,
   Menu, 
   X, 
   Search, 
@@ -55,6 +56,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   const navItems = [
     { id: 'dashboard' as PortalTab, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'bookings' as PortalTab, label: 'Bookings', icon: Package },
+    { id: 'fare-management' as PortalTab, label: 'Fare Management', icon: Calculator },
     { id: 'riders' as PortalTab, label: 'Riders', icon: Bike },
     { id: 'customers' as PortalTab, label: 'Customers', icon: Users },
     { id: 'users' as PortalTab, label: 'Users', icon: UserCheck },

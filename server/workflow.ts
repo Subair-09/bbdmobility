@@ -30,31 +30,135 @@ export function canTransitionStatus(from: DeliveryStatus, to: DeliveryStatus, ro
 export interface PricingConfig {
   baseFare: number;
   pricePerKm: number;
+  pricePerMinute: number;
   minimumFare: number;
-  waitingFee: number;
+  waitingChargePerMinute: number;
+  waitingFee?: number;
+  vatPercentage: number;
+  vatEnabled: boolean;
+  timePricingEnabled: boolean;
+  distancePricingEnabled: boolean;
+  fareRoundingIncrement: number;
 }
 
 export const DEFAULT_PRICING_CONFIG: PricingConfig = {
-  baseFare: 500,
+  baseFare: 300,
   pricePerKm: 250,
-  minimumFare: 1500,
-  waitingFee: 200,
+  pricePerMinute: 30,
+  minimumFare: 1000,
+  waitingChargePerMinute: 50,
+  waitingFee: 50,
+  vatPercentage: 7.5,
+  vatEnabled: true,
+  timePricingEnabled: true,
+  distancePricingEnabled: true,
+  fareRoundingIncrement: 50,
 };
 
+export interface FareCalculationResult {
+  distanceKm: number;
+  durationMinutes: number;
+  baseFare: number;
+  pricePerKm: number;
+  distanceCharge: number;
+  pricePerMinute: number;
+  timeCharge: number;
+  waitingCharge: number;
+  subtotal: number;
+  isMinimumFareApplied: boolean;
+  subtotalBeforeVat: number;
+  vatPercentage: number;
+  vatAmount: number;
+  totalBeforeRounding: number;
+  fareRoundingIncrement: number;
+  finalFare: number;
+  configSnapshot: PricingConfig;
+}
+
 /**
- * Calculates delivery fare based on Mapbox driving distance and admin pricing settings:
- * - Base fare: e.g. ₦500
- * - Price per km: e.g. ₦250
- * - Minimum fare: e.g. ₦1,500
- * - Optional Waiting fee: e.g. ₦200
+ * Calculates delivery fare based on Mapbox driving distance, estimated duration,
+ * and admin pricing configuration.
  * 
- * Example: 8 km trip
- * Base fare: ₦500 + (8 × ₦250 = ₦2,000) = ₦2,500 (>= ₦1,500) -> ₦2,500
+ * Formula:
+ * - Distance Charge = Distance in KM × Price per KM (if distance pricing enabled)
+ * - Time Charge = Estimated Duration in Minutes × Price per Minute (if time pricing enabled)
+ * - Subtotal = Base Fee + Distance Charge + Time Charge + Waiting Charge
+ * - SubtotalBeforeVat = Math.max(Subtotal, Minimum Fare)
+ * - VAT = SubtotalBeforeVat × VAT% (if VAT enabled)
+ * - Total = SubtotalBeforeVat + VAT
+ * - Final Fare = Round Total to nearest fareRoundingIncrement (e.g. ₦50)
  */
+export function calculateAutomaticFare(params: {
+  distanceKm: number;
+  durationMinutes?: number;
+  waitingMinutes?: number;
+  includeWaitingFee?: boolean;
+  config?: Partial<PricingConfig>;
+}): FareCalculationResult {
+  const cfg: PricingConfig = {
+    baseFare: Number(params.config?.baseFare ?? DEFAULT_PRICING_CONFIG.baseFare),
+    pricePerKm: Number(params.config?.pricePerKm ?? DEFAULT_PRICING_CONFIG.pricePerKm),
+    pricePerMinute: Number(params.config?.pricePerMinute ?? DEFAULT_PRICING_CONFIG.pricePerMinute),
+    minimumFare: Number(params.config?.minimumFare ?? DEFAULT_PRICING_CONFIG.minimumFare),
+    waitingChargePerMinute: Number(params.config?.waitingChargePerMinute ?? params.config?.waitingFee ?? DEFAULT_PRICING_CONFIG.waitingChargePerMinute),
+    waitingFee: Number(params.config?.waitingFee ?? params.config?.waitingChargePerMinute ?? DEFAULT_PRICING_CONFIG.waitingFee),
+    vatPercentage: Number(params.config?.vatPercentage ?? DEFAULT_PRICING_CONFIG.vatPercentage),
+    vatEnabled: params.config?.vatEnabled !== undefined ? Boolean(params.config.vatEnabled) : DEFAULT_PRICING_CONFIG.vatEnabled,
+    timePricingEnabled: params.config?.timePricingEnabled !== undefined ? Boolean(params.config.timePricingEnabled) : DEFAULT_PRICING_CONFIG.timePricingEnabled,
+    distancePricingEnabled: params.config?.distancePricingEnabled !== undefined ? Boolean(params.config.distancePricingEnabled) : DEFAULT_PRICING_CONFIG.distancePricingEnabled,
+    fareRoundingIncrement: Math.max(1, Number(params.config?.fareRoundingIncrement ?? DEFAULT_PRICING_CONFIG.fareRoundingIncrement)),
+  };
+
+  const validDistance = Math.max(0, Number(params.distanceKm) || 0);
+  const validDuration = Math.max(0, Number(params.durationMinutes) || 0);
+
+  let waitingMins = Math.max(0, Number(params.waitingMinutes) || 0);
+  if (params.includeWaitingFee && waitingMins === 0) {
+    waitingMins = 1;
+  }
+
+  const distanceCharge = cfg.distancePricingEnabled ? Math.round(validDistance * cfg.pricePerKm) : 0;
+  const timeCharge = cfg.timePricingEnabled ? Math.round(validDuration * cfg.pricePerMinute) : 0;
+  const waitingCharge = waitingMins > 0 ? Math.round(waitingMins * cfg.waitingChargePerMinute) : 0;
+
+  const subtotal = cfg.baseFare + distanceCharge + timeCharge + waitingCharge;
+  const isMinimumFareApplied = subtotal < cfg.minimumFare;
+  const subtotalBeforeVat = Math.max(subtotal, cfg.minimumFare);
+
+  const vatAmount = cfg.vatEnabled ? Number(((subtotalBeforeVat * cfg.vatPercentage) / 100).toFixed(2)) : 0;
+  const totalBeforeRounding = subtotalBeforeVat + vatAmount;
+
+  const finalFare = Math.max(
+    cfg.minimumFare,
+    Math.round(totalBeforeRounding / cfg.fareRoundingIncrement) * cfg.fareRoundingIncrement
+  );
+
+  return {
+    distanceKm: validDistance,
+    durationMinutes: validDuration,
+    baseFare: cfg.baseFare,
+    pricePerKm: cfg.pricePerKm,
+    distanceCharge,
+    pricePerMinute: cfg.pricePerMinute,
+    timeCharge,
+    waitingCharge,
+    subtotal,
+    isMinimumFareApplied,
+    subtotalBeforeVat,
+    vatPercentage: cfg.vatEnabled ? cfg.vatPercentage : 0,
+    vatAmount,
+    totalBeforeRounding,
+    fareRoundingIncrement: cfg.fareRoundingIncrement,
+    finalFare,
+    configSnapshot: cfg,
+  };
+}
+
 export function calculateDistanceFare(
   distanceKm: number,
   config?: Partial<PricingConfig>,
-  includeWaitingFee: boolean = false
+  includeWaitingFee: boolean = false,
+  durationMinutes: number = 0
 ): {
   baseFare: number;
   pricePerKm: number;
@@ -64,27 +168,58 @@ export function calculateDistanceFare(
   subtotal: number;
   minimumFare: number;
   finalFare: number;
+  result: FareCalculationResult;
 } {
-  const baseFare = Number(config?.baseFare ?? DEFAULT_PRICING_CONFIG.baseFare);
-  const pricePerKm = Number(config?.pricePerKm ?? DEFAULT_PRICING_CONFIG.pricePerKm);
-  const minimumFare = Number(config?.minimumFare ?? DEFAULT_PRICING_CONFIG.minimumFare);
-  const waitingFee = includeWaitingFee ? Number(config?.waitingFee ?? DEFAULT_PRICING_CONFIG.waitingFee) : 0;
-
-  const validDistance = Math.max(0, Number(distanceKm) || 0);
-  const distanceCost = Math.round(validDistance * pricePerKm);
-  const subtotal = baseFare + distanceCost + waitingFee;
-  const finalFare = Math.max(subtotal, minimumFare);
+  const result = calculateAutomaticFare({
+    distanceKm,
+    durationMinutes,
+    includeWaitingFee,
+    config,
+  });
 
   return {
-    baseFare,
-    pricePerKm,
-    distanceKm: validDistance,
-    distanceCost,
-    waitingFee,
-    subtotal,
-    minimumFare,
-    finalFare,
+    baseFare: result.baseFare,
+    pricePerKm: result.pricePerKm,
+    distanceKm: result.distanceKm,
+    distanceCost: result.distanceCharge,
+    waitingFee: result.waitingCharge,
+    subtotal: result.subtotal,
+    minimumFare: result.configSnapshot.minimumFare,
+    finalFare: result.finalFare,
+    result,
   };
+}
+
+// In-Memory Server Route Caching (TTL = 1 hour)
+interface CachedRoute {
+  distanceKm: number;
+  durationMinutes: number;
+  polyline?: any;
+  cachedAt: number;
+}
+const serverRouteCache = new Map<string, CachedRoute>();
+const ROUTE_CACHE_TTL_MS = 1000 * 60 * 60;
+
+export function getCachedServerRoute(pickup: [number, number], dropoff: [number, number]): CachedRoute | null {
+  const key = `${pickup[0].toFixed(3)},${pickup[1].toFixed(3)}->${dropoff[0].toFixed(3)},${dropoff[1].toFixed(3)}`;
+  const cached = serverRouteCache.get(key);
+  if (cached && Date.now() - cached.cachedAt < ROUTE_CACHE_TTL_MS) {
+    return cached;
+  }
+  return null;
+}
+
+export function setCachedServerRoute(
+  pickup: [number, number],
+  dropoff: [number, number],
+  route: { distanceKm: number; durationMinutes: number; polyline?: any }
+) {
+  const key = `${pickup[0].toFixed(3)},${pickup[1].toFixed(3)}->${dropoff[0].toFixed(3)},${dropoff[1].toFixed(3)}`;
+  serverRouteCache.set(key, { ...route, cachedAt: Date.now() });
+  if (serverRouteCache.size > 1000) {
+    const oldestKey = serverRouteCache.keys().next().value;
+    if (oldestKey) serverRouteCache.delete(oldestKey);
+  }
 }
 
 // Server-side Pricing Calculator (Do not trust client-submitted amounts)

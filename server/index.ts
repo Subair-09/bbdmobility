@@ -22,7 +22,12 @@ import {
   canTransitionStatus,
   calculateDeliveryFee,
   calculateDistanceFare,
+  calculateAutomaticFare,
   DEFAULT_PRICING_CONFIG,
+  getCachedServerRoute,
+  setCachedServerRoute,
+  PricingConfig,
+  FareCalculationResult,
   recordAuditLog,
 } from './workflow.ts';
 import {
@@ -636,29 +641,84 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
       });
     }
 
+    // Duplicate booking protection (same phone, pickup, delivery in last 10 seconds)
+    const tenSecondsAgo = new Date(Date.now() - 10000);
+    const existingRecent = await BookingModel.findOne({
+      senderPhone: sPhone,
+      pickupAddress: pLoc,
+      deliveryAddress: dLoc,
+      createdAt: { $gte: tenSecondsAgo }
+    }).lean().catch(() => null);
+
+    if (existingRecent) {
+      return res.status(200).json({
+        success: true,
+        bookingReference: existingRecent.ref,
+        message: 'Your booking has already been recorded.',
+        isDuplicate: true,
+      });
+    }
+
     // Retrieve active settings (pricing rules & commission rate)
     const settingsDoc = await SettingsModel.findOne().lean().catch(() => null);
 
-    // Dynamic Distance-Based Pricing (Mapbox Driving Distance) or Standard Service Tariff
+    // Dynamic Distance & Time-Based Pricing Engine (Mapbox Driving Route)
     const distanceKm = typeof req.body.distanceKm === 'number' && req.body.distanceKm > 0
       ? Number(req.body.distanceKm)
       : (req.body.distanceKm ? Number(req.body.distanceKm) : 0);
+    const durationMinutes = typeof req.body.durationMinutes === 'number' && req.body.durationMinutes > 0
+      ? Number(req.body.durationMinutes)
+      : (req.body.durationMinutes ? Number(req.body.durationMinutes) : 0);
     const hasWaiting = Boolean(req.body.waitingFeeApplied || req.body.includeWaitingFee);
+    const waitingMinutes = Math.max(0, Number(req.body.waitingMinutes) || 0);
 
-    const pricingConfig = {
+    const pricingConfig: PricingConfig = {
       baseFare: typeof settingsDoc?.baseFare === 'number' ? settingsDoc.baseFare : DEFAULT_PRICING_CONFIG.baseFare,
       pricePerKm: typeof settingsDoc?.pricePerKm === 'number' ? settingsDoc.pricePerKm : DEFAULT_PRICING_CONFIG.pricePerKm,
+      pricePerMinute: typeof settingsDoc?.pricePerMinute === 'number' ? settingsDoc.pricePerMinute : DEFAULT_PRICING_CONFIG.pricePerMinute,
       minimumFare: typeof settingsDoc?.minimumFare === 'number' ? settingsDoc.minimumFare : DEFAULT_PRICING_CONFIG.minimumFare,
+      waitingChargePerMinute: typeof settingsDoc?.waitingChargePerMinute === 'number' ? settingsDoc.waitingChargePerMinute : (typeof settingsDoc?.waitingFee === 'number' ? settingsDoc.waitingFee : DEFAULT_PRICING_CONFIG.waitingChargePerMinute),
       waitingFee: typeof settingsDoc?.waitingFee === 'number' ? settingsDoc.waitingFee : DEFAULT_PRICING_CONFIG.waitingFee,
+      vatPercentage: typeof settingsDoc?.vatPercentage === 'number' ? settingsDoc.vatPercentage : DEFAULT_PRICING_CONFIG.vatPercentage,
+      vatEnabled: settingsDoc?.vatEnabled !== undefined ? settingsDoc.vatEnabled : DEFAULT_PRICING_CONFIG.vatEnabled,
+      timePricingEnabled: settingsDoc?.timePricingEnabled !== undefined ? settingsDoc.timePricingEnabled : DEFAULT_PRICING_CONFIG.timePricingEnabled,
+      distancePricingEnabled: settingsDoc?.distancePricingEnabled !== undefined ? settingsDoc.distancePricingEnabled : DEFAULT_PRICING_CONFIG.distancePricingEnabled,
+      fareRoundingIncrement: typeof settingsDoc?.fareRoundingIncrement === 'number' ? settingsDoc.fareRoundingIncrement : DEFAULT_PRICING_CONFIG.fareRoundingIncrement,
     };
 
-    let calculatedFee: number;
-    if (distanceKm > 0) {
-      const distanceCalc = calculateDistanceFare(distanceKm, pricingConfig, hasWaiting);
-      calculatedFee = distanceCalc.finalFare;
+    let fareResult: FareCalculationResult;
+    if (distanceKm > 0 || durationMinutes > 0) {
+      fareResult = calculateAutomaticFare({
+        distanceKm,
+        durationMinutes,
+        waitingMinutes,
+        includeWaitingFee: hasWaiting,
+        config: pricingConfig,
+      });
     } else {
-      calculatedFee = calculateDeliveryFee(sType, 1.5);
+      const fallbackFee = calculateDeliveryFee(sType, 1.5);
+      fareResult = {
+        distanceKm: 0,
+        durationMinutes: 0,
+        baseFare: fallbackFee,
+        pricePerKm: pricingConfig.pricePerKm,
+        distanceCharge: 0,
+        pricePerMinute: pricingConfig.pricePerMinute,
+        timeCharge: 0,
+        waitingCharge: 0,
+        subtotal: fallbackFee,
+        isMinimumFareApplied: false,
+        subtotalBeforeVat: fallbackFee,
+        vatPercentage: pricingConfig.vatEnabled ? pricingConfig.vatPercentage : 0,
+        vatAmount: pricingConfig.vatEnabled ? Math.round(fallbackFee * (pricingConfig.vatPercentage / 100)) : 0,
+        totalBeforeRounding: fallbackFee + (pricingConfig.vatEnabled ? Math.round(fallbackFee * (pricingConfig.vatPercentage / 100)) : 0),
+        fareRoundingIncrement: pricingConfig.fareRoundingIncrement,
+        finalFare: fallbackFee + (pricingConfig.vatEnabled ? Math.round(fallbackFee * (pricingConfig.vatPercentage / 100)) : 0),
+        configSnapshot: pricingConfig,
+      };
     }
+
+    const calculatedFee = fareResult.finalFare;
 
     const bookingRef = generateBookingReference();
 
@@ -676,7 +736,7 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
     const companyCut = Math.round(calculatedFee * (commPercent / 100));
     const riderNetPayout = Math.max(0, calculatedFee - companyCut);
 
-    // 1. Save permanently in MongoDB
+    // 1. Save permanently in MongoDB with complete fare breakdown & pricing snapshot
     const newBooking = await BookingModel.create({
       ref: bookingRef,
       senderName: sName,
@@ -692,15 +752,24 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
       packageDescription: pDetails || `${sType} package`,
       packageCategory: sanitize(packageCategory) || 'Standard Parcel',
       packageWeight: '1.5 kg',
-      distanceKm: distanceKm || 0,
-      durationMinutes: Number(req.body.durationMinutes) || 0,
+      distanceKm: fareResult.distanceKm,
+      durationMinutes: fareResult.durationMinutes,
       pickupCoordinates: req.body.pickupCoordinates && typeof req.body.pickupCoordinates.lat === 'number' ? req.body.pickupCoordinates : undefined,
       deliveryCoordinates: req.body.dropoffCoordinates && typeof req.body.dropoffCoordinates.lat === 'number' 
         ? req.body.dropoffCoordinates 
         : (req.body.deliveryCoordinates && typeof req.body.deliveryCoordinates.lat === 'number' ? req.body.deliveryCoordinates : undefined),
-      baseFareApplied: pricingConfig.baseFare,
-      pricePerKmApplied: pricingConfig.pricePerKm,
-      waitingFeeApplied: hasWaiting ? pricingConfig.waitingFee : 0,
+      baseFareApplied: fareResult.baseFare,
+      pricePerKmApplied: fareResult.pricePerKm,
+      distanceChargeApplied: fareResult.distanceCharge,
+      pricePerMinuteApplied: fareResult.pricePerMinute,
+      timeChargeApplied: fareResult.timeCharge,
+      waitingChargeApplied: fareResult.waitingCharge,
+      waitingFeeApplied: fareResult.waitingCharge,
+      subtotalBeforeVat: fareResult.subtotalBeforeVat,
+      vatPercentageApplied: fareResult.vatPercentage,
+      vatAmount: fareResult.vatAmount,
+      finalFare: calculatedFee,
+      pricingConfigSnapshot: fareResult.configSnapshot,
       deliveryFee: calculatedFee,
       additionalCharges: 0,
       totalAmount: calculatedFee,
@@ -832,6 +901,7 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
       verificationOtp: rawOtp, // Provided for user testing feedback in demo mode
       message: 'Delivery booking successfully confirmed and saved.',
       calculatedFee,
+      fareBreakdown: fareResult,
     });
   } catch (err: any) {
     console.error('Booking submission error:', err);
@@ -3037,9 +3107,90 @@ app.get('/api/pricing-config', async (_req: Request, res: Response) => {
     return res.json({
       baseFare: typeof settings?.baseFare === 'number' ? settings.baseFare : DEFAULT_PRICING_CONFIG.baseFare,
       pricePerKm: typeof settings?.pricePerKm === 'number' ? settings.pricePerKm : DEFAULT_PRICING_CONFIG.pricePerKm,
+      pricePerMinute: typeof settings?.pricePerMinute === 'number' ? settings.pricePerMinute : DEFAULT_PRICING_CONFIG.pricePerMinute,
       minimumFare: typeof settings?.minimumFare === 'number' ? settings.minimumFare : DEFAULT_PRICING_CONFIG.minimumFare,
+      waitingChargePerMinute: typeof settings?.waitingChargePerMinute === 'number' ? settings.waitingChargePerMinute : (typeof settings?.waitingFee === 'number' ? settings.waitingFee : DEFAULT_PRICING_CONFIG.waitingChargePerMinute),
       waitingFee: typeof settings?.waitingFee === 'number' ? settings.waitingFee : DEFAULT_PRICING_CONFIG.waitingFee,
+      vatPercentage: typeof settings?.vatPercentage === 'number' ? settings.vatPercentage : DEFAULT_PRICING_CONFIG.vatPercentage,
+      vatEnabled: settings?.vatEnabled !== undefined ? settings.vatEnabled : DEFAULT_PRICING_CONFIG.vatEnabled,
+      timePricingEnabled: settings?.timePricingEnabled !== undefined ? settings.timePricingEnabled : DEFAULT_PRICING_CONFIG.timePricingEnabled,
+      distancePricingEnabled: settings?.distancePricingEnabled !== undefined ? settings.distancePricingEnabled : DEFAULT_PRICING_CONFIG.distancePricingEnabled,
+      fareRoundingIncrement: typeof settings?.fareRoundingIncrement === 'number' ? settings.fareRoundingIncrement : DEFAULT_PRICING_CONFIG.fareRoundingIncrement,
       mapboxPublicKey: mapboxKey,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Authoritative Fare Calculation & Preview API (Public)
+app.post('/api/calculate-fare', async (req: Request, res: Response) => {
+  try {
+    await connectToDatabase();
+    const settings = await SettingsModel.findOne().lean();
+    const mapboxKey = settings?.mapboxPublicKey || process.env.VITE_MAPBOX_TOKEN || process.env.MAPBOX_ACCESS_TOKEN || '';
+
+    let distanceKm = Math.max(0, Number(req.body.distanceKm) || 0);
+    let durationMinutes = Math.max(0, Number(req.body.durationMinutes) || 0);
+    const waitingMinutes = Math.max(0, Number(req.body.waitingMinutes) || 0);
+    const includeWaitingFee = Boolean(req.body.includeWaitingFee || req.body.waitingFeeApplied);
+
+    const pickupCoords = req.body.pickupCoordinates;
+    const dropoffCoords = req.body.dropoffCoordinates || req.body.deliveryCoordinates;
+
+    // Check server cache or query Mapbox Directions API if coordinates provided
+    if (pickupCoords?.lng && pickupCoords?.lat && dropoffCoords?.lng && dropoffCoords?.lat) {
+      const p: [number, number] = [Number(pickupCoords.lng), Number(pickupCoords.lat)];
+      const d: [number, number] = [Number(dropoffCoords.lng), Number(dropoffCoords.lat)];
+
+      const cached = getCachedServerRoute(p, d);
+      if (cached) {
+        distanceKm = cached.distanceKm;
+        durationMinutes = cached.durationMinutes;
+      } else if (mapboxKey && mapboxKey.startsWith('pk.')) {
+        try {
+          const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${p[0]},${p[1]};${d[0]},${d[1]}?geometries=geojson&overview=simplified&access_token=${mapboxKey}`;
+          const mRes = await fetch(url);
+          if (mRes.ok) {
+            const data = await mRes.json();
+            if (data.routes && data.routes[0]) {
+              const route = data.routes[0];
+              distanceKm = Number((route.distance / 1000).toFixed(1));
+              durationMinutes = Math.max(1, Math.round(route.duration / 60));
+              setCachedServerRoute(p, d, { distanceKm, durationMinutes, polyline: route.geometry });
+            }
+          }
+        } catch (mErr) {
+          console.warn('[Mapbox Directions API Error]:', mErr);
+        }
+      }
+    }
+
+    const pricingConfig: PricingConfig = {
+      baseFare: typeof settings?.baseFare === 'number' ? settings.baseFare : DEFAULT_PRICING_CONFIG.baseFare,
+      pricePerKm: typeof settings?.pricePerKm === 'number' ? settings.pricePerKm : DEFAULT_PRICING_CONFIG.pricePerKm,
+      pricePerMinute: typeof settings?.pricePerMinute === 'number' ? settings.pricePerMinute : DEFAULT_PRICING_CONFIG.pricePerMinute,
+      minimumFare: typeof settings?.minimumFare === 'number' ? settings.minimumFare : DEFAULT_PRICING_CONFIG.minimumFare,
+      waitingChargePerMinute: typeof settings?.waitingChargePerMinute === 'number' ? settings.waitingChargePerMinute : (typeof settings?.waitingFee === 'number' ? settings.waitingFee : DEFAULT_PRICING_CONFIG.waitingChargePerMinute),
+      waitingFee: typeof settings?.waitingFee === 'number' ? settings.waitingFee : DEFAULT_PRICING_CONFIG.waitingFee,
+      vatPercentage: typeof settings?.vatPercentage === 'number' ? settings.vatPercentage : DEFAULT_PRICING_CONFIG.vatPercentage,
+      vatEnabled: settings?.vatEnabled !== undefined ? settings.vatEnabled : DEFAULT_PRICING_CONFIG.vatEnabled,
+      timePricingEnabled: settings?.timePricingEnabled !== undefined ? settings.timePricingEnabled : DEFAULT_PRICING_CONFIG.timePricingEnabled,
+      distancePricingEnabled: settings?.distancePricingEnabled !== undefined ? settings.distancePricingEnabled : DEFAULT_PRICING_CONFIG.distancePricingEnabled,
+      fareRoundingIncrement: typeof settings?.fareRoundingIncrement === 'number' ? settings.fareRoundingIncrement : DEFAULT_PRICING_CONFIG.fareRoundingIncrement,
+    };
+
+    const calculation = calculateAutomaticFare({
+      distanceKm,
+      durationMinutes,
+      waitingMinutes,
+      includeWaitingFee,
+      config: pricingConfig,
+    });
+
+    return res.json({
+      success: true,
+      calculation,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -3055,10 +3206,17 @@ app.get('/api/portal/settings', async (_req: Request, res: Response) => {
     if (!settings) {
       const created = await SettingsModel.create({
         riderCommissionPercent: 25,
-        baseFare: 500,
-        pricePerKm: 250,
-        minimumFare: 1500,
-        waitingFee: 200,
+        baseFare: DEFAULT_PRICING_CONFIG.baseFare,
+        pricePerKm: DEFAULT_PRICING_CONFIG.pricePerKm,
+        pricePerMinute: DEFAULT_PRICING_CONFIG.pricePerMinute,
+        minimumFare: DEFAULT_PRICING_CONFIG.minimumFare,
+        waitingChargePerMinute: DEFAULT_PRICING_CONFIG.waitingChargePerMinute,
+        waitingFee: DEFAULT_PRICING_CONFIG.waitingFee,
+        vatPercentage: DEFAULT_PRICING_CONFIG.vatPercentage,
+        vatEnabled: DEFAULT_PRICING_CONFIG.vatEnabled,
+        timePricingEnabled: DEFAULT_PRICING_CONFIG.timePricingEnabled,
+        distancePricingEnabled: DEFAULT_PRICING_CONFIG.distancePricingEnabled,
+        fareRoundingIncrement: DEFAULT_PRICING_CONFIG.fareRoundingIncrement,
         mapboxPublicKey: envToken,
       });
       settings = created.toObject();
@@ -3066,10 +3224,17 @@ app.get('/api/portal/settings', async (_req: Request, res: Response) => {
       let needsUpdate = false;
       const updates: any = {};
       if (settings.riderCommissionPercent === undefined) { updates.riderCommissionPercent = 25; needsUpdate = true; }
-      if (settings.baseFare === undefined) { updates.baseFare = 500; needsUpdate = true; }
-      if (settings.pricePerKm === undefined) { updates.pricePerKm = 250; needsUpdate = true; }
-      if (settings.minimumFare === undefined) { updates.minimumFare = 1500; needsUpdate = true; }
-      if (settings.waitingFee === undefined) { updates.waitingFee = 200; needsUpdate = true; }
+      if (settings.baseFare === undefined) { updates.baseFare = DEFAULT_PRICING_CONFIG.baseFare; needsUpdate = true; }
+      if (settings.pricePerKm === undefined) { updates.pricePerKm = DEFAULT_PRICING_CONFIG.pricePerKm; needsUpdate = true; }
+      if (settings.pricePerMinute === undefined) { updates.pricePerMinute = DEFAULT_PRICING_CONFIG.pricePerMinute; needsUpdate = true; }
+      if (settings.minimumFare === undefined) { updates.minimumFare = DEFAULT_PRICING_CONFIG.minimumFare; needsUpdate = true; }
+      if (settings.waitingChargePerMinute === undefined) { updates.waitingChargePerMinute = DEFAULT_PRICING_CONFIG.waitingChargePerMinute; needsUpdate = true; }
+      if (settings.waitingFee === undefined) { updates.waitingFee = DEFAULT_PRICING_CONFIG.waitingFee; needsUpdate = true; }
+      if (settings.vatPercentage === undefined) { updates.vatPercentage = DEFAULT_PRICING_CONFIG.vatPercentage; needsUpdate = true; }
+      if (settings.vatEnabled === undefined) { updates.vatEnabled = DEFAULT_PRICING_CONFIG.vatEnabled; needsUpdate = true; }
+      if (settings.timePricingEnabled === undefined) { updates.timePricingEnabled = DEFAULT_PRICING_CONFIG.timePricingEnabled; needsUpdate = true; }
+      if (settings.distancePricingEnabled === undefined) { updates.distancePricingEnabled = DEFAULT_PRICING_CONFIG.distancePricingEnabled; needsUpdate = true; }
+      if (settings.fareRoundingIncrement === undefined) { updates.fareRoundingIncrement = DEFAULT_PRICING_CONFIG.fareRoundingIncrement; needsUpdate = true; }
       if (!settings.mapboxPublicKey && envToken) { updates.mapboxPublicKey = envToken; needsUpdate = true; }
       if (needsUpdate) {
         await SettingsModel.updateOne({ _id: settings._id }, { $set: updates });
@@ -3103,15 +3268,45 @@ app.put('/api/portal/settings', async (req: Request, res: Response) => {
       if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Price per km must be a non-negative number.' });
       payload.pricePerKm = parsed;
     }
+    if (payload.pricePerMinute !== undefined) {
+      const parsed = Number(payload.pricePerMinute);
+      if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Price per minute must be a non-negative number.' });
+      payload.pricePerMinute = parsed;
+    }
     if (payload.minimumFare !== undefined) {
       const parsed = Number(payload.minimumFare);
       if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Minimum fare must be a non-negative number.' });
       payload.minimumFare = parsed;
     }
-    if (payload.waitingFee !== undefined) {
+    if (payload.waitingChargePerMinute !== undefined) {
+      const parsed = Number(payload.waitingChargePerMinute);
+      if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Waiting charge per minute must be a non-negative number.' });
+      payload.waitingChargePerMinute = parsed;
+      payload.waitingFee = parsed;
+    } else if (payload.waitingFee !== undefined) {
       const parsed = Number(payload.waitingFee);
       if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Waiting fee must be a non-negative number.' });
       payload.waitingFee = parsed;
+      payload.waitingChargePerMinute = parsed;
+    }
+    if (payload.vatPercentage !== undefined) {
+      const parsed = Number(payload.vatPercentage);
+      if (isNaN(parsed) || parsed < 0 || parsed > 100) return res.status(400).json({ error: 'VAT percentage must be between 0 and 100.' });
+      payload.vatPercentage = parsed;
+    }
+    if (payload.vatEnabled !== undefined) {
+      payload.vatEnabled = Boolean(payload.vatEnabled);
+    }
+    if (payload.timePricingEnabled !== undefined) {
+      payload.timePricingEnabled = Boolean(payload.timePricingEnabled);
+    }
+    if (payload.distancePricingEnabled !== undefined) {
+      payload.distancePricingEnabled = Boolean(payload.distancePricingEnabled);
+    }
+    if (payload.fareRoundingIncrement !== undefined) {
+      const parsed = Number(payload.fareRoundingIncrement);
+      if (isNaN(parsed) || parsed < 1) return res.status(400).json({ error: 'Fare rounding increment must be at least 1.' });
+      payload.fareRoundingIncrement = parsed;
     }
     if (typeof payload.mapboxPublicKey === 'string') {
       payload.mapboxPublicKey = sanitizeString(payload.mapboxPublicKey.trim());
