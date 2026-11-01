@@ -151,4 +151,11 @@ export interface GeneralSettings {
   twoFactorAuth: boolean;
   sessionTimeout: string;
   riderCommissionPercent?: number;
+
+  // Mapbox & Distance-Based Pricing Structure
+  baseFare?: number;
+  pricePerKm?: number;
+  minimumFare?: number;
+  waitingFee?: number;
+  mapboxPublicKey?: string;
 }

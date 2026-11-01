@@ -21,6 +21,8 @@ import { generateDeliveryOtp, verifyOtpHash, hashOtpCode } from './otp.ts';
 import {
   canTransitionStatus,
   calculateDeliveryFee,
+  calculateDistanceFare,
+  DEFAULT_PRICING_CONFIG,
   recordAuditLog,
 } from './workflow.ts';
 import {
@@ -627,8 +629,37 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
     if (!rPhone || rPhone.length < 6) return res.status(400).json({ error: 'Please provide a valid receiver phone number.' });
     if (rEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rEmail)) return res.status(400).json({ error: 'Please provide a valid receiver email.' });
 
-    // Server-side pricing calculation (never trust client amounts)
-    const calculatedFee = calculateDeliveryFee(sType, 1.5);
+    const db = await connectToDatabase();
+    if (!db) {
+      return res.status(503).json({
+        error: 'Database connection temporarily unavailable. Please verify your MongoDB Atlas Network Access allows connections from anywhere (0.0.0.0/0).',
+      });
+    }
+
+    // Retrieve active settings (pricing rules & commission rate)
+    const settingsDoc = await SettingsModel.findOne().lean().catch(() => null);
+
+    // Dynamic Distance-Based Pricing (Mapbox Driving Distance) or Standard Service Tariff
+    const distanceKm = typeof req.body.distanceKm === 'number' && req.body.distanceKm > 0
+      ? Number(req.body.distanceKm)
+      : (req.body.distanceKm ? Number(req.body.distanceKm) : 0);
+    const hasWaiting = Boolean(req.body.waitingFeeApplied || req.body.includeWaitingFee);
+
+    const pricingConfig = {
+      baseFare: typeof settingsDoc?.baseFare === 'number' ? settingsDoc.baseFare : DEFAULT_PRICING_CONFIG.baseFare,
+      pricePerKm: typeof settingsDoc?.pricePerKm === 'number' ? settingsDoc.pricePerKm : DEFAULT_PRICING_CONFIG.pricePerKm,
+      minimumFare: typeof settingsDoc?.minimumFare === 'number' ? settingsDoc.minimumFare : DEFAULT_PRICING_CONFIG.minimumFare,
+      waitingFee: typeof settingsDoc?.waitingFee === 'number' ? settingsDoc.waitingFee : DEFAULT_PRICING_CONFIG.waitingFee,
+    };
+
+    let calculatedFee: number;
+    if (distanceKm > 0) {
+      const distanceCalc = calculateDistanceFare(distanceKm, pricingConfig, hasWaiting);
+      calculatedFee = distanceCalc.finalFare;
+    } else {
+      calculatedFee = calculateDeliveryFee(sType, 1.5);
+    }
+
     const bookingRef = generateBookingReference();
 
     // Cryptographically secure receiver delivery OTP
@@ -638,15 +669,7 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
     const dateFormatted = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const timeFormatted = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
-    const db = await connectToDatabase();
-    if (!db) {
-      return res.status(503).json({
-        error: 'Database connection temporarily unavailable. Please verify your MongoDB Atlas Network Access allows connections from anywhere (0.0.0.0/0).',
-      });
-    }
-
     // Retrieve active company commission deduction rate from Settings (default 25%)
-    const settingsDoc = await SettingsModel.findOne().lean().catch(() => null);
     const commPercent = typeof settingsDoc?.riderCommissionPercent === 'number'
       ? settingsDoc.riderCommissionPercent
       : 25;
@@ -669,6 +692,15 @@ app.post('/api/bookings', async (req: Request, res: Response) => {
       packageDescription: pDetails || `${sType} package`,
       packageCategory: sanitize(packageCategory) || 'Standard Parcel',
       packageWeight: '1.5 kg',
+      distanceKm: distanceKm || 0,
+      durationMinutes: Number(req.body.durationMinutes) || 0,
+      pickupCoordinates: req.body.pickupCoordinates && typeof req.body.pickupCoordinates.lat === 'number' ? req.body.pickupCoordinates : undefined,
+      deliveryCoordinates: req.body.dropoffCoordinates && typeof req.body.dropoffCoordinates.lat === 'number' 
+        ? req.body.dropoffCoordinates 
+        : (req.body.deliveryCoordinates && typeof req.body.deliveryCoordinates.lat === 'number' ? req.body.deliveryCoordinates : undefined),
+      baseFareApplied: pricingConfig.baseFare,
+      pricePerKmApplied: pricingConfig.pricePerKm,
+      waitingFeeApplied: hasWaiting ? pricingConfig.waitingFee : 0,
       deliveryFee: calculatedFee,
       additionalCharges: 0,
       totalAmount: calculatedFee,
@@ -2996,17 +3028,50 @@ app.get('/api/portal/audit-logs', async (req: Request, res: Response) => {
   }
 });
 
-// 2. Settings
+// Public Pricing & Mapbox Config (for Customer Booking Form)
+app.get('/api/pricing-config', async (_req: Request, res: Response) => {
+  try {
+    await connectToDatabase();
+    const settings = await SettingsModel.findOne().lean();
+    const mapboxKey = settings?.mapboxPublicKey || process.env.VITE_MAPBOX_TOKEN || process.env.MAPBOX_ACCESS_TOKEN || '';
+    return res.json({
+      baseFare: typeof settings?.baseFare === 'number' ? settings.baseFare : DEFAULT_PRICING_CONFIG.baseFare,
+      pricePerKm: typeof settings?.pricePerKm === 'number' ? settings.pricePerKm : DEFAULT_PRICING_CONFIG.pricePerKm,
+      minimumFare: typeof settings?.minimumFare === 'number' ? settings.minimumFare : DEFAULT_PRICING_CONFIG.minimumFare,
+      waitingFee: typeof settings?.waitingFee === 'number' ? settings.waitingFee : DEFAULT_PRICING_CONFIG.waitingFee,
+      mapboxPublicKey: mapboxKey,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Settings (Admin Portal)
 app.get('/api/portal/settings', async (_req: Request, res: Response) => {
   try {
     await connectToDatabase();
     let settings = await SettingsModel.findOne().lean();
     if (!settings) {
-      const created = await SettingsModel.create({ riderCommissionPercent: 25 });
+      const created = await SettingsModel.create({
+        riderCommissionPercent: 25,
+        baseFare: 500,
+        pricePerKm: 250,
+        minimumFare: 1500,
+        waitingFee: 200,
+      });
       settings = created.toObject();
-    } else if (settings.riderCommissionPercent === undefined) {
-      await SettingsModel.updateOne({ _id: settings._id }, { $set: { riderCommissionPercent: 25 } });
-      settings.riderCommissionPercent = 25;
+    } else {
+      let needsUpdate = false;
+      const updates: any = {};
+      if (settings.riderCommissionPercent === undefined) { updates.riderCommissionPercent = 25; needsUpdate = true; }
+      if (settings.baseFare === undefined) { updates.baseFare = 500; needsUpdate = true; }
+      if (settings.pricePerKm === undefined) { updates.pricePerKm = 250; needsUpdate = true; }
+      if (settings.minimumFare === undefined) { updates.minimumFare = 1500; needsUpdate = true; }
+      if (settings.waitingFee === undefined) { updates.waitingFee = 200; needsUpdate = true; }
+      if (needsUpdate) {
+        await SettingsModel.updateOne({ _id: settings._id }, { $set: updates });
+        Object.assign(settings, updates);
+      }
     }
     return res.json(settings);
   } catch (err: any) {
@@ -3024,6 +3089,29 @@ app.put('/api/portal/settings', async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'Rider commission percentage must be between 0 and 100.' });
       }
       payload.riderCommissionPercent = parsed;
+    }
+    if (payload.baseFare !== undefined) {
+      const parsed = Number(payload.baseFare);
+      if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Base fare must be a non-negative number.' });
+      payload.baseFare = parsed;
+    }
+    if (payload.pricePerKm !== undefined) {
+      const parsed = Number(payload.pricePerKm);
+      if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Price per km must be a non-negative number.' });
+      payload.pricePerKm = parsed;
+    }
+    if (payload.minimumFare !== undefined) {
+      const parsed = Number(payload.minimumFare);
+      if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Minimum fare must be a non-negative number.' });
+      payload.minimumFare = parsed;
+    }
+    if (payload.waitingFee !== undefined) {
+      const parsed = Number(payload.waitingFee);
+      if (isNaN(parsed) || parsed < 0) return res.status(400).json({ error: 'Waiting fee must be a non-negative number.' });
+      payload.waitingFee = parsed;
+    }
+    if (typeof payload.mapboxPublicKey === 'string') {
+      payload.mapboxPublicKey = sanitizeString(payload.mapboxPublicKey.trim());
     }
     const updated = await SettingsModel.findOneAndUpdate({}, { $set: payload }, { upsert: true, new: true });
     return res.json({ success: true, settings: updated });

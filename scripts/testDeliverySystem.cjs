@@ -66,6 +66,18 @@ function verifyDeliveryOtp(providedOtp, booking) {
 }
 
 // 3. Pricing Rule matching server/workflow.ts
+function calculateDistanceFare(distanceKm, config = {}, includeWaiting = false) {
+  const baseFare = Number(config.baseFare ?? 500);
+  const pricePerKm = Number(config.pricePerKm ?? 250);
+  const minimumFare = Number(config.minimumFare ?? 1500);
+  const waitingFee = includeWaiting ? Number(config.waitingFee ?? 200) : 0;
+
+  const validDistance = Math.max(0, Number(distanceKm) || 0);
+  const distanceCost = Math.round(validDistance * pricePerKm);
+  const subtotal = baseFare + distanceCost + waitingFee;
+  return Math.max(subtotal, minimumFare);
+}
+
 function calculateDeliveryFee(serviceType, weight = 1.0) {
   const baseRates = {
     'Documents & Files': 4000,
@@ -104,10 +116,10 @@ function isValidStatusTransition(fromStatus, toStatus) {
   return allowed.includes(toStatus);
 }
 
-// RUN THE 23 TEST SCENARIOS
+// RUN THE 26 TEST SCENARIOS
 async function runTestSuite() {
   console.log(`\n${colors.cyan}${colors.bold}========================================================================${colors.reset}`);
-  console.log(`${colors.cyan}${colors.bold}    BBD MOBILITY — 23 SCENARIO AUTOMATED VERIFICATION SUITE              ${colors.reset}`);
+  console.log(`${colors.cyan}${colors.bold}    BBD MOBILITY — 26 SCENARIO AUTOMATED VERIFICATION SUITE              ${colors.reset}`);
   console.log(`${colors.cyan}${colors.bold}========================================================================${colors.reset}\n`);
 
   // SCENARIO 1: Booking creation validation
@@ -484,8 +496,50 @@ async function runTestSuite() {
     fail(23, 'Rider deactivation check failed', err);
   }
 
+  // SCENARIO 24: Mapbox distance-based pricing formula (8 km trip = ₦2,500)
+  try {
+    const distanceKm = 8;
+    const config = { baseFare: 500, pricePerKm: 250, minimumFare: 1500, waitingFee: 200 };
+    const calculated = calculateDistanceFare(distanceKm, config, false);
+    // 500 + (8 * 250 = 2000) = 2500 (>= 1500) -> 2500
+    if (calculated !== 2500) {
+      throw new Error(`Expected 2500 for 8 km, got ${calculated}`);
+    }
+    pass(24, 'Mapbox distance pricing formula: 8 km trip calculates automatically as ₦2,500 (Base: ₦500 + 8km × ₦250/km)');
+  } catch (err) {
+    fail(24, 'Distance pricing calculation failed', err);
+  }
+
+  // SCENARIO 25: Minimum fare threshold enforcement (1 km trip = ₦1,500)
+  try {
+    const shortDistanceKm = 1;
+    const config = { baseFare: 500, pricePerKm: 250, minimumFare: 1500, waitingFee: 200 };
+    const calculated = calculateDistanceFare(shortDistanceKm, config, false);
+    // 500 + (1 * 250 = 250) = 750 < 1500 -> 1500
+    if (calculated !== 1500) {
+      throw new Error(`Expected minimum fare 1500 for 1 km, got ${calculated}`);
+    }
+    pass(25, 'Minimum fare enforcement: Short 1 km trip (₦750 subtotal) automatically protected with ₦1,500 minimum fare');
+  } catch (err) {
+    fail(25, 'Minimum fare threshold failed', err);
+  }
+
+  // SCENARIO 26: Waiting fee surcharge calculation
+  try {
+    const distanceKm = 8;
+    const config = { baseFare: 500, pricePerKm: 250, minimumFare: 1500, waitingFee: 200 };
+    const calculated = calculateDistanceFare(distanceKm, config, true);
+    // 500 + (8 * 250 = 2000) + 200 = 2700
+    if (calculated !== 2700) {
+      throw new Error(`Expected 2700 for 8 km with waiting fee, got ${calculated}`);
+    }
+    pass(26, 'Additional waiting fee surcharge: 8 km trip with waiting service calculates as ₦2,700 (₦2,500 + ₦200)');
+  } catch (err) {
+    fail(26, 'Waiting fee surcharge calculation failed', err);
+  }
+
   console.log(`\n${colors.green}${colors.bold}========================================================================${colors.reset}`);
-  console.log(`${colors.green}${colors.bold}   ALL 23 OF 23 VERIFICATION SCENARIOS PASSED WITH ZERO FAILURES!      ${colors.reset}`);
+  console.log(`${colors.green}${colors.bold}   ALL 26 OF 26 VERIFICATION SCENARIOS PASSED WITH ZERO FAILURES!      ${colors.reset}`);
   console.log(`${colors.green}${colors.bold}========================================================================${colors.reset}\n`);
 }
 

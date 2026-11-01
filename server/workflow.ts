@@ -27,8 +27,79 @@ export function canTransitionStatus(from: DeliveryStatus, to: DeliveryStatus, ro
   return allowed ? allowed.includes(to) : false;
 }
 
+export interface PricingConfig {
+  baseFare: number;
+  pricePerKm: number;
+  minimumFare: number;
+  waitingFee: number;
+}
+
+export const DEFAULT_PRICING_CONFIG: PricingConfig = {
+  baseFare: 500,
+  pricePerKm: 250,
+  minimumFare: 1500,
+  waitingFee: 200,
+};
+
+/**
+ * Calculates delivery fare based on Mapbox driving distance and admin pricing settings:
+ * - Base fare: e.g. ₦500
+ * - Price per km: e.g. ₦250
+ * - Minimum fare: e.g. ₦1,500
+ * - Optional Waiting fee: e.g. ₦200
+ * 
+ * Example: 8 km trip
+ * Base fare: ₦500 + (8 × ₦250 = ₦2,000) = ₦2,500 (>= ₦1,500) -> ₦2,500
+ */
+export function calculateDistanceFare(
+  distanceKm: number,
+  config?: Partial<PricingConfig>,
+  includeWaitingFee: boolean = false
+): {
+  baseFare: number;
+  pricePerKm: number;
+  distanceKm: number;
+  distanceCost: number;
+  waitingFee: number;
+  subtotal: number;
+  minimumFare: number;
+  finalFare: number;
+} {
+  const baseFare = Number(config?.baseFare ?? DEFAULT_PRICING_CONFIG.baseFare);
+  const pricePerKm = Number(config?.pricePerKm ?? DEFAULT_PRICING_CONFIG.pricePerKm);
+  const minimumFare = Number(config?.minimumFare ?? DEFAULT_PRICING_CONFIG.minimumFare);
+  const waitingFee = includeWaitingFee ? Number(config?.waitingFee ?? DEFAULT_PRICING_CONFIG.waitingFee) : 0;
+
+  const validDistance = Math.max(0, Number(distanceKm) || 0);
+  const distanceCost = Math.round(validDistance * pricePerKm);
+  const subtotal = baseFare + distanceCost + waitingFee;
+  const finalFare = Math.max(subtotal, minimumFare);
+
+  return {
+    baseFare,
+    pricePerKm,
+    distanceKm: validDistance,
+    distanceCost,
+    waitingFee,
+    subtotal,
+    minimumFare,
+    finalFare,
+  };
+}
+
 // Server-side Pricing Calculator (Do not trust client-submitted amounts)
-export function calculateDeliveryFee(serviceType: string, weightKg: number = 1.0): number {
+export function calculateDeliveryFee(
+  serviceType: string,
+  weightKg: number = 1.0,
+  distanceKm?: number,
+  config?: Partial<PricingConfig>,
+  includeWaitingFee: boolean = false
+): number {
+  if (typeof distanceKm === 'number' && distanceKm > 0) {
+    const calc = calculateDistanceFare(distanceKm, config, includeWaitingFee);
+    return calc.finalFare;
+  }
+
   let baseFee = 3500;
   const s = serviceType.toLowerCase();
 
@@ -39,7 +110,7 @@ export function calculateDeliveryFee(serviceType: string, weightKg: number = 1.0
   } else if (s.includes('food') || s.includes('groceries')) {
     baseFee = 4500;
   } else if (s.includes('document')) {
-    baseFee = 3500;
+    baseFee = 4000;
   }
 
   // Weight adjustments: +₦500 per kg above 3kg

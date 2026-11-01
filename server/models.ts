@@ -198,6 +198,15 @@ export interface IBooking extends Document {
   companyCommission?: number;
   riderEarnings?: number;
 
+  // Mapbox & Distance-Based Pricing Details
+  distanceKm?: number;
+  durationMinutes?: number;
+  pickupCoordinates?: { lat: number; lng: number };
+  deliveryCoordinates?: { lat: number; lng: number };
+  baseFareApplied?: number;
+  pricePerKmApplied?: number;
+  waitingFeeApplied?: number;
+
   assignedRiderId?: string;
   assignedRiderName?: string;
   assignedRiderPhone?: string;
@@ -277,6 +286,21 @@ const BookingSchema = new Schema<IBooking>({
   commissionPercent: { type: Number, default: 25 },
   companyCommission: { type: Number, default: 0 },
   riderEarnings: { type: Number, default: 0 },
+
+  // Mapbox & Distance-Based Pricing Details
+  distanceKm: { type: Number, default: 0 },
+  durationMinutes: { type: Number, default: 0 },
+  pickupCoordinates: {
+    lat: { type: Number },
+    lng: { type: Number }
+  },
+  deliveryCoordinates: {
+    lat: { type: Number },
+    lng: { type: Number }
+  },
+  baseFareApplied: { type: Number, default: 500 },
+  pricePerKmApplied: { type: Number, default: 250 },
+  waitingFeeApplied: { type: Number, default: 0 },
   paymentStatus: { 
     type: String, 
     enum: ['Unpaid', 'Partially Paid', 'Paid', 'Overpaid', 'Refunded'], 
@@ -546,6 +570,14 @@ export interface ISettings extends Document {
   maxDeliveryTimeMinutes: number;
   defaultServiceType: string;
   riderCommissionPercent?: number;
+
+  // Mapbox & Distance-Based Pricing Structure
+  baseFare: number;
+  pricePerKm: number;
+  minimumFare: number;
+  waitingFee: number;
+  mapboxPublicKey?: string;
+
   notifications: {
     newBookings: boolean;
     payments: boolean;
@@ -569,6 +601,11 @@ const SettingsSchema = new Schema<ISettings>({
   maxDeliveryTimeMinutes: { type: Number, default: 180 },
   defaultServiceType: { type: String, default: 'Standard Delivery' },
   riderCommissionPercent: { type: Number, default: 25 },
+  baseFare: { type: Number, default: 500 },
+  pricePerKm: { type: Number, default: 250 },
+  minimumFare: { type: Number, default: 1500 },
+  waitingFee: { type: Number, default: 200 },
+  mapboxPublicKey: { type: String, default: '' },
   notifications: {
     newBookings: { type: Boolean, default: true },
     payments: { type: Boolean, default: true },

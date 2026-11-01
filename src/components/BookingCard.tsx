@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Package, 
-  MapPin, 
   ArrowRight, 
   CheckCircle2, 
   User, 
@@ -17,6 +16,12 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookingFormData } from '../types';
+import { MapboxAddressInput } from './MapboxAddressInput';
+import { 
+  calculateDrivingRoute, 
+  computeDeliveryFareBreakdown, 
+  PricingBreakdown 
+} from '../services/mapboxService';
 
 interface BookingCardProps {
   initialServiceType?: string;
@@ -39,6 +44,28 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
   const [confirmedRef, setConfirmedRef] = useState<string | null>(null);
   const [copiedRef, setCopiedRef] = useState(false);
 
+  // Dynamic Mapbox Distance & Pricing Settings State
+  const [pricingConfig, setPricingConfig] = useState<{
+    baseFare: number;
+    pricePerKm: number;
+    minimumFare: number;
+    waitingFee: number;
+    mapboxPublicKey?: string;
+  }>({
+    baseFare: 500,
+    pricePerKm: 250,
+    minimumFare: 1500,
+    waitingFee: 200,
+    mapboxPublicKey: '',
+  });
+
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | undefined>();
+  const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | undefined>();
+  const [routeDistanceKm, setRouteDistanceKm] = useState<number>(0);
+  const [routeDurationMins, setRouteDurationMins] = useState<number>(0);
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState<boolean>(false);
+  const [includeWaitingFee, setIncludeWaitingFee] = useState<boolean>(false);
+
   const [formData, setFormData] = useState<BookingFormData>({
     serviceType: initialServiceType || 'Documents & Files',
     pickupLocation: '',
@@ -55,12 +82,70 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
 
   const [errors, setErrors] = useState<Partial<Record<keyof BookingFormData, string>>>({});
 
+  // Fetch active admin pricing settings on load
+  useEffect(() => {
+    fetch('/api/pricing-config')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((cfg) => {
+        if (cfg && typeof cfg.baseFare === 'number') {
+          setPricingConfig(cfg);
+        }
+      })
+      .catch((err) => console.warn('[Pricing Config Load]:', err));
+  }, []);
+
   // Sync initial service type if prop updates
-  React.useEffect(() => {
+  useEffect(() => {
     if (initialServiceType) {
       setFormData((prev) => ({ ...prev, serviceType: initialServiceType }));
     }
   }, [initialServiceType]);
+
+  // Recalculate route distance when pickup and dropoff coordinates are available
+  useEffect(() => {
+    if (!pickupCoords || !dropoffCoords) {
+      return;
+    }
+
+    let isMounted = true;
+    setIsCalculatingRoute(true);
+
+    calculateDrivingRoute(
+      [pickupCoords.lng, pickupCoords.lat],
+      [dropoffCoords.lng, dropoffCoords.lat],
+      pricingConfig.mapboxPublicKey
+    )
+      .then((route) => {
+        if (!isMounted) return;
+        setRouteDistanceKm(route.distanceKm);
+        setRouteDurationMins(route.durationMinutes);
+        setIsCalculatingRoute(false);
+        setFormData((prev) => ({
+          ...prev,
+          distanceKm: route.distanceKm,
+          durationMinutes: route.durationMinutes,
+          pickupCoordinates: pickupCoords,
+          dropoffCoordinates: dropoffCoords,
+        }));
+      })
+      .catch(() => {
+        if (isMounted) setIsCalculatingRoute(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pickupCoords, dropoffCoords, pricingConfig.mapboxPublicKey]);
+
+  // Dynamic Fare Breakdown based on Admin Pricing Formula
+  const fareBreakdown: PricingBreakdown = computeDeliveryFareBreakdown({
+    distanceKm: routeDistanceKm,
+    baseFare: pricingConfig.baseFare,
+    pricePerKm: pricingConfig.pricePerKm,
+    minimumFare: pricingConfig.minimumFare,
+    waitingFee: pricingConfig.waitingFee,
+    includeWaitingFee,
+  });
 
   const handleChange = (field: keyof BookingFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -116,10 +201,20 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
     setServerError(null);
 
     try {
+      const payload = {
+        ...formData,
+        distanceKm: routeDistanceKm > 0 ? routeDistanceKm : undefined,
+        durationMinutes: routeDurationMins > 0 ? routeDurationMins : undefined,
+        pickupCoordinates: pickupCoords,
+        dropoffCoordinates: dropoffCoords,
+        waitingFeeApplied: includeWaitingFee,
+        estimatedDeliveryFee: fareBreakdown.finalFare,
+      };
+
       const response = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       let data: any = {};
@@ -177,6 +272,11 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
       receiverEmail: '',
       deliveryInstructions: '',
     });
+    setPickupCoords(undefined);
+    setDropoffCoords(undefined);
+    setRouteDistanceKm(0);
+    setRouteDurationMins(0);
+    setIncludeWaitingFee(false);
     setErrors({});
     setServerError(null);
     setConfirmedRef(null);
@@ -274,44 +374,99 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
               {errors.serviceType && <p className="text-[11px] text-red-600 mt-1">{errors.serviceType}</p>}
             </div>
 
-            {/* Pickup Location */}
-            <div>
-              <label className="block text-xs font-semibold text-bbd-navy mb-1.5 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-bbd-navy" />
-                <span>Pickup Location</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Enter pickup address"
-                  value={formData.pickupLocation}
-                  onChange={(e) => handleChange('pickupLocation', e.target.value)}
-                  className={`w-full px-3.5 py-3 sm:py-2.5 bg-slate-50 text-slate-800 text-xs sm:text-sm rounded-xl border focus:outline-none transition-all placeholder:text-slate-400 ${
-                    errors.pickupLocation ? 'border-red-400 bg-red-50/30' : 'border-gray-200 focus:border-bbd-navy focus:bg-white'
-                  }`}
-                />
-              </div>
-              {errors.pickupLocation && <p className="text-[11px] text-red-600 mt-1">{errors.pickupLocation}</p>}
-            </div>
+            {/* Mapbox Pickup Location Autocomplete */}
+            <MapboxAddressInput
+              label="Pickup Location"
+              iconType="pickup"
+              placeholder="Search pickup address, street or landmark..."
+              value={formData.pickupLocation}
+              onChange={(addr, coords) => {
+                handleChange('pickupLocation', addr);
+                if (coords) setPickupCoords(coords);
+              }}
+              error={errors.pickupLocation}
+              mapboxToken={pricingConfig.mapboxPublicKey}
+              showGpsButton={true}
+            />
 
-            {/* Drop-off Location */}
-            <div>
-              <label className="block text-xs font-semibold text-bbd-navy mb-1.5 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-bbd-navy" />
-                <span>Drop-off Location</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Enter drop-off address"
-                  value={formData.dropoffLocation}
-                  onChange={(e) => handleChange('dropoffLocation', e.target.value)}
-                  className={`w-full px-3.5 py-3 sm:py-2.5 bg-slate-50 text-slate-800 text-xs sm:text-sm rounded-xl border focus:outline-none transition-all placeholder:text-slate-400 ${
-                    errors.dropoffLocation ? 'border-red-400 bg-red-50/30' : 'border-gray-200 focus:border-bbd-navy focus:bg-white'
-                  }`}
-                />
+            {/* Mapbox Drop-off Location Autocomplete */}
+            <MapboxAddressInput
+              label="Drop-off Location"
+              iconType="dropoff"
+              placeholder="Search destination, street or receiver address..."
+              value={formData.dropoffLocation}
+              onChange={(addr, coords) => {
+                handleChange('dropoffLocation', addr);
+                if (coords) setDropoffCoords(coords);
+              }}
+              error={errors.dropoffLocation}
+              mapboxToken={pricingConfig.mapboxPublicKey}
+              showGpsButton={false}
+            />
+
+            {/* Live Mapbox Distance & Dynamic Price Breakdown Banner */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[11px] font-bold text-bbd-navy uppercase tracking-wider">
+                    Automatic Fare Calculation
+                  </span>
+                </div>
+                {routeDistanceKm > 0 && (
+                  <span className="text-xs font-bold text-bbd-navy bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">
+                    {routeDistanceKm} km {routeDurationMins > 0 ? `(~${routeDurationMins} mins)` : ''}
+                  </span>
+                )}
               </div>
-              {errors.dropoffLocation && <p className="text-[11px] text-red-600 mt-1">{errors.dropoffLocation}</p>}
+
+              {isCalculatingRoute ? (
+                <div className="py-2 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-bbd-navy" />
+                  <span>Calculating driving route via Mapbox...</span>
+                </div>
+              ) : routeDistanceKm > 0 ? (
+                <div className="space-y-1.5 text-xs text-slate-600">
+                  <div className="flex justify-between">
+                    <span>Base Fare:</span>
+                    <span className="font-semibold text-slate-800">₦{pricingConfig.baseFare.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Distance ({routeDistanceKm} km × ₦{pricingConfig.pricePerKm}/km):</span>
+                    <span className="font-semibold text-slate-800">₦{fareBreakdown.distanceCost.toLocaleString()}</span>
+                  </div>
+                  
+                  {/* Optional Waiting Fee Toggle */}
+                  <label className="flex items-center justify-between pt-1 border-t border-slate-200/60 cursor-pointer">
+                    <span className="text-[11px] text-slate-600">Additional Waiting Service (+₦{pricingConfig.waitingFee.toLocaleString()})</span>
+                    <input
+                      type="checkbox"
+                      checked={includeWaitingFee}
+                      onChange={(e) => {
+                        setIncludeWaitingFee(e.target.checked);
+                        setFormData((prev) => ({ ...prev, waitingFeeApplied: e.target.checked }));
+                      }}
+                      className="w-3.5 h-3.5 text-bbd-navy rounded"
+                    />
+                  </label>
+
+                  <div className="flex items-baseline justify-between pt-2 border-t border-slate-200 font-bold">
+                    <span className="text-xs text-bbd-navy">Total Delivery Fare:</span>
+                    <div className="text-right">
+                      <span className="text-base text-bbd-navy font-black">₦{fareBreakdown.finalFare.toLocaleString()}</span>
+                      {fareBreakdown.isMinimumFareApplied && (
+                        <p className="text-[10px] text-amber-600 font-normal">
+                          Minimum fare of ₦{pricingConfig.minimumFare.toLocaleString()} applies
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Enter pickup & drop-off locations to compute exact distance (₦{pricingConfig.pricePerKm}/km) + ₦{pricingConfig.baseFare} base fare.
+                </p>
+              )}
             </div>
 
             {/* Package Details */}
@@ -539,11 +694,30 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
                 </div>
               )}
               {formData.deliveryInstructions && (
-                <div className="flex justify-between pb-1">
+                <div className="flex justify-between border-b border-slate-200 pb-2">
                   <span className="text-slate-500">Note:</span>
                   <span className="font-medium text-slate-800 italic">{formData.deliveryInstructions}</span>
                 </div>
               )}
+              <div className="flex justify-between border-b border-slate-200 pb-2">
+                <span className="text-slate-500">Route Distance:</span>
+                <span className="font-semibold text-bbd-navy">
+                  {routeDistanceKm > 0 ? `${routeDistanceKm} km (~${routeDurationMins} mins driving)` : 'Standard Dispatch'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-2.5 bg-emerald-50/70 border border-emerald-100 rounded-lg">
+                <span className="font-bold text-slate-700">Total Delivery Fare:</span>
+                <div className="text-right">
+                  <span className="font-black text-emerald-800 text-base">
+                    ₦{fareBreakdown.finalFare.toLocaleString()}
+                  </span>
+                  {fareBreakdown.isMinimumFareApplied && (
+                    <span className="block text-[10px] text-emerald-600 font-normal">
+                      (Minimum fare threshold applied)
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-3 flex items-start gap-2.5 text-xs text-bbd-navy">

@@ -10,6 +10,14 @@ export interface BookingFormData {
   receiverPhone: string;
   receiverEmail: string;
   deliveryInstructions: string;
+
+  // Mapbox & Dynamic Pricing Fields
+  distanceKm?: number;
+  durationMinutes?: number;
+  pickupCoordinates?: { lat: number; lng: number };
+  dropoffCoordinates?: { lat: number; lng: number };
+  waitingFeeApplied?: boolean;
+  estimatedDeliveryFee?: number;
 }
 
 export interface ServiceCardData {

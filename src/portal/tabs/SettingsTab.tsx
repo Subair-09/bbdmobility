@@ -12,7 +12,10 @@ import {
   UserPlus,
   ArrowRight,
   FileCode,
-  Percent
+  Percent,
+  Compass,
+  Calculator,
+  ExternalLink
 } from 'lucide-react';
 import { GeneralSettings } from '../types';
 
@@ -50,6 +53,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [defaultService, setDefaultService] = useState(settings.defaultServiceType || 'Standard Delivery');
   const [commissionPercent, setCommissionPercent] = useState<number>(settings.riderCommissionPercent ?? 25);
 
+  // Mapbox & Distance-Based Pricing Settings State
+  const [baseFare, setBaseFare] = useState<number>(settings.baseFare ?? 500);
+  const [pricePerKm, setPricePerKm] = useState<number>(settings.pricePerKm ?? 250);
+  const [minimumFare, setMinimumFare] = useState<number>(settings.minimumFare ?? 1500);
+  const [waitingFee, setWaitingFee] = useState<number>(settings.waitingFee ?? 200);
+  const [mapboxPublicKey, setMapboxPublicKey] = useState<string>(settings.mapboxPublicKey ?? '');
+  const [testDistanceKm, setTestDistanceKm] = useState<number>(8);
+
   // Security
   const [twoFactor, setTwoFactor] = useState(settings.twoFactorAuth || false);
   const [timeout, setTimeoutVal] = useState(settings.sessionTimeout || '8 hours');
@@ -75,6 +86,23 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     }
     onUpdateSettings({ riderCommissionPercent: parsed });
     onShowToast(`Rider commission deduction updated to ${parsed}%. Successfully saved.`);
+  };
+
+  const handleSavePricing = () => {
+    const bFare = Math.max(0, Number(baseFare) || 0);
+    const pKm = Math.max(0, Number(pricePerKm) || 0);
+    const mFare = Math.max(0, Number(minimumFare) || 0);
+    const wFee = Math.max(0, Number(waitingFee) || 0);
+    const mbKey = mapboxPublicKey.trim();
+
+    onUpdateSettings({
+      baseFare: bFare,
+      pricePerKm: pKm,
+      minimumFare: mFare,
+      waitingFee: wFee,
+      mapboxPublicKey: mbKey,
+    });
+    onShowToast('Distance-based pricing and Mapbox configuration updated in database.');
   };
 
   const handleSaveDeliveryRules = () => {
@@ -448,6 +476,216 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                     <span>Rider Net Earnings ({100 - commissionPercent}%):</span>
                     <span className="font-bold">₦{Math.round(4000 * (1 - commissionPercent / 100)).toLocaleString()}</span>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Mapbox Distance-Based Pricing & Route Fare System (Configurable Admin Pricing) */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                  <Compass className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Mapbox Distance-Based Pricing System</h3>
+                  <p className="text-xs text-gray-500">
+                    Configure automated distance tariffs, base fare, minimum fare thresholds, and Mapbox API credentials.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleSavePricing}
+                className="px-4 py-2 bg-[#0B1B3D] hover:bg-[#07132c] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all self-start sm:self-auto"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Save Pricing Rules</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-1 text-xs">
+              {/* Pricing Rate Inputs */}
+              <div className="space-y-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      Base Fare (₦) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₦</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="50"
+                        value={baseFare}
+                        onChange={(e) => setBaseFare(Math.max(0, Number(e.target.value)))}
+                        className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-semibold text-gray-800"
+                        placeholder="500"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Fixed starting charge per delivery (e.g. ₦500)</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      Price per Kilometre (₦/km) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₦</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="25"
+                        value={pricePerKm}
+                        onChange={(e) => setPricePerKm(Math.max(0, Number(e.target.value)))}
+                        className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-semibold text-gray-800"
+                        placeholder="250"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Charge multiplied by Mapbox distance (e.g. ₦250/km)</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      Minimum Fare Threshold (₦) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₦</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={minimumFare}
+                        onChange={(e) => setMinimumFare(Math.max(0, Number(e.target.value)))}
+                        className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-semibold text-gray-800"
+                        placeholder="1500"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Minimum delivery charge (e.g. ₦1,500)</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      Additional Waiting Fee (₦)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₦</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="50"
+                        value={waitingFee}
+                        onChange={(e) => setWaitingFee(Math.max(0, Number(e.target.value)))}
+                        className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy font-semibold text-gray-800"
+                        placeholder="200"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Optional surcharge for parcel waiting time (e.g. ₦200)</p>
+                  </div>
+                </div>
+
+                {/* Mapbox Token Configuration */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-gray-700">
+                      Mapbox Public Access Token (Optional)
+                    </label>
+                    <a
+                      href="https://account.mapbox.com/access-tokens/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5"
+                    >
+                      <span>Get Free Token</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                  <input
+                    type="text"
+                    value={mapboxPublicKey}
+                    onChange={(e) => setMapboxPublicKey(e.target.value)}
+                    placeholder="pk.eyJ1IjoieW91cm5hbWUi..."
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-bbd-navy text-xs font-mono"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    If left blank, the system automatically uses the high-accuracy built-in Lagos street & hub database fallback.
+                  </p>
+                </div>
+              </div>
+
+              {/* Interactive Live Fare Calculator Preview */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Calculator className="w-4 h-4 text-emerald-600" />
+                    <span className="font-bold text-gray-800 text-[11px] uppercase tracking-wider">
+                      Illustrative Delivery Fare Preview
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[11px] text-gray-500 font-medium">Test Distance:</span>
+                    <input
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      value={testDistanceKm}
+                      onChange={(e) => setTestDistanceKm(Math.max(0.1, Number(e.target.value)))}
+                      className="w-16 px-1.5 py-0.5 text-center font-bold bg-white border border-gray-200 rounded-md text-xs focus:outline-none"
+                    />
+                    <span className="text-gray-500 font-semibold text-xs">km</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <p className="text-gray-500 text-[11px] leading-relaxed">
+                    Suppose a customer books a delivery covering <strong>{testDistanceKm} km</strong>:
+                  </p>
+
+                  <div className="space-y-1.5 bg-white p-3 rounded-lg border border-slate-200/60 font-mono text-xs">
+                    <div className="flex justify-between text-gray-600">
+                      <span>• Base fare:</span>
+                      <span className="font-semibold text-gray-900">₦{baseFare.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>• Distance ({testDistanceKm} × ₦{pricePerKm}):</span>
+                      <span className="font-semibold text-gray-900">₦{Math.round(testDistanceKm * pricePerKm).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-500 pt-1 border-t border-dashed border-gray-200">
+                      <span>Subtotal before minimum:</span>
+                      <span>₦{(baseFare + Math.round(testDistanceKm * pricePerKm)).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-500">
+                      <span>Minimum fare threshold:</span>
+                      <span>₦{minimumFare.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  {/* Final Calculation Result Display */}
+                  <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-emerald-900 block">
+                        Calculated Delivery Fare
+                      </span>
+                      <span className="text-[10px] text-emerald-700">
+                        {baseFare + testDistanceKm * pricePerKm < minimumFare
+                          ? `Minimum fare of ₦${minimumFare.toLocaleString()} applied automatically.`
+                          : 'Standard distance tariff applied.'}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-lg font-black text-emerald-800">
+                        ₦{Math.max(baseFare + Math.round(testDistanceKm * pricePerKm), minimumFare).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-slate-400 italic">
+                    The customer application displays this ₦{Math.max(baseFare + Math.round(testDistanceKm * pricePerKm), minimumFare).toLocaleString()} automatically in real-time.
+                  </p>
                 </div>
               </div>
             </div>

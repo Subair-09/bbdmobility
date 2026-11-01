@@ -29,6 +29,11 @@ export const INITIAL_SETTINGS: GeneralSettings = {
   maxDeliveryTimeMinutes: 180,
   defaultServiceType: 'Standard Delivery',
   riderCommissionPercent: 25,
+  baseFare: 500,
+  pricePerKm: 250,
+  minimumFare: 1500,
+  waitingFee: 200,
+  mapboxPublicKey: '',
   notifications: {
     newBookings: true,
     payments: true,
