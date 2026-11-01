@@ -106,9 +106,8 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
 
   const [errors, setErrors] = useState<Partial<Record<keyof BookingFormData, string>>>({});
 
-  // Fetch active admin pricing settings on load
-  useEffect(() => {
-    fetch('/api/pricing-config')
+  const refreshPricingConfig = () => {
+    fetch('/api/pricing-config', { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((cfg) => {
         if (cfg && typeof cfg.baseFare === 'number') {
@@ -116,6 +115,11 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
         }
       })
       .catch((err) => console.warn('[Pricing Config Load]:', err));
+  };
+
+  // Fetch active admin pricing settings on load
+  useEffect(() => {
+    refreshPricingConfig();
   }, []);
 
   // Sync initial service type if prop updates
@@ -254,6 +258,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({ initialServiceType }) 
       } catch {}
     }
 
+    refreshPricingConfig();
     setStep(2);
   };
 

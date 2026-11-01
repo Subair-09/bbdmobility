@@ -3098,9 +3098,12 @@ app.get('/api/portal/audit-logs', async (req: Request, res: Response) => {
   }
 });
 
-// Public Pricing & Mapbox Config (for Customer Booking Form)
+// Public Pricing & Google/Mapbox Config (for Customer Booking Form)
 app.get('/api/pricing-config', async (_req: Request, res: Response) => {
   try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     await connectToDatabase();
     const settings = await SettingsModel.findOne().lean();
     const mapboxKey = settings?.mapboxPublicKey || process.env.VITE_MAPBOX_TOKEN || process.env.MAPBOX_ACCESS_TOKEN || '';
@@ -3234,6 +3237,9 @@ app.post('/api/calculate-fare', async (req: Request, res: Response) => {
 // 2. Settings (Admin Portal)
 app.get('/api/portal/settings', async (_req: Request, res: Response) => {
   try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     await connectToDatabase();
     let settings = await SettingsModel.findOne().lean();
     const envToken = process.env.VITE_MAPBOX_TOKEN || process.env.MAPBOX_ACCESS_TOKEN || '';

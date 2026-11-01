@@ -71,6 +71,24 @@ export const FareManagementTab: React.FC<FareManagementTabProps> = ({
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>(settings.googleMapsApiKey ?? '');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
+  // Keep form inputs synchronized when parent settings load or update
+  useEffect(() => {
+    if (!settings) return;
+    if (typeof settings.baseFare === 'number') setBaseFare(settings.baseFare);
+    if (typeof settings.pricePerKm === 'number') setPricePerKm(settings.pricePerKm);
+    if (typeof settings.pricePerMinute === 'number') setPricePerMinute(settings.pricePerMinute);
+    if (typeof settings.minimumFare === 'number') setMinimumFare(settings.minimumFare);
+    if (typeof settings.waitingChargePerMinute === 'number' || typeof settings.waitingFee === 'number') {
+      setWaitingChargePerMinute(settings.waitingChargePerMinute ?? settings.waitingFee ?? 50);
+    }
+    if (typeof settings.vatPercentage === 'number') setVatPercentage(settings.vatPercentage);
+    if (settings.vatEnabled !== undefined) setVatEnabled(settings.vatEnabled);
+    if (settings.timePricingEnabled !== undefined) setTimePricingEnabled(settings.timePricingEnabled);
+    if (settings.distancePricingEnabled !== undefined) setDistancePricingEnabled(settings.distancePricingEnabled);
+    if (typeof settings.fareRoundingIncrement === 'number') setFareRoundingIncrement(settings.fareRoundingIncrement);
+    if (settings.googleMapsApiKey !== undefined) setGoogleMapsApiKey(settings.googleMapsApiKey);
+  }, [settings]);
+
   // Interactive Test Calculator States
   const [testPickup, setTestPickup] = useState<string>('23 Amodu Street, Mushin, Lagos');
   const [testPickupCoords, setTestPickupCoords] = useState<{ lat: number; lng: number } | undefined>({ lat: 6.5186, lng: 3.3489 });

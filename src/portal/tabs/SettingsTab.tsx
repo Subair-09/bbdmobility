@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Save, 
   Bell, 
@@ -65,6 +65,30 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   // Security
   const [twoFactor, setTwoFactor] = useState(settings.twoFactorAuth || false);
   const [timeout, setTimeoutVal] = useState(settings.sessionTimeout || '8 hours');
+
+  // Synchronize inputs when settings load or update
+  useEffect(() => {
+    if (!settings) return;
+    if (typeof settings.baseFare === 'number') setBaseFare(settings.baseFare);
+    if (typeof settings.pricePerKm === 'number') setPricePerKm(settings.pricePerKm);
+    if (typeof settings.minimumFare === 'number') setMinimumFare(settings.minimumFare);
+    if (typeof settings.waitingChargePerMinute === 'number' || typeof settings.waitingFee === 'number') {
+      setWaitingFee(settings.waitingChargePerMinute ?? settings.waitingFee ?? 50);
+    }
+    if (settings.googleMapsApiKey !== undefined) setGoogleMapsApiKey(settings.googleMapsApiKey);
+    if (typeof settings.riderCommissionPercent === 'number') setCommissionPercent(settings.riderCommissionPercent);
+    if (settings.businessName) setBusinessName(settings.businessName);
+    if (settings.phone) setPhone(settings.phone);
+    if (settings.email) setEmail(settings.email);
+    if (settings.operatingCities) setOperatingCities(settings.operatingCities);
+    if (settings.address) setAddress(settings.address);
+    if (settings.description) setDescription(settings.description);
+    if (settings.defaultPickupLocation) setDefaultPickup(settings.defaultPickupLocation);
+    if (settings.serviceArea) setServiceArea(settings.serviceArea);
+    if (typeof settings.deliveryRadiusKm === 'number') setDeliveryRadius(settings.deliveryRadiusKm);
+    if (typeof settings.maxDeliveryTimeMinutes === 'number') setMaxDeliveryTime(settings.maxDeliveryTimeMinutes);
+    if (settings.defaultServiceType) setDefaultService(settings.defaultServiceType);
+  }, [settings]);
 
   const handleSaveGeneral = (e: React.FormEvent) => {
     e.preventDefault();

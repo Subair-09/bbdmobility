@@ -768,18 +768,20 @@ export const portalApi = {
     return getStoredData<GeneralSettings>('settings', INITIAL_SETTINGS);
   },
 
-  async updateSettings(settings: Partial<GeneralSettings>): Promise<void> {
-    try {
-      await authFetch(`${BASE_URL}/settings`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
-      });
-    } catch {}
-
-    const curr = getStoredData<GeneralSettings>('settings', INITIAL_SETTINGS);
-    const updated = { ...curr, ...settings };
+  async updateSettings(settings: Partial<GeneralSettings>): Promise<GeneralSettings> {
+    const res = await authFetch(`${BASE_URL}/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Server returned ${res.status}`);
+    }
+    const data = await res.json();
+    const updated = data.settings || { ...getStoredData<GeneralSettings>('settings', INITIAL_SETTINGS), ...settings };
     setStoredData('settings', updated);
+    return updated;
   },
 
   // 8. Notifications

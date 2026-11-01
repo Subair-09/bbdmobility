@@ -491,8 +491,8 @@ export function AdminPortal({ onLogout, onNavigateHome, initialTab = 'dashboard'
   };
 
   const handleUpdateSettings = async (settingsData: Partial<GeneralSettings>) => {
-    await portalApi.updateSettings(settingsData);
-    setSettings(prev => ({ ...prev, ...settingsData }));
+    const updated = await portalApi.updateSettings(settingsData);
+    setSettings(prev => ({ ...prev, ...(updated || settingsData) }));
   };
 
   return (
