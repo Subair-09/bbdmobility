@@ -4955,7 +4955,8 @@ app.post("/api/calculate-fare", async (req, res) => {
             headers: {
               "Content-Type": "application/json",
               "X-Goog-Api-Key": googleKey,
-              "X-Goog-FieldMask": "routes.duration,routes.distanceMeters"
+              "X-Goog-FieldMask": "routes.duration,routes.distanceMeters",
+              "Referer": req.headers.referer || "https://bbdmobility.com.ng/"
             },
             body: JSON.stringify({
               origin: { location: { latLng: { latitude: p[1], longitude: p[0] } } },
